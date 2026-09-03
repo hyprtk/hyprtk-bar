@@ -1,0 +1,640 @@
+"""StatusNotifier system tray (SNI).
+
+Implements the `org.kde.StatusNotifierWatcher` service with dbus-next's GLib
+integration (no extra event loop) and renders registered items as taskbar
+icons. If another process already owns the watcher name (e.g. waybar), items
+are *adopted* from that watcher instead, so the tray works alongside it and
+keeps showing items after it stops and this process takes the name.
+"""
+from __future__ import annotations
+
+import logging
+import subprocess
+import threading
+import time
+
+import gi
+gi.require_version("Gtk", "3.0")
+
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk  # noqa: E402
+
+from dbus_next.constants import MessageType, NameFlag, RequestNameReply  # noqa: E402
+from dbus_next.glib import MessageBus  # noqa: E402
+from dbus_next.service import (  # noqa: E402
+    PropertyAccess,
+    ServiceInterface,
+    dbus_property,
+    method,
+    signal,
+)
+from dbus_next import Message  # noqa: E402
+
+from .widgets import HoverButton  # noqa: E402
+
+log = logging.getLogger("hyprtk_bar.tray")
+
+WATCHER_NAME = "org.kde.StatusNotifierWatcher"
+WATCHER_PATH = "/StatusNotifierWatcher"
+ITEM_IFACE = "org.kde.StatusNotifierItem"
+ITEM_PATH = "/StatusNotifierItem"
+GENERIC_ICON = "application-x-executable"
+
+# Introspection for the item client; defines the methods/properties/signals we
+# use regardless of whether the applet exports full introspection data.
+SNI_INTROSPECTION = """<node>
+  <interface name="org.kde.StatusNotifierItem">
+    <property name="Category" type="s" access="read"/>
+    <property name="Id" type="s" access="read"/>
+    <property name="Title" type="s" access="read"/>
+    <property name="Status" type="s" access="read"/>
+    <property name="WindowId" type="u" access="read"/>
+    <property name="IconName" type="s" access="read"/>
+    <property name="IconPixmap" type="a(iiay)" access="read"/>
+    <property name="OverlayIconName" type="s" access="read"/>
+    <property name="OverlayIconPixmap" type="a(iiay)" access="read"/>
+    <property name="AttentionIconName" type="s" access="read"/>
+    <property name="AttentionIconPixmap" type="a(iiay)" access="read"/>
+    <property name="AttentionMovieName" type="s" access="read"/>
+    <property name="ToolTip" type="(sa(iiay)ss)" access="read"/>
+    <property name="ItemIsMenu" type="b" access="read"/>
+    <property name="Menu" type="o" access="read"/>
+    <property name="IconThemePath" type="s" access="read"/>
+    <method name="Activate"><arg type="i" direction="in"/><arg type="i" direction="in"/></method>
+    <method name="SecondaryActivate"><arg type="i" direction="in"/><arg type="i" direction="in"/></method>
+    <method name="ContextMenu"><arg type="i" direction="in"/><arg type="i" direction="in"/></method>
+    <method name="Scroll"><arg type="i" direction="in"/><arg type="s" direction="in"/></method>
+    <method name="Refresh"/>
+    <signal name="NewTitle"/>
+    <signal name="NewIcon"/>
+    <signal name="NewAttentionIcon"/>
+    <signal name="NewOverlayIcon"/>
+    <signal name="NewToolTip"/>
+    <signal name="NewStatus"/>
+    <signal name="NewMenu"/>
+  </interface>
+</node>"""
+
+WATCHER_INTROSPECTION = """<node>
+  <interface name="org.kde.StatusNotifierWatcher">
+    <method name="RegisterStatusNotifierItem"><arg type="s" direction="in"/></method>
+    <method name="RegisterStatusNotifierHost"><arg type="s" direction="in"/></method>
+    <property name="RegisteredStatusNotifierItems" type="as" access="read"/>
+    <property name="IsStatusNotifierHostRegistered" type="b" access="read"/>
+    <property name="ProtocolVersion" type="i" access="read"/>
+    <signal name="StatusNotifierItemRegistered"><arg type="s"/></signal>
+    <signal name="StatusNotifierItemUnregistered"><arg type="s"/></signal>
+    <signal name="StatusNotifierHostRegistered"><arg type="s"/></signal>
+  </interface>
+</node>"""
+
+DBUS_INTROSPECTION = """<node>
+  <interface name="org.freedesktop.DBus">
+    <method name="GetNameOwner"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
+    <signal name="NameOwnerChanged"><arg type="s"/><arg type="s"/><arg type="s"/></signal>
+  </interface>
+</node>"""
+
+
+def _to_snake(name: str) -> str:
+    out = []
+    for i, ch in enumerate(name):
+        if ch.isupper() and i:
+            out.append("_")
+        out.append(ch.lower())
+    return "".join(out)
+
+
+def _pixbuf_from_pixmap(width: int, height: int, argb: bytes):
+    try:
+        if width <= 0 or height <= 0 or len(argb) < width * height * 4:
+            return None
+        return GdkPixbuf.Pixbuf.new_from_bytes(
+            GLib.Bytes(argb),
+            GdkPixbuf.Colorspace.RGB,
+            True,  # has_alpha
+            8,     # bits per sample
+            width, height,
+            width * 4,
+        )
+    except Exception:
+        return None
+
+
+class Watcher(ServiceInterface):
+    """The org.kde.StatusNotifierWatcher service we export when we own the name."""
+
+    def __init__(self, controller: "TrayController"):
+        super().__init__("org.kde.StatusNotifierWatcher")
+        self._ctrl = controller
+
+    @dbus_property(access=PropertyAccess.READ)
+    def RegisteredStatusNotifierItems(self) -> "as":
+        return list(self._ctrl.services())
+
+    @dbus_property(access=PropertyAccess.READ)
+    def IsStatusNotifierHostRegistered(self) -> "b":
+        return self._ctrl.host_registered
+
+    @dbus_property(access=PropertyAccess.READ)
+    def ProtocolVersion(self) -> "i":
+        return 0
+
+    @method()
+    def RegisterStatusNotifierHost(self, service: "s"):
+        self._ctrl.set_host_registered(service)
+
+    @signal()
+    def StatusNotifierItemRegistered(self, service: "s") -> "s":
+        return service
+
+    @signal()
+    def StatusNotifierItemUnregistered(self, service: "s") -> "s":
+        return service
+
+    @signal()
+    def StatusNotifierHostRegistered(self, service: "s") -> "s":
+        return service
+
+
+class SniItem:
+    """A client-side handle to one registered StatusNotifierItem."""
+
+    def __init__(self, controller: "TrayController", service: str, path: str):
+        self._ctrl = controller
+        self.service = service
+        self.path = path
+        self.key = service if path == ITEM_PATH else f"{service}{path}"
+        self.id = ""
+        self.title = ""
+        self.icon_name = ""
+        self.tooltip = ""
+        self.status = "Active"
+        self._pixmaps: list[tuple[int, int, bytes]] = []
+        self._iface = None
+        self._props_iface = None
+        self._theme_paths_added = False
+
+    @property
+    def bus(self):
+        return self._ctrl.bus
+
+    def connect(self) -> None:
+        proxy = self.bus.get_proxy_object(self.service, self.path, SNI_INTROSPECTION)
+        self._iface = proxy.get_interface(ITEM_IFACE)
+        try:
+            self._props_iface = proxy.get_interface("org.freedesktop.DBus.Properties")
+        except Exception:
+            self._props_iface = None
+        self._subscribe()
+        # Render with defaults immediately, then update as properties arrive.
+        self._load_props()
+        self._ctrl.refresh_item(self.key)
+
+    # ── properties ────────────────────────────────────────────────
+    # All reads are callback-based. Items that never reply to a property just
+    # keep their default; the bar never blocks (sync getters would nest a
+    # GLib.MainLoop and deadlock against dbus-next's dispatch).
+
+    def _get_async(self, prop: str) -> None:
+        iface = self._iface
+        if iface is None:
+            return
+        getter = getattr(iface, f"get_{_to_snake(prop)}", None)
+        if getter is None:
+            return
+        try:
+            getter(self._on_prop(prop))
+        except Exception:
+            pass
+
+    def _on_prop(self, prop: str):
+        def cb(value, err):
+            if err is not None:
+                return
+            if prop == "ToolTip":
+                if isinstance(value, list) and len(value) >= 4:
+                    self.tooltip = value[2] or value[3] or ""
+            elif prop == "IconPixmap":
+                self._pixmaps = list(value or [])
+            elif prop == "IconThemePath":
+                if value and not self._theme_paths_added:
+                    try:
+                        Gtk.IconTheme.get_default().add_search_path(value)
+                    except Exception:
+                        pass
+                    self._theme_paths_added = True
+            else:
+                setattr(self, _to_snake(prop), value or "")
+            self._ctrl.refresh_item(self.key)
+
+        return cb
+
+    def _load_props(self) -> None:
+        for prop in (
+            "Id", "Title", "IconName", "Status", "IconPixmap", "ToolTip", "IconThemePath",
+        ):
+            self._get_async(prop)
+
+    def _subscribe(self) -> None:
+        if self._iface is None:
+            return
+        for sig in ("new_icon", "new_title", "new_tool_tip", "new_status", "new_menu"):
+            on = getattr(self._iface, f"on_{sig}", None)
+            if on:
+                try:
+                    on(self._on_change)  # these SNI signals carry no args
+                except TypeError:
+                    log.debug("no signal %r on %s", sig, self.service)
+        if self._props_iface is not None:
+            self._props_iface.on_properties_changed(
+                lambda iface_name, changed, invalidated: self._on_change()
+            )
+
+    def _on_change(self) -> None:
+        self._load_props()
+        self._ctrl.refresh_item(self.key)
+
+    # ── actions ───────────────────────────────────────────────────
+
+    def activate(self, x: int = 0, y: int = 0) -> None:
+        self._call("Activate", x, y)
+
+    def secondary_activate(self, x: int = 0, y: int = 0) -> None:
+        self._call("SecondaryActivate", x, y)
+
+    def context_menu(self, x: int = 0, y: int = 0) -> None:
+        self._call("ContextMenu", x, y)
+
+    def _call(self, method_name: str, *args) -> None:
+        iface = self._iface
+        if iface is None:
+            return
+        fn = getattr(iface, f"call_{_to_snake(method_name)}", None)
+        if fn is None:
+            return
+        try:
+            fn(*args, lambda *_a: None)
+        except Exception as exc:
+            log.warning("tray %s failed: %s", method_name, exc)
+
+    # ── rendering ─────────────────────────────────────────────────
+
+    def best_pixbuf(self):
+        if not self._pixmaps:
+            return None
+        for w, h, argb in sorted(self._pixmaps, key=lambda p: -(p[0] * p[1])):
+            pixbuf = _pixbuf_from_pixmap(w, h, bytes(argb))
+            if pixbuf is not None:
+                return pixbuf
+        return None
+
+    def label(self) -> str:
+        return self.tooltip or self.title or self.id or self.service
+
+
+class TrayButton(HoverButton):
+    def __init__(self, item: SniItem, icon_size: int, bar_edge: str = "bottom"):
+        super().__init__("tray-button", vertical=True, spacing=0)
+        self._item = item
+        self._icon_size = icon_size
+        self._bar_edge = bar_edge
+        self._image = Gtk.Image()
+        self._image.set_pixel_size(icon_size)
+        self.box.pack_start(self._image, True, True, 0)
+
+    def _screen_xy(self) -> tuple[int, int]:
+        """Approximate global pointer target for Activate/ContextMenu.
+
+        The bar spans the monitor width at an edge, so the button's screen
+        position is computable from allocations. Applets (e.g. nm-applet) use
+        these to anchor their popup menu next to the icon.
+        """
+        bar_win = self.get_toplevel()
+        bar_alloc = bar_win.get_allocation()
+        alloc = self.get_allocation()
+        x = bar_alloc.x + alloc.x + alloc.width // 2
+        screen_h = Gdk.Screen.get_default().get_height()
+        if self._bar_edge == "top":
+            y = bar_alloc.y + alloc.y + alloc.height // 2
+        else:
+            y = screen_h - bar_alloc.height + alloc.y + alloc.height // 2
+        return x, y
+
+    def refresh(self) -> None:
+        item = self._item
+        pixbuf = item.best_pixbuf()
+        if pixbuf is not None:
+            self._image.set_from_pixbuf(pixbuf)
+        else:
+            self._image.set_from_icon_name(item.icon_name or GENERIC_ICON, Gtk.IconSize.INVALID)
+            self._image.set_pixel_size(self._icon_size)
+        self.set_tooltip_text(item.label())
+        ctx = self.box.get_style_context()
+        if item.status == "Passive":
+            ctx.add_class("dimmed")
+        else:
+            ctx.remove_class("dimmed")
+
+    def _on_button_press(self, _widget, event):
+        item = self._item
+        x, y = self._screen_xy()
+        if event.button == 1:
+            item.activate(x, y)
+        elif event.button == 2:
+            item.secondary_activate(x, y)
+        elif event.button == 3:
+            item.context_menu(x, y)
+        return True
+
+
+class Tray(Gtk.Box):
+    """Taskbar row of StatusNotifier icons."""
+
+    def __init__(self, cfg: dict):
+        super().__init__(spacing=2)
+        self._icon_size = (cfg.get("tray") or {}).get("icon_size", 20)
+        self._bar_edge = cfg.get("position", "bottom")
+        self._buttons: dict[str, TrayButton] = {}
+
+    def set_item(self, key: str, item: SniItem) -> None:
+        btn = self._buttons.get(key)
+        if btn is None:
+            btn = TrayButton(item, self._icon_size, self._bar_edge)
+            self._buttons[key] = btn
+            self.pack_start(btn, False, False, 0)
+        btn.refresh()
+        self.show_all()
+
+    def remove_item(self, key: str) -> None:
+        btn = self._buttons.pop(key, None)
+        if btn is not None:
+            btn.destroy()
+
+    def clear(self) -> None:
+        for btn in self._buttons.values():
+            btn.destroy()
+        self._buttons.clear()
+
+
+class TrayController:
+    """Owns the watcher name (when possible), adopts items otherwise."""
+
+    def __init__(self, cfg: dict, tray: Tray):
+        self._cfg = cfg
+        self._tray = tray
+        self.bus: MessageBus | None = None
+        self._watcher: Watcher | None = None
+        self._items: dict[str, SniItem] = {}
+        self._am_watcher = False
+        self._host_registered = False
+        self._dbus_iface = None
+
+    # ── lifecycle ─────────────────────────────────────────────────
+
+    def start(self) -> None:
+        try:
+            self.bus = MessageBus()
+            self.bus.connect_sync()
+        except Exception as exc:
+            log.warning("could not connect to session bus: %s", exc)
+            self.bus = None
+            return
+        self._watcher = Watcher(self)
+        self.bus.export(WATCHER_PATH, self._watcher)
+        # Intercept item registrations at the message level so we can see the
+        # caller's unique name (required for path-only args, e.g. blueman).
+        self.bus.add_message_handler(self._on_message)
+        self.bus.request_name(
+            WATCHER_NAME, NameFlag.DO_NOT_QUEUE, self._on_name_reply
+        )
+        self._watch_dbus()
+        self._watch_watcher_signals()
+        self._adopt_existing()
+
+    def _on_message(self, msg):
+        if (
+            msg.message_type == MessageType.METHOD_CALL
+            and msg.member == "RegisterStatusNotifierItem"
+            and msg.interface == "org.kde.StatusNotifierWatcher"
+            and msg.path == WATCHER_PATH
+        ):
+            arg = msg.body[0] if msg.body else ""
+            self.register(arg, sender=msg.sender)
+            return Message.new_method_return(msg, "", [])
+        return False
+
+    def shutdown(self) -> None:
+        for key in list(self._items):
+            self.unregister(key)
+        if self.bus is not None:
+            try:
+                self.bus.disconnect()
+            except Exception:
+                pass
+            self.bus = None
+
+    # ── name ownership ────────────────────────────────────────────
+
+    @property
+    def host_registered(self) -> bool:
+        return self._host_registered
+
+    def set_host_registered(self, service: str) -> None:
+        """Mark a StatusNotifierHost as present (the protocol requires it).
+
+        Many applets (e.g. nm-applet) only register their item once a host has
+        announced itself, so this is announced to the watcher and reflected in
+        the IsStatusNotifierHostRegistered property + signal.
+        """
+        self._host_registered = True
+        if self._am_watcher and self._watcher is not None:
+            self._watcher.StatusNotifierHostRegistered(service)
+            self._watcher.emit_properties_changed(
+                {"IsStatusNotifierHostRegistered": True}
+            )
+
+    def _on_name_reply(self, reply, err) -> None:
+        if err is not None:
+            log.warning("could not request %s: %s", WATCHER_NAME, err)
+        elif reply == RequestNameReply.PRIMARY_OWNER:
+            self._am_watcher = True
+            log.info("owns %s", WATCHER_NAME)
+        else:
+            self._am_watcher = False
+            self._adopt_existing()
+        # Announce a host on whichever process owns the name (us or a foreign
+        # watcher) so applets waiting for a host go ahead and register.
+        if self.bus is not None:
+            self.bus.call(
+                Message(
+                    destination=WATCHER_NAME,
+                    path=WATCHER_PATH,
+                    interface="org.kde.StatusNotifierWatcher",
+                    member="RegisterStatusNotifierHost",
+                    signature="s",
+                    body=["hyprtk-bar"],
+                ),
+                lambda reply, err: None,
+            )
+        self._reset_nm_applet()
+
+    def _watch_dbus(self) -> None:
+        try:
+            proxy = self.bus.get_proxy_object(
+                "org.freedesktop.DBus", "/org/freedesktop/DBus", DBUS_INTROSPECTION
+            )
+            self._dbus_iface = proxy.get_interface("org.freedesktop.DBus")
+            self._dbus_iface.on_name_owner_changed(self._on_name_owner_changed)
+        except Exception as exc:
+            log.warning("could not watch name ownership: %s", exc)
+
+    def _watch_watcher_signals(self) -> None:
+        """Adopt items registered with whoever owns the watcher name.
+
+        The proxy resolves to the current owner (this process included), so new
+        registrations and removals are picked up even while a foreign watcher
+        (e.g. waybar) holds the name.
+        """
+        try:
+            proxy = self.bus.get_proxy_object(
+                WATCHER_NAME, WATCHER_PATH, WATCHER_INTROSPECTION
+            )
+            iface = proxy.get_interface("org.kde.StatusNotifierWatcher")
+            iface.on_status_notifier_item_registered(self._on_watcher_registered)
+            iface.on_status_notifier_item_unregistered(self._on_watcher_unregistered)
+            self._watcher_proxy_iface = iface
+        except Exception as exc:
+            log.warning("could not watch watcher signals: %s", exc)
+
+    def _on_watcher_registered(self, service: str) -> None:
+        if service and not self._am_watcher:
+            self.register(service)
+
+    def _on_watcher_unregistered(self, service: str) -> None:
+        if not service:
+            return
+        for key, item in list(self._items.items()):
+            if item.service == service:
+                self.unregister(key)
+
+    def _on_name_owner_changed(self, name, old, new) -> None:
+        if name == WATCHER_NAME:
+            if new and new != (self.bus.unique_name if self.bus else ""):
+                # another process took the name; adopt its items
+                self._am_watcher = False
+                self._adopt_existing()
+            return
+        for key, item in list(self._items.items()):
+            if item.service == name and not new:
+                self.unregister(key)
+
+    # ── item management ───────────────────────────────────────────
+
+    def services(self) -> list[str]:
+        return list(self._items)
+
+    def _reset_nm_applet(self) -> None:
+        """Kill and relaunch nm-applet so it re-registers with our watcher.
+
+        nm-applet only registers once at launch, so after a watcher handoff it
+        stays orphaned. Restarting it makes it call RegisterStatusNotifierItem
+        on whichever process owns the name now (usually us).
+        """
+        if not (self._cfg.get("tray") or {}).get("reset_nm_applet"):
+            return
+
+        def _do():
+            try:
+                subprocess.run(
+                    ["pkill", "-x", "nm-applet"], capture_output=True, timeout=5
+                )
+            except (subprocess.SubprocessError, OSError):
+                pass
+            time.sleep(0.4)
+            try:
+                subprocess.Popen(
+                    ["nm-applet", "--indicator"],
+                    start_new_session=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                log.info("relaunched nm-applet")
+            except OSError as exc:
+                log.warning("could not relaunch nm-applet: %s", exc)
+
+        threading.Thread(target=_do, daemon=True, name="nm-applet-reset").start()
+
+    def register(self, arg: str, sender: str | None = None) -> None:
+        service, path = self._split_arg(arg, sender)
+        if not service:
+            log.warning("could not resolve tray item %r", arg)
+            return
+        key = service if path == ITEM_PATH else f"{service}{path}"
+        if key in self._items:
+            return
+        item = SniItem(self, service, path)
+        try:
+            item.connect()
+        except Exception as exc:
+            log.warning("could not connect tray item %r: %s", arg, exc)
+            return
+        self._items[key] = item
+        self._tray.set_item(key, item)
+        self._emit_registered(service)
+
+    def unregister(self, key: str) -> None:
+        item = self._items.pop(key, None)
+        if item is None:
+            return
+        self._tray.remove_item(key)
+        self._emit_unregistered(item.service)
+
+    def refresh_item(self, key: str) -> None:
+        GLib.idle_add(self._do_refresh, key)
+
+    def _do_refresh(self, key: str) -> bool:
+        item = self._items.get(key)
+        if item is not None:
+            self._tray.set_item(key, item)
+        return GLib.SOURCE_REMOVE
+
+    def _emit_registered(self, service: str) -> None:
+        if self._am_watcher and self._watcher is not None:
+            self._watcher.StatusNotifierItemRegistered(service)
+            self._watcher.emit_properties_changed(
+                {"RegisteredStatusNotifierItems": list(self._items)}
+            )
+
+    def _emit_unregistered(self, service: str) -> None:
+        if self._am_watcher and self._watcher is not None:
+            self._watcher.StatusNotifierItemUnregistered(service)
+            self._watcher.emit_properties_changed(
+                {"RegisteredStatusNotifierItems": list(self._items)}
+            )
+
+    def _split_arg(self, arg: str, sender: str | None = None) -> tuple[str, str]:
+        arg = arg.strip()
+        if not arg:
+            return "", ITEM_PATH
+        if arg.startswith("/"):
+            # Path-only: the item lives on the caller's own bus name.
+            return sender or "", arg
+        if "/" in arg:
+            service, _, path = arg.rpartition("/")
+            return service, f"/{path}"
+        return arg, ITEM_PATH
+
+    # ── adoption (when another process owns the name) ─────────────
+
+    def _adopt_existing(self) -> None:
+        if self.bus is None or self._watcher is None:
+            return
+        try:
+            proxy = self.bus.get_proxy_object(
+                WATCHER_NAME, WATCHER_PATH, WATCHER_INTROSPECTION
+            )
+            iface = proxy.get_interface("org.kde.StatusNotifierWatcher")
+            for service in iface.get_registered_status_notifier_items_sync():
+                self.register(service)
+        except Exception as exc:
+            log.debug("nothing to adopt: %s", exc)

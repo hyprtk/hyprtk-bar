@@ -1,0 +1,365 @@
+"""Taskbar buttons: pinned + running apps grouped by class (Win11-style).
+
+Each app is one button with a running/active indicator. Left-click focuses the
+most recent window (or minimizes the focused one), middle-click closes, and
+hover/right-click opens a floating preview popup listing the app's windows.
+"""
+from __future__ import annotations
+
+import logging
+
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("Pango", "1.0")
+
+from gi.repository import Gio, GLib, Gtk, Pango  # noqa: E402
+
+from .popup import Popup  # noqa: E402
+from .widgets import HoverButton  # noqa: E402
+
+log = logging.getLogger("hyprtk_bar.tasklist")
+
+GENERIC_ICON = "application-x-executable"
+
+
+def resolve_icon(app_class: str, explicit: str | None = None) -> str:
+    """Best icon name for an app class: config override, desktop entry, class, generic."""
+    theme = Gtk.IconTheme.get_default()
+    if explicit and theme.has_icon(explicit):
+        return explicit
+    try:
+        info = Gio.DesktopAppInfo.new(f"{app_class}.desktop")
+    except (TypeError, GLib.Error):
+        # constructor returns NULL (raised by pygobject) when no matching .desktop
+        info = None
+    if info is not None:
+        icon = info.get_icon()
+        if icon is not None:
+            name = icon.to_string()
+            if name and theme.has_icon(name):
+                return name
+    if theme.has_icon(app_class):
+        return app_class
+    return GENERIC_ICON
+
+
+def build_preview_content(
+    box: Gtk.Box,
+    app_class: str,
+    windows: list,
+    on_focus,
+    on_close,
+    on_launch,
+) -> None:
+    """Fill ``box`` (a popup's content) with the app's window list."""
+    for child in box.get_children():
+        box.remove(child)
+
+    title = Gtk.Label(label=app_class, xalign=0)
+    title.get_style_context().add_class("popup-title")
+    title.set_margin_bottom(2)
+    box.pack_start(title, False, False, 0)
+
+    for win in windows:
+        box.pack_start(_make_row(win, on_focus, on_close), False, False, 0)
+
+    if on_launch:
+        sep = Gtk.Separator()
+        sep.set_margin_top(3)
+        sep.set_margin_bottom(3)
+        box.pack_start(sep, False, False, 0)
+        new_row = HoverButton("popup-row", vertical=False, spacing=8)
+        new_row.box.pack_start(
+            Gtk.Image.new_from_icon_name("list-add-symbolic", Gtk.IconSize.MENU),
+            False, False, 0,
+        )
+        new_row.box.pack_start(
+            Gtk.Label(label="Open new window", xalign=0), True, True, 0
+        )
+        new_row.connect("button-press-event", lambda *_a: on_launch())
+        box.pack_start(new_row, False, False, 0)
+
+    box.show_all()
+
+
+def _make_row(win: dict, on_focus, on_close):
+    row = HoverButton("popup-row", vertical=False, spacing=8)
+    icon_name = resolve_icon(win.get("class") or "unknown")
+    icon = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.MENU)
+    icon.set_pixel_size(16)
+    row.box.pack_start(icon, False, False, 0)
+    label = Gtk.Label(
+        label=(win.get("title") or win.get("class") or "Untitled"),
+        xalign=0,
+    )
+    label.set_ellipsize(Pango.EllipsizeMode.END)
+    label.set_max_width_chars(28)
+    row.box.pack_start(label, True, True, 0)
+    close = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
+    close.set_relief(Gtk.ReliefStyle.NONE)
+    close.connect("clicked", lambda *_a: on_close(win))
+    row.box.pack_start(close, False, False, 0)
+    row.connect("button-press-event", lambda *_a: on_focus(win))
+    return row
+
+
+class TaskButton(HoverButton):
+    """One taskbar icon with a running indicator and a hover preview."""
+
+    def __init__(self, app_class: str, pinned: dict, callbacks: dict):
+        super().__init__("task-button", vertical=True, spacing=2)
+        self.app_class = app_class
+        self.pinned = pinned
+        self._cb = callbacks
+        self._windows: list = []
+        self._show_timer = None
+        self._hide_timer = None
+
+        self._icon = Gtk.Image.new_from_icon_name(
+            resolve_icon(app_class, pinned.get("icon")), Gtk.IconSize.INVALID
+        )
+        self._icon.set_pixel_size(22)
+        self._icon.get_style_context().add_class("task-icon")
+        self.box.pack_start(self._icon, True, True, 0)
+
+        self._indicator = Gtk.Box()
+        self._indicator.get_style_context().add_class("task-indicator")
+        self._indicator.set_no_show_all(True)
+        self._indicator.hide()
+        self.box.pack_start(self._indicator, False, False, 0)
+
+        self.connect("enter-notify-event", self._on_enter_preview)
+        self.connect("leave-notify-event", self._on_leave_preview)
+
+    # ── state ─────────────────────────────────────────────────────
+
+    def update(self, windows: list, active: bool) -> None:
+        self._windows = windows
+        ctx = self.box.get_style_context()
+        if windows:
+            self._indicator.show()
+            ctx.remove_class("dimmed")
+        else:
+            self._indicator.hide()
+            ctx.add_class("dimmed")
+        if active:
+            ctx.add_class("active")
+        else:
+            ctx.remove_class("active")
+
+    # ── pointer ───────────────────────────────────────────────────
+
+    def _on_button_press(self, _widget, event):
+        if event.button == 1:
+            self._cb["hide_preview"]()
+            self._cb["left"]()
+        elif event.button == 2:
+            self._cb["hide_preview"]()
+            self._cb["middle"]()
+        elif event.button == 3:
+            self._show_preview(force=True)
+        return True
+
+    # ── hover preview ─────────────────────────────────────────────
+
+    def _on_enter_preview(self, *_args):
+        self._cancel_hide()
+        if self._show_timer is None and self._windows:
+            self._show_timer = GLib.timeout_add(250, self._open_preview)
+        return False
+
+    def _on_leave_preview(self, *_args):
+        if self._show_timer is not None:
+            GLib.source_remove(self._show_timer)
+            self._show_timer = None
+        self._schedule_hide()
+        return False
+
+    def _open_preview(self) -> bool:
+        self._show_timer = None
+        self._show_preview(force=False)
+        return GLib.SOURCE_REMOVE
+
+    def _show_preview(self, force: bool) -> None:
+        if not self._windows:
+            return
+        self._cb["show_preview"](self)
+
+    def _schedule_hide(self) -> None:
+        if self._hide_timer is not None:
+            return
+        self._hide_timer = GLib.timeout_add(200, self._hide_preview)
+
+    def _cancel_hide(self) -> None:
+        if self._hide_timer is not None:
+            GLib.source_remove(self._hide_timer)
+            self._hide_timer = None
+
+    def _hide_preview(self) -> bool:
+        self._cancel_hide()
+        if self._show_timer is not None:
+            GLib.source_remove(self._show_timer)
+            self._show_timer = None
+        self._cb["hide_preview"]()
+        return GLib.SOURCE_REMOVE
+
+
+class TaskList(Gtk.Box):
+    """The centered group of app buttons, with a shared preview popup."""
+
+    def __init__(self, cfg: dict, ipc):
+        super().__init__(spacing=2)
+        self._cfg = cfg
+        self._ipc = ipc
+        self._pinned = {p["class"]: p for p in (cfg.get("center") or {}).get("pinned", [])}
+        self._buttons: dict[str, TaskButton] = {}
+        self._grouped: dict[str, list] = {}
+        self._focus_address = None
+        self._active_workspace = 1
+
+        self._preview = Popup(cfg, cfg.get("position", "bottom"))
+        self._preview.set_on_leave(self._preview_leave)
+
+    # ── public ────────────────────────────────────────────────────
+
+    def update(self, clients: list, focus_address: str | None, active_workspace: int) -> None:
+        self._focus_address = focus_address
+        self._active_workspace = active_workspace
+
+        grouped: dict[str, list] = {}
+        for c in clients:
+            if not c.get("mapped"):
+                continue
+            grouped.setdefault(c.get("class") or "unknown", []).append(c)
+        self._grouped = grouped
+
+        order = list(self._pinned)
+        for cls in grouped:
+            if cls not in order:
+                order.append(cls)
+
+        for cls in list(self._buttons):
+            if cls not in order:
+                self._buttons.pop(cls).destroy()
+
+        for cls in order:
+            if cls not in self._buttons:
+                self._buttons[cls] = TaskButton(
+                    cls, self._pinned.get(cls, {}), self._callbacks(cls)
+                )
+                self.pack_start(self._buttons[cls], False, False, 0)
+
+        for cls, btn in self._buttons.items():
+            wins = grouped.get(cls, [])
+            btn.update(wins, self._focus_address in {w.get("address") for w in wins})
+        self.show_all()
+
+    def shutdown(self) -> None:
+        self._preview.hide_popup()
+        self._preview.destroy()
+
+    # ── preview popup ─────────────────────────────────────────────
+
+    def show_preview(self, button: TaskButton) -> None:
+        build_preview_content(
+            self._preview.content,
+            button.app_class,
+            button._windows,
+            on_focus=lambda win: self._preview_close(self._focus_win, win),
+            on_close=lambda win: self._preview_close(self._close_win, win),
+            on_launch=lambda: self._preview_close(self._launch, button.app_class)
+            if button.pinned
+            else None,
+        )
+        # Entering the preview cancels the button's pending hide, so moving from
+        # the icon up into the popup doesn't dismiss it.
+        self._preview.set_on_enter(button._cancel_hide)
+        self._preview.set_on_leave(self._preview_leave)
+        self._preview.show_above(button)
+
+    def hide_preview(self) -> None:
+        self._preview.hide_popup()
+
+    def _preview_leave(self) -> None:
+        btn = self._button_under_preview()
+        if btn is not None:
+            btn._schedule_hide()
+        else:
+            self.hide_preview()
+
+    def _button_under_preview(self) -> TaskButton | None:
+        return None  # pointer left into the bar; leave handling is on the button
+
+    def _preview_close(self, action, *args) -> None:
+        self.hide_preview()
+        action(*args)
+
+    # ── interactions ──────────────────────────────────────────────
+
+    def _callbacks(self, cls: str) -> dict:
+        return {
+            "left": lambda: self._left_click(cls),
+            "middle": lambda: self._middle_click(cls),
+            "show_preview": lambda btn: self.show_preview(btn),
+            "hide_preview": lambda: self.hide_preview(),
+            "focus": lambda win: self._focus_win(win),
+            "close": lambda win: self._close_win(win),
+            "launch": lambda: self._launch(cls),
+        }
+
+    def _windows(self, cls: str) -> list:
+        return self._grouped.get(cls, [])
+
+    def _left_click(self, cls: str) -> None:
+        wins = self._windows(cls)
+        if not wins:
+            self._launch(cls)
+            return
+        focused = [w for w in wins if w.get("address") == self._focus_address]
+        if focused:
+            self._minimize(focused[0])
+            return
+        target = max(wins, key=lambda w: w.get("focusHistoryID", 0))
+        self._focus_win(target)
+
+    def _middle_click(self, cls: str) -> None:
+        wins = self._windows(cls)
+        if wins:
+            target = max(wins, key=lambda w: w.get("focusHistoryID", 0))
+            self._close_win(target)
+
+    def _launch(self, cls: str) -> None:
+        command = (self._pinned.get(cls) or {}).get("command")
+        if not command:
+            return
+        try:
+            GLib.spawn_command_line_async(command)
+        except GLib.Error as exc:
+            log.warning("Failed to launch %r: %s", command, exc)
+
+    def _focus_win(self, win: dict) -> None:
+        addr = win.get("address")
+        if not addr:
+            return
+        if self._ws_id(win) < 0:  # minimized on a special workspace: restore first
+            self._ipc.move_window(self._active_workspace, addr)
+        self._ipc.focus_window(addr)
+
+    def _minimize(self, win: dict) -> None:
+        addr = win.get("address")
+        if not addr:
+            return
+        self._ipc.move_window("special:minimized", addr)
+
+    def _close_win(self, win: dict) -> None:
+        addr = win.get("address")
+        if not addr:
+            return
+        self._ipc.close_window(addr)
+
+    @staticmethod
+    def _ws_id(win: dict) -> int:
+        ws = win.get("workspace")
+        if isinstance(ws, dict):
+            return ws.get("id", 0)
+        return ws or 0

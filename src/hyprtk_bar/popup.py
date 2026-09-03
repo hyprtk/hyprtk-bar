@@ -1,0 +1,164 @@
+"""Floating popup windows (layer-shell) for previews and the calendar.
+
+Gtk.Popover is unusable near screen edges in GTK3/Wayland — it spams
+`gtk_render_frame_gap: assertion 'xy0_gap >= 0' failed` whenever the arrow is
+clamped against a corner. Popups are therefore plain layer-shell windows
+anchored to the bar's edge and offset with margins, drawn as our own rounded
+boxes (which render cleanly, like the bar pill itself).
+"""
+from __future__ import annotations
+
+import cairo
+
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("GtkLayerShell", "0.1")
+
+from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
+
+GAP = 6  # vertical gap between the bar and a popup
+
+
+class Popup(Gtk.Window):
+    """A borderless, transparent layer-shell window that floats above the bar."""
+
+    def __init__(self, cfg: dict, bar_edge: str = "bottom"):
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self._cfg = cfg
+        self._bar_edge = bar_edge
+        self._close_cb = None
+        self._enter_cb = None
+        self._leave_cb = None
+        self._hide_timer = None
+        self._pointer_inside = False
+
+        self.set_title("hyprtk-bar-popup")
+        self.set_decorated(False)
+        self.set_skip_taskbar_hint(True)
+        self.set_skip_pager_hint(True)
+        self.set_app_paintable(True)
+        self.set_accept_focus(False)
+
+        visual = self.get_screen().get_rgba_visual()
+        if visual:
+            self.set_visual(visual)
+
+        self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.content.get_style_context().add_class("popup-box")
+        self.add(self.content)
+
+        GtkLayerShell.init_for_window(self)
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.TOP)
+        GtkLayerShell.set_namespace(self, "hyprtk-bar-popup")
+        GtkLayerShell.set_exclusive_zone(self, -1)
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
+        edge = (
+            GtkLayerShell.Edge.TOP
+            if bar_edge == "top"
+            else GtkLayerShell.Edge.BOTTOM
+        )
+        GtkLayerShell.set_anchor(self, edge, True)
+
+        self.connect("size-allocate", self._on_size_allocate)
+        self.connect("enter-notify-event", self._on_enter)
+        self.connect("leave-notify-event", self._on_leave)
+        self.connect("motion-notify-event", self._on_motion)
+
+    # ── callbacks ─────────────────────────────────────────────────
+
+    def set_on_close(self, cb) -> None:
+        self._close_cb = cb
+
+    def set_on_enter(self, cb) -> None:
+        self._enter_cb = cb
+
+    def set_on_leave(self, cb) -> None:
+        self._leave_cb = cb
+
+    # ── positioning ───────────────────────────────────────────────
+
+    def show_above(self, widget) -> None:
+        """Size to content and float it just above the given bar widget."""
+        nat = self.content.get_preferred_size().natural_size
+        self.set_size_request(max(nat.width, 1), max(nat.height, 1))
+
+        bar_win = widget.get_toplevel()
+        w_alloc = widget.get_allocation()
+        bar_alloc = bar_win.get_allocation()
+        cx = bar_alloc.x + w_alloc.x + w_alloc.width // 2
+        screen_w = Gdk.Screen.get_default().get_width()
+        margin = self._cfg.get("margin", 6)
+        x = max(margin, min(cx - nat.width // 2, screen_w - nat.width - margin))
+
+        edge = (
+            GtkLayerShell.Edge.TOP
+            if self._bar_edge == "top"
+            else GtkLayerShell.Edge.BOTTOM
+        )
+        offset = (
+            self._cfg.get("height", 42)
+            + 2 * self._cfg.get("margin", 6)
+            + GAP
+        )
+        GtkLayerShell.set_margin(self, edge, offset)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, x)
+
+        self.show_all()
+
+    def hide_popup(self) -> None:
+        self._cancel_hide()
+        if self.get_visible():
+            self.hide()
+        if self._close_cb:
+            cb, self._close_cb = self._close_cb, None
+            cb()
+
+    def _on_enter(self, *_args):
+        # Pointer is (or is crossing into) the popup: any pending hide is wrong.
+        self._pointer_inside = True
+        self._cancel_hide()
+        if self._enter_cb is not None:
+            self._enter_cb()
+        return False
+
+    def _on_motion(self, *_args):
+        self._pointer_inside = True
+        self._cancel_hide()
+        return False
+
+    def _on_leave(self, *_args):
+        # GTK3/Wayland crossing is unreliable between layer-shell surfaces: a
+        # spurious leave can fire while the pointer is still on its way in from
+        # the triggering button. Only hide if the pointer had actually been
+        # inside the popup, and even then grace briefly so enter/motion can
+        # cancel it.
+        was_inside = self._pointer_inside
+        self._pointer_inside = False
+        if was_inside and self._leave_cb is not None and self._hide_timer is None:
+            self._hide_timer = GLib.timeout_add(200, self._do_hide)
+        return False
+
+    def _cancel_hide(self) -> None:
+        if self._hide_timer is not None:
+            GLib.source_remove(self._hide_timer)
+            self._hide_timer = None
+
+    def _do_hide(self) -> bool:
+        self._hide_timer = None
+        if self._leave_cb is not None:
+            self._leave_cb()
+        return GLib.SOURCE_REMOVE
+
+    # ── input shape: only the content box is interactive ──────────
+
+    def _on_size_allocate(self, *_args) -> None:
+        wnd = self.get_window()
+        if wnd is None:
+            return
+        region = cairo.Region()
+        alloc = self.content.get_allocation()
+        region.union(
+            cairo.RectangleInt(alloc.x, alloc.y, alloc.width, alloc.height)
+        )
+        wnd.input_shape_combine_region(region, 0, 0)
