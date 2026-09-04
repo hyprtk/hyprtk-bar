@@ -357,12 +357,21 @@ class NotificationCenterButton(HoverButton):
             icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
         )
         self._icon.get_style_context().add_class("accent-icon")
-        self.box.pack_start(self._icon, True, True, 0)
 
+        # Unread indicator: a numbered dot overlaid on the icon's bottom-left
+        # corner (mirrors the tasklist running dot) so the bar never resizes.
+        self._overlay = Gtk.Overlay()
+        self._overlay.add(self._icon)
         self._badge = Gtk.Label(label="")
-        self._badge.get_style_context().add_class("notif-badge")
+        self._badge.get_style_context().add_class("notif-dot")
         self._badge.set_no_show_all(True)
-        self.box.pack_end(self._badge, False, False, 0)
+        self._badge.set_halign(Gtk.Align.START)
+        self._badge.set_valign(Gtk.Align.END)
+        self._badge.set_margin_start(2)
+        self._badge.set_margin_bottom(2)
+        self._badge.hide()
+        self._overlay.add_overlay(self._badge)
+        self.box.pack_start(self._overlay, True, True, 0)
 
         ctrl.add_listener(self._on_change)
         self._refresh_badge()

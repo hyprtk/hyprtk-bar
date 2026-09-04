@@ -363,7 +363,7 @@ menu separator {{
 }}
 .notif-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .notif-button.hover {{ background-color: {hover}; }}
-.notif-badge {{
+.notif-dot {{
   background-color: {accent};
   color: {active_fg};
   font-size: 9px;
@@ -372,7 +372,6 @@ menu separator {{
   min-height: 14px;
   border-radius: 7px;
   padding: 0 3px;
-  margin: 0 0 2px 0;
 }}
 .notif-title {{ font-weight: bold; padding-bottom: 6px; }}
 .notif-row {{

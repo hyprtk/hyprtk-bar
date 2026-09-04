@@ -268,7 +268,7 @@ class BarWindow(Gtk.Window):
         # center) and the toast to the new bar edge.
         position = self._cfg["position"]
         for widget in self._bar._widgets.values():
-            for attr in ("_popup", "_preview"):
+            for attr in ("_popup", "_date_popup", "_preview"):
                 popup = getattr(widget, attr, None)
                 if popup is not None:
                     popup.set_bar_edge(position)
