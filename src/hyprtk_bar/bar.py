@@ -292,6 +292,15 @@ class Bar(Gtk.Box):
     def rebuild_layout(self) -> None:
         self._build_layout(self._cfg.get("layout") or DEFAULT_LAYOUT)
 
+    def apply_palette_layout(self, palette: dict) -> None:
+        """Apply theme-derived layout (module spacing) to the bar sections."""
+        spacing = palette.get("spacing")
+        if spacing is None:
+            return
+        s = max(0, int(round(spacing)))
+        for section in self._sections.values():
+            section.box.set_spacing(s)
+
     # ── bar menu ────────────────────────────────────────────────
 
     def show_bar_menu(self, event) -> None:

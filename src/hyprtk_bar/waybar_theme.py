@@ -139,6 +139,13 @@ def _resolve_import(origin: Path, imp: str) -> Path | None:
         target = Path(imp)
     else:
         target = (origin.parent / imp).resolve()
+        if not target.is_file():
+            # Waybar themes use relative @imports (e.g. "../../../../../.cache/wal")
+            # that assume a particular deploy depth. When the depth doesn't match
+            # the bar's themes dir, fall back to the home-relative remainder so
+            # `~/.cache/wal/...` imports still resolve.
+            rest = re.sub(r"^(?:\.\./|\./)+", "", imp)
+            target = (Path.home() / rest).resolve()
     if target.is_file():
         return target
     return None
@@ -265,6 +272,51 @@ def _prop(body: str, name: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
+def _length_px(value: str | None) -> float | None:
+    m = re.fullmatch(r"([\d.]+)px", (value or "").strip())
+    return float(m.group(1)) if m else None
+
+
+def _length(body: str | None, name: str) -> float | None:
+    return _length_px(_prop(body or "", name))
+
+
+def _padding(body: str | None) -> list[float] | None:
+    """Parse `padding` into 1-4 length values (px), or None."""
+    value = _prop(body or "", "padding")
+    if not value:
+        return None
+    nums = [n for p in value.split() if (n := _length_px(p)) is not None]
+    return nums or None
+
+
+def _border(body: str | None, colors: dict[str, str]) -> tuple[float | None, str | None]:
+    """Return (width_px, color) of ``window#waybar``'s border, or (None, None)."""
+    value = _prop(body or "", "border")
+    if value:
+        v = value.strip()
+        if v.lower() in ("none", "0"):
+            return None, None
+        m = re.fullmatch(r"([\d.]+)px\s+(?:[a-z]+)\s+(.+)", v, re.I)
+        if m:
+            color = _resolve_value(m.group(2).strip(), colors)
+            if color:
+                return float(m.group(1)), color
+    for edge in ("border-top", "border-bottom"):
+        ev = _prop(body or "", edge)
+        if not ev:
+            continue
+        em = re.fullmatch(r"([\d.]+)px\s+(?:[a-z]+)\s+(.+)", ev.strip(), re.I)
+        color = _resolve_value(em.group(2).strip(), colors) if em else _resolve_value(ev.strip(), colors)
+        if color:
+            return (float(em.group(1)) if em else 1), color
+    width = _length(body, "border-width")
+    color = _resolve_value(_prop(body or "", "border-color") or "", colors)
+    if width and color:
+        return width, color
+    return None, None
+
+
 def _background_color(body: str, colors: dict[str, str]) -> str | None:
     value = _prop(body, "background") or _prop(body, "background-color")
     if not value:
@@ -305,6 +357,7 @@ def parse_palette(theme_name: str) -> dict | None:
     css = _read_theme_css(theme_dir)
     colors = _parse_define_colors(css)
     blocks = _css_blocks(css)
+    win_body = blocks.get("window#waybar")
 
     def pick(kind: str, selector: str) -> str | None:
         body = blocks.get(selector)
@@ -326,12 +379,15 @@ def parse_palette(theme_name: str) -> dict | None:
         or colors.get("color7")
         or "#c0caf5"
     )
+    border_width, border_color = _border(win_body, colors)
     accent = _solid(
         colors.get("accent")
         or colors.get("color5")
         or colors.get("color4")
         or colors.get("mauve")
         or colors.get("sky")
+        or border_color  # the theme's bar border is a strong accent signal
+        or pick("background", "#workspaces button.focused")
         or pick("background", "#workspaces button.active")
         or foreground
     )
@@ -350,4 +406,16 @@ def parse_palette(theme_name: str) -> dict | None:
     }
     if font:
         palette["font"] = font
+    if border_width is not None and border_color:
+        palette["border_width"] = border_width
+        palette["border_color"] = border_color
+    radius = _length(win_body, "border-radius")
+    if radius is not None:
+        palette["border_radius"] = radius
+    spacing = _length(win_body, "spacing")
+    if spacing is not None:
+        palette["spacing"] = spacing
+    padding = _padding(win_body)
+    if padding:
+        palette["padding"] = padding
     return palette

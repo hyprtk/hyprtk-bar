@@ -106,9 +106,23 @@ def import_waybar_palette(theme: dict) -> dict | None:
     return palette
 
 
+def _padding_css(nums: list) -> str:
+    return " ".join(f"{n:g}px" for n in nums)
+
+
+def _vertical_padding(nums: list) -> float:
+    if len(nums) == 1:
+        return nums[0] * 2
+    if len(nums) == 2:
+        return nums[0] * 2
+    if len(nums) == 3:
+        return nums[0] + nums[2]
+    return nums[0] + nums[2]
+
+
 def build_css(palette: dict, cfg: dict) -> str:
     margin = cfg.get("margin", 6)
-    radius = cfg.get("radius", 12)
+    radius = palette.get("border_radius", cfg.get("radius", 12))
     height = cfg.get("height", 42)
     opacity = cfg.get("opacity", 0.95)
 
@@ -121,14 +135,28 @@ def build_css(palette: dict, cfg: dict) -> str:
     font = palette.get("font")
     font_rule = f"  font-family: {font};\n" if font else ""
 
+    border_rule = ""
+    extra_v = 0.0
+    border_width = palette.get("border_width")
+    border_color = palette.get("border_color")
+    if border_width and border_color:
+        border_rule = f"  border: {border_width:g}px solid {border_color};\n"
+        extra_v += 2 * border_width
+    padding_rule = ""
+    padding = palette.get("padding")
+    if padding:
+        padding_rule = f"  padding: {_padding_css(padding)};\n"
+        extra_v += _vertical_padding(padding)
+    min_height = max(20, int(round(height - extra_v)))
+
     return f"""
 .taskbar {{
   background-color: {bg};
   border-radius: {radius}px;
   margin: {margin}px {margin}px {margin}px {margin}px;
-  min-height: {height}px;
+  min-height: {min_height}px;
   color: {fg};
-{font_rule}}}
+{border_rule}{padding_rule}{font_rule}}}
 .show-desktop {{
   background-color: {bg};
   border-radius: 5px;

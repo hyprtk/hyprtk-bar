@@ -181,8 +181,10 @@ class BarWindow(Gtk.Window):
     # ── theming ───────────────────────────────────────────────────
 
     def _apply_theme(self) -> None:
-        css = build_css(resolve_palette(self._cfg), self._cfg)
+        palette = resolve_palette(self._cfg)
+        css = build_css(palette, self._cfg)
         self._provider.load_from_data(css.encode())
+        self._bar.apply_palette_layout(palette)
 
     def _setup_theme_monitors(self) -> None:
         """Watch the sources a live re-theme depends on.
