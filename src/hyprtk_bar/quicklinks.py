@@ -14,13 +14,12 @@ import subprocess
 
 import gi
 gi.require_version("Gtk", "3.0")
-gi.require_version("Pango", "1.0")
 
-from gi.repository import Gio, Gtk, Pango  # noqa: E402
+from gi.repository import Gio, Gtk  # noqa: E402
 
 from .config import DEFAULT_LINKS, icon_size_for  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
-from .widgets import HoverButton, spawn  # noqa: E402
+from .widgets import Glyph, HoverButton, spawn  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.quicklinks")
 
@@ -69,26 +68,22 @@ class QuickLinkButton(HoverButton):
     def __init__(self, cfg: dict, link: dict, icon_size: int):
         super().__init__("task-button", vertical=False, spacing=0)
         self._link = link
-        self._glyph = Gtk.Label(label=link.get("icon", ""))
-        self._glyph.get_style_context().add_class("quicklink-glyph")
+        ql = cfg.get("quicklinks") or {}
+        self._glyph = Glyph(
+            link.get("icon", ""),
+            "quicklink-glyph",
+            (ql.get("glyph_font") or "").strip(),
+        )
         self.box.pack_start(self._glyph, False, False, 0)
-        self._set_glyph_size(icon_size)
+        self._glyph.set_pixel_size(icon_size)
         label = link.get("label") or link.get("id") or ""
         bind_hover_tooltip(self, cfg, lambda: label)
 
-    def _set_glyph_size(self, size: int) -> None:
-        attrs = Pango.AttrList()
-        # attr_size_new takes POINTS (size * SCALE == size pt, ~1.33x larger
-        # than px at 96dpi); attr_size_new_absolute takes device units so the
-        # glyph matches the pixel size used by every other module icon.
-        attrs.insert(Pango.attr_size_new_absolute(int(max(size, 10)) * Pango.SCALE))
-        self._glyph.set_attributes(attrs)
-
     def apply_font(self, font_size, icon_size=0) -> None:
         if icon_size:
-            self._set_glyph_size(max(10, int(icon_size)))
+            self._glyph.set_pixel_size(max(10, int(icon_size)))
         else:
-            self._set_glyph_size(icon_size_for(font_size, icon_size))
+            self._glyph.set_pixel_size(icon_size_for(font_size, icon_size))
 
     def _on_button_press(self, _widget, event):
         command = self._link.get(

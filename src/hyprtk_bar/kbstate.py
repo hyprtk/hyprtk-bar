@@ -12,11 +12,11 @@ import logging
 import gi
 gi.require_version("Gtk", "3.0")
 
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import GLib  # noqa: E402
 
 from .config import icon_size_for  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
-from .widgets import HoverButton  # noqa: E402
+from .widgets import Glyph, HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.kbstate")
 
@@ -27,10 +27,10 @@ _LED_GLOBS = {
     "num": "/sys/class/leds/*::numlock/brightness",
 }
 
-# (state key, icon name) — caps uses a padlock, num uses a keyboard.
+# (state key, glyph) — caps uses a padlock, num uses a keyboard.
 _ICONS = (
-    ("caps", "system-lock-screen-symbolic"),
-    ("num", "input-keyboard-symbolic"),
+    ("caps", "\uf023"),  # fa-lock
+    ("num", "\uf11c"),   # fa-keyboard
 )
 
 
@@ -55,11 +55,10 @@ class KbState(HoverButton):
         icon_size = icon_size_for(
             font_cfg.get("size", 16), font_cfg.get("icon_size", 0)
         )
-        self._icons: dict[str, Gtk.Image] = {}
-        for key, name in _ICONS:
-            img = Gtk.Image.new_from_icon_name(name, Gtk.IconSize.INVALID)
+        self._icons: dict[str, Glyph] = {}
+        for key, glyph in _ICONS:
+            img = Glyph(glyph, "kbstate-icon")
             img.set_pixel_size(icon_size)
-            img.get_style_context().add_class("kbstate-icon")
             img.get_style_context().add_class(key)
             self.box.pack_start(img, False, False, 0)
             self._icons[key] = img

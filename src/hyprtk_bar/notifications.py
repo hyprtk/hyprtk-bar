@@ -26,7 +26,7 @@ from dbus_next.service import ServiceInterface, method, signal  # noqa: E402
 from .config import icon_size_for  # noqa: E402
 from .popup import Popup, bind_hover_tooltip  # noqa: E402
 from .popup import Popup  # noqa: E402
-from .widgets import HoverButton  # noqa: E402
+from .widgets import Glyph, HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.notifications")
 
@@ -348,15 +348,11 @@ class NotificationCenterButton(HoverButton):
         self._ctrl = ctrl
         self._popup = NotificationCenter(cfg, ctrl)
 
-        icon = Gtk.Image.new_from_icon_name(
-            "notification-symbolic", Gtk.IconSize.INVALID
-        )
         font_cfg = cfg.get("font") or {}
-        self._icon = icon
+        self._icon = Glyph("\uf0f3", "accent-icon")
         self._icon.set_pixel_size(
             icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
         )
-        self._icon.get_style_context().add_class("accent-icon")
 
         # Unread indicator: a numbered dot overlaid on the icon's bottom-left
         # corner (mirrors the tasklist running dot) so the bar never resizes.

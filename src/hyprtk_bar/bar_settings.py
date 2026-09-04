@@ -317,7 +317,7 @@ class BarSettings(Gtk.Window):
         icon_label.set_size_request(70, -1)
         self._icon_size = Gtk.SpinButton.new_with_range(0, 48, 1)
         self._icon_size.set_value(icon_size)
-        icon_hint = Gtk.Label(label="px (0 = auto with font size)", xalign=0)
+        icon_hint = Gtk.Label(label="px (0 = auto; module icons + start)", xalign=0)
         icon_hint.set_opacity(0.7)
         icon_row.pack_start(icon_label, False, False, 0)
         icon_row.pack_start(self._icon_size, True, True, 0)

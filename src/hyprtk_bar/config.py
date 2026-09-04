@@ -142,6 +142,7 @@ DEFAULTS = {
     "center": {
         "start_button": True,
         "start_icon": "view-grid-symbolic",
+        "start_glyph": "\uf015",
         "start_command": "hyprtk-menu",
         "pinned": DEFAULT_PINNED,
     },

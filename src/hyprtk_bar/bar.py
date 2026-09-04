@@ -29,7 +29,7 @@ from .quicklinks import QuickLinks  # noqa: E402
 from .sysmon import SysMon  # noqa: E402
 from .tasklist import TaskList  # noqa: E402
 from .tray import Tray, TrayController  # noqa: E402
-from .widgets import HoverButton, spawn  # noqa: E402
+from .widgets import Glyph, HoverButton, spawn  # noqa: E402
 from .window import Window  # noqa: E402
 from .workspaces import Workspaces  # noqa: E402
 
@@ -42,15 +42,12 @@ class StartButton(HoverButton):
         center = cfg.get("center") or {}
         self._ipc = ipc
         self._command = center.get("start_command", "hyprtk-menu")
-        icon = Gtk.Image.new_from_icon_name(
-            center.get("start_icon", "go-home-symbolic"), Gtk.IconSize.INVALID
-        )
         font_cfg = cfg.get("font") or {}
-        self._icon = icon
-        self._icon.set_pixel_size(
+        glyph = Glyph(center.get("start_glyph", "\uf015"), "accent-icon")
+        glyph.set_pixel_size(
             icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
         )
-        self._icon.get_style_context().add_class("accent-icon")
+        self._icon = glyph
         self.box.pack_start(self._icon, True, True, 0)
         # Keep the start icon clear of the bar's left edge, with the same
         # breathing room as the spacing between the other modules.

@@ -11,7 +11,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from .config import icon_size_for  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
-from .widgets import HoverButton  # noqa: E402
+from .widgets import Glyph, HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.sysmon")
 
@@ -67,20 +67,19 @@ class SysMon(HoverButton):
         self._disk_path = self._sys_cfg.get("disk_path", "/")
         self._prev = _read_cpu_sample()
         self._labels: dict[str, Gtk.Label] = {}
-        self._icons: list[Gtk.Image] = []
+        self._icons: list[Glyph] = []
         self._tip = ""
         font_cfg = cfg.get("font") or {}
         icon_size = icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
 
-        for key, icon in (
-            ("cpu", "utilities-system-monitor-symbolic"),
-            ("mem", "memory-symbolic"),
-            ("disk", "drive-harddisk-symbolic"),
+        for key, glyph in (
+            ("cpu", "\uf2db"),  # fa-microchip
+            ("mem", "\uf1c0"),  # fa-database (RAM)
+            ("disk", "\uf0a0"),  # fa-hdd-o
         ):
             item = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
-            img = Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.INVALID)
+            img = Glyph(glyph, "accent-icon")
             img.set_pixel_size(icon_size)
-            img.get_style_context().add_class("accent-icon")
             self._icons.append(img)
             item.pack_start(img, False, False, 0)
             label = Gtk.Label(label="--%")

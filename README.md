@@ -169,6 +169,7 @@ flags automatically.
 "center": {
   "start_button": true,
   "start_icon": "view-grid-symbolic",
+  "start_glyph": "\uf015",
   "start_command": "hyprtk-menu",
   "pinned": [
     { "class": "firefox", "command": "firefox", "icon": "firefox" }
@@ -198,6 +199,10 @@ flags automatically.
 
 - **pinned** entries: `class` is matched against running windows, `command` is
   launched on click when the app is not running, `icon` overrides the icon.
+- **start_glyph**: the start button's Nerd Font glyph (default `\uf015`, fa-home).
+  Module icons (start button, quick settings, notification bell, keyboard state,
+  system monitor) are all Nerd Font glyphs sized by the Fonts tab's *Icon size*
+  setting (0 = auto with the font size).
 - **quicklinks.links** entries: `icon` is a Nerd Font glyph (any font glyph the
   bar can render), `label` is the hover tooltip, `command` runs on left-click;
   optional `command_right` / `command_middle` run on right- / middle-click.
