@@ -9,6 +9,7 @@ keeps showing items after it stops and this process takes the name.
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 import threading
 import time
@@ -30,6 +31,7 @@ from dbus_next.service import (  # noqa: E402
 )
 from dbus_next import Message  # noqa: E402
 
+from .popup import bind_hover_tooltip  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.tray")
@@ -39,6 +41,103 @@ WATCHER_PATH = "/StatusNotifierWatcher"
 ITEM_IFACE = "org.kde.StatusNotifierItem"
 ITEM_PATH = "/StatusNotifierItem"
 GENERIC_ICON = "application-x-executable"
+
+
+# ── themed tray tooltips (network / bluetooth) ────────────────────
+
+def _tray_run(args, timeout=3) -> str:
+    try:
+        out = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        return out.stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        return ""
+
+
+class _NetRate:
+    """Two-point upload/download rate sampler over /proc/net/dev."""
+
+    def __init__(self):
+        self._prev: tuple[int, int] | None = None
+        self._prev_t = 0.0
+
+    def sample(self, iface: str) -> tuple[float | None, float | None]:
+        try:
+            with open("/proc/net/dev") as f:
+                for line in f:
+                    if line.lstrip().startswith(iface + ":"):
+                        parts = line.split()
+                        rx, tx = int(parts[1]), int(parts[9])
+                        now = time.monotonic()
+                        up = dn = None
+                        if self._prev is not None and now > self._prev_t:
+                            dt = now - self._prev_t
+                            up = max(0.0, (tx - self._prev[1])) / dt / 1024.0
+                            dn = max(0.0, (rx - self._prev[0])) / dt / 1024.0
+                        self._prev = (rx, tx)
+                        self._prev_t = now
+                        return up, dn
+        except (OSError, ValueError, IndexError):
+            pass
+        return None, None
+
+
+def _active_network_device() -> str:
+    """The connected NetworkManager device name ('' when none)."""
+    for line in _tray_run(
+        ["nmcli", "-t", "-f", "DEVICE,STATE", "device", "status"]
+    ).splitlines():
+        dev, _, state = line.partition(":")
+        if state == "connected":
+            return dev
+    return ""
+
+
+def _device_ip(dev: str) -> str:
+    return _tray_run(["nmcli", "-g", "IP4.ADDRESS", "device", "show", dev])
+
+
+def _fmt_rate(value: float | None) -> str:
+    return "--" if value is None else f"{value:.1f} KiB/s"
+
+
+def network_tooltip(net_rate: _NetRate) -> str:
+    dev = _active_network_device()
+    lines = ["Network"]
+    if not dev:
+        lines.append("Not connected")
+        return "\n".join(lines)
+    ip = _device_ip(dev)
+    up, dn = net_rate.sample(dev)
+    lines.append(f"Device: {dev}")
+    if ip:
+        lines.append(f"IP: {ip}")
+    lines.append(f"Upload: {_fmt_rate(up)}")
+    lines.append(f"Download: {_fmt_rate(dn)}")
+    return "\n".join(lines)
+
+
+def bluetooth_tooltip() -> str:
+    show = _tray_run(["bluetoothctl", "show"])
+    m = re.search(r"Powered:\s+(yes|no)", show)
+    power = "on" if (m and m.group(1) == "yes") else "off"
+    lines = ["Bluetooth", f"Power: {power}"]
+    connected = _tray_run(["bluetoothctl", "devices", "Connected"])
+    devices = [l.strip() for l in connected.splitlines() if l.strip()]
+    if devices:
+        lines.append("Connected:")
+        for line in devices:
+            parts = line.split()
+            name = " ".join(parts[2:]) if len(parts) > 2 else line
+            lines.append(f"  {name}")
+    return "\n".join(lines)
+
+
+def _is_nm_applet(item: "SniItem") -> bool:
+    return "nm_applet" in (item.path or "")
+
+
+def _is_blueman(item: "SniItem") -> bool:
+    return "blueman" in (item.path or "")
 
 # Introspection for the item client; defines the methods/properties/signals we
 # use regardless of whether the applet exports full introspection data.
@@ -301,15 +400,28 @@ class SniItem:
 
 
 class TrayButton(HoverButton):
-    def __init__(self, item: SniItem, icon_size: int, bar_edge: str = "bottom"):
+    def __init__(self, item: SniItem, icon_size: int, bar_edge: str = "bottom", cfg: dict | None = None):
         super().__init__("tray-button", vertical=True, spacing=0)
         self._item = item
         self._icon_size = icon_size
         self._bar_edge = bar_edge
+        self._cfg = cfg or {}
         self._dbusmenu = None
         self._image = Gtk.Image()
         self._image.set_pixel_size(icon_size)
         self.box.pack_start(self._image, True, True, 0)
+
+        # Network (nm-applet) and bluetooth (blueman) icons get themed popup
+        # tooltips like every other module; nm-applet's left click opens the
+        # connection editor.
+        self._is_nm = _is_nm_applet(item)
+        self._is_blueman = _is_blueman(item)
+        self._net_rate = _NetRate() if self._is_nm else None
+        if cfg:
+            if self._is_nm:
+                bind_hover_tooltip(self, cfg, lambda: network_tooltip(self._net_rate))
+            elif self._is_blueman:
+                bind_hover_tooltip(self, cfg, bluetooth_tooltip)
 
     def _monitor_geometry(self):
         """(x, y, w, h) of the bar's monitor, or the whole screen fallback."""
@@ -348,7 +460,8 @@ class TrayButton(HoverButton):
         else:
             self._image.set_from_icon_name(item.icon_name or GENERIC_ICON, Gtk.IconSize.INVALID)
             self._image.set_pixel_size(self._icon_size)
-        self.set_tooltip_text(item.label())
+        if not (self._is_nm or self._is_blueman):
+            self.set_tooltip_text(item.label())
         ctx = self.box.get_style_context()
         if item.status == "Passive":
             ctx.add_class("dimmed")
@@ -357,6 +470,9 @@ class TrayButton(HoverButton):
 
     def _on_button_press(self, _widget, event):
         item = self._item
+        if event.button == 1 and self._is_nm and self._cfg:
+            self._launch_nm_editor()
+            return True
         x, y = self._screen_xy()
         if event.button == 1:
             if item.item_is_menu and item.menu_path:
@@ -371,6 +487,12 @@ class TrayButton(HoverButton):
             else:
                 item.context_menu(x, y)
         return True
+
+    def _launch_nm_editor(self) -> None:
+        try:
+            GLib.spawn_command_line_async("nm-connection-editor")
+        except GLib.Error as exc:
+            log.warning("could not open nm-connection-editor: %s", exc)
 
     def _show_dbus_menu(self, event) -> None:
         """Render the item's com.canonical.dbusmenu (if it exports one) as a Gtk.Menu."""
@@ -402,6 +524,7 @@ class Tray(Gtk.Box):
 
     def __init__(self, cfg: dict):
         super().__init__(spacing=2)
+        self._cfg = cfg
         self._icon_size = (cfg.get("tray") or {}).get("icon_size", 20)
         self._bar_edge = cfg.get("position", "bottom")
         self._buttons: dict[str, TrayButton] = {}
@@ -409,7 +532,7 @@ class Tray(Gtk.Box):
     def set_item(self, key: str, item: SniItem) -> None:
         btn = self._buttons.get(key)
         if btn is None:
-            btn = TrayButton(item, self._icon_size, self._bar_edge)
+            btn = TrayButton(item, self._icon_size, self._bar_edge, self._cfg)
             self._buttons[key] = btn
             self.pack_start(btn, False, False, 0)
         btn.refresh()

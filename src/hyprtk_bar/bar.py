@@ -10,6 +10,7 @@ sections (left/center/right) populated from the config's ``layout``.
 from __future__ import annotations
 
 import logging
+import os
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -222,7 +223,12 @@ class Bar(Gtk.Box):
         if mid == "workspaces":
             return Workspaces(cfg, ipc)
         if mid == "tasklist":
-            return TaskList(cfg, ipc)
+            return TaskList(
+                cfg,
+                ipc,
+                reload_cb=self.reload_config,
+                restart_cb=self.restart,
+            )
         if mid == "window":
             return Window(cfg, ipc)
         if mid == "sysmon":
@@ -255,6 +261,43 @@ class Bar(Gtk.Box):
 
     def rebuild_layout(self) -> None:
         self._build_layout(self._cfg.get("layout") or DEFAULT_LAYOUT)
+
+    def reload_config(self) -> None:
+        """Reload config from disk into the SHARED cfg dict in place.
+
+        The window's _cfg is the same object, so a fresh dict assignment would
+        be invisible to the theme/layer callbacks.
+        """
+        cfg = self._cfg
+        fresh = config_module.load()
+        cfg.clear()
+        cfg.update(fresh)
+        self._width = str(cfg.get("width", "100%"))
+        self._align = cfg.get("align", "center")
+        self._last_width = -1
+        self.rebuild_layout()
+        if self._theme_cb is not None:
+            self._theme_cb()
+        self._apply_width()
+        if self._height_cb is not None:
+            self._height_cb()
+        if self._position_cb is not None:
+            self._position_cb()
+
+    def restart(self) -> None:
+        """Spawn a fresh bar and exit this one.
+
+        The single-instance flock means a new process can only start once this
+        one has released it, so the replacement is launched after a short delay
+        and then this instance quits.
+        """
+        launcher = os.path.expanduser("~/.local/bin/hyprtk-bar")
+        try:
+            GLib.spawn_command_line_async(f"sh -c 'sleep 1; exec {launcher}'")
+        except GLib.Error as exc:
+            log.warning("could not schedule bar restart: %s", exc)
+            return
+        GLib.timeout_add(200, lambda: Gtk.main_quit() or False)
 
     def apply_palette_layout(self, palette: dict) -> None:
         """Apply theme-derived layout (module spacing) to the bar sections."""
@@ -321,22 +364,7 @@ class Bar(Gtk.Box):
             self.rebuild_layout()
 
         def reload_config() -> None:
-            # Reload into the SHARED cfg dict in place — the window's _cfg is
-            # the same object, so a fresh dict assignment would be invisible to
-            # the theme/layer callbacks.
-            fresh = config_module.load()
-            cfg.clear()
-            cfg.update(fresh)
-            self._width = str(cfg.get("width", "100%"))
-            self._align = cfg.get("align", "center")
-            self._last_width = -1
-            self.rebuild_layout()
-            _theme()
-            self._apply_width()
-            if self._height_cb is not None:
-                self._height_cb()
-            if self._position_cb is not None:
-                self._position_cb()
+            self.reload_config()
 
         def set_width(value: str) -> None:
             self._width = str(value)

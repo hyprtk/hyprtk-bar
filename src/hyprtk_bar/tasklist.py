@@ -305,10 +305,12 @@ class TaskButton(HoverButton):
 class TaskList(Gtk.Box):
     """The centered group of app buttons, with a shared preview popup."""
 
-    def __init__(self, cfg: dict, ipc):
+    def __init__(self, cfg: dict, ipc, reload_cb=None, restart_cb=None):
         super().__init__(spacing=2)
         self._cfg = cfg
         self._ipc = ipc
+        self._reload_cb = reload_cb
+        self._restart_cb = restart_cb
         self._pinned = {p["class"]: p for p in (cfg.get("center") or {}).get("pinned", [])}
         self._buttons: dict[str, TaskButton] = {}
         self._grouped: dict[str, list] = {}
@@ -444,6 +446,7 @@ class TaskList(Gtk.Box):
         config_module.save(self._cfg)
         self._pinned = {p["class"]: p for p in pinned}
         self._refresh()
+        self._reload_and_verify(cls, expected=True)
 
     def _choose_pin_icon(self, cls: str) -> str:
         """Ask whether to use the generic symbolic category icon or the actual
@@ -481,6 +484,28 @@ class TaskList(Gtk.Box):
         config_module.save(self._cfg)
         self._pinned = {p["class"]: p for p in self._cfg["center"]["pinned"]}
         self._refresh()
+        self._reload_and_verify(cls, expected=False)
+
+    def _reload_and_verify(self, cls: str, expected: bool) -> None:
+        """Reload the bar config after a pin change; restart if it didn't stick."""
+        try:
+            if self._reload_cb is not None:
+                self._reload_cb()
+        except Exception as exc:
+            log.warning("config reload after pin change failed: %s", exc)
+        GLib.timeout_add(600, self._verify_pin_change, cls, expected)
+
+    def _verify_pin_change(self, cls: str, expected: bool) -> bool:
+        present = cls in self._pinned and cls in self._buttons
+        if present != expected:
+            log.warning(
+                "pin change for %r not reflected (%s), restarting bar",
+                cls,
+                "expected present" if expected else "expected gone",
+            )
+            if self._restart_cb is not None:
+                self._restart_cb()
+        return GLib.SOURCE_REMOVE
 
     def _refresh(self) -> None:
         self.update(self._last_clients, self._focus_address, self._active_workspace)
