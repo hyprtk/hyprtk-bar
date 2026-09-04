@@ -26,6 +26,7 @@ from . import config as config_module  # noqa: E402
 from .clock import Clock  # noqa: E402
 from .config import DEFAULT_LAYOUT  # noqa: E402
 from .layout import SECTION_ORDER, SectionBox  # noqa: E402
+from .notifications import NotificationCenterButton  # noqa: E402
 from .quicksettings import QuickSettingsButton  # noqa: E402
 from .sysmon import SysMon  # noqa: E402
 from .tasklist import TaskList  # noqa: E402
@@ -95,10 +96,12 @@ class ShowDesktopStrip(HoverButton):
 
 
 class Bar(Gtk.Box):
-    def __init__(self, cfg: dict, ipc):
+    def __init__(self, cfg: dict, ipc, is_primary: bool = True, notif_ctrl=None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
         self._cfg = cfg
         self._ipc = ipc
+        self._is_primary = is_primary
+        self._notif_ctrl = notif_ctrl
         self._theme_cb = None
         self._height_cb = None
         self._widgets: dict[str, Gtk.Widget] = {}
@@ -260,7 +263,15 @@ class Bar(Gtk.Box):
             return SysMon(cfg, ipc)
         if mid == "clock":
             return Clock(cfg, ipc)
+        if mid == "notifications":
+            if self._notif_ctrl is None:
+                return None
+            return NotificationCenterButton(cfg, self._notif_ctrl)
         if mid == "tray":
+            if not self._is_primary:
+                # Only the primary monitor hosts the SNI tray: a second watcher
+                # would fight over the org.kde.StatusNotifierWatcher name.
+                return None
             tray = Tray(cfg)
             if self._tray_ctrl is None:
                 self._tray_ctrl = TrayController(cfg, tray)

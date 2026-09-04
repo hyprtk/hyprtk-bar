@@ -229,4 +229,35 @@ def build_css(palette: dict, cfg: dict) -> str:
   border-radius: 6px;
   background-color: {fg};
 }}
+.notif-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
+.notif-button.hover {{ background-color: {hover}; }}
+.notif-badge {{
+  background-color: {accent};
+  color: {active_fg};
+  font-size: 9px;
+  font-weight: bold;
+  min-width: 14px;
+  min-height: 14px;
+  border-radius: 7px;
+  padding: 0 3px;
+  margin: 0 0 2px 0;
+}}
+.notif-title {{ font-weight: bold; padding-bottom: 6px; }}
+.notif-row {{
+  background-color: {_rgba(palette["foreground"], 0.05)};
+  border-radius: 8px;
+  padding: 8px;
+}}
+.notif-app {{ font-size: 10px; opacity: 0.85; }}
+.notif-time {{ font-size: 9px; opacity: 0.6; }}
+.notif-summary {{ font-weight: bold; }}
+.notif-body {{ font-size: 11px; opacity: 0.9; }}
+.notif-action {{
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background-color: {_rgba(palette["accent"], 0.18)};
+  color: {fg};
+}}
+.notif-clear {{ min-height: 22px; padding: 0 10px; border-radius: 6px; }}
 """

@@ -24,6 +24,7 @@ MODULE_IDS = [
     "tasklist",
     "sysmon",
     "clock",
+    "notifications",
     "tray",
     "quicksettings",
 ]
@@ -34,6 +35,7 @@ MODULE_LABELS = {
     "tasklist": "Task list",
     "sysmon": "System monitor",
     "clock": "Clock",
+    "notifications": "Notification center",
     "tray": "System tray",
     "quicksettings": "Quick settings",
 }
@@ -41,7 +43,7 @@ MODULE_LABELS = {
 DEFAULT_LAYOUT = {
     "left": ["start_button", "workspaces", "tasklist"],
     "center": [],
-    "right": ["sysmon", "clock", "tray", "quicksettings"],
+    "right": ["sysmon", "clock", "notifications", "tray", "quicksettings"],
 }
 
 DEFAULT_PINNED = [
@@ -59,7 +61,7 @@ DEFAULTS = {
     "width": "100%",                 # pill width: px int or "NN%" of the monitor
     "align": "center",               # pill placement when width < 100%: left|center|right
     "use_pywal": True,               # legacy: seed theme.source from this on first run
-    "monitors": "primary",           # primary | all (multi-monitor = later)
+    "monitors": "primary",           # primary | all | [connector, ...] (e.g. ["DP-1", "HDMI-A-1"])
     "theme": {
         "source": "pywal",           # pywal | waybar | manual
         "waybar_theme": "",          # name of an imported theme (source=waybar)
@@ -102,6 +104,11 @@ DEFAULTS = {
     "quicksettings": {
         "enabled": True,
     },
+    "notifications": {
+        "enabled": True,
+        "max_stored": 50,           # notifications kept in the center at once
+        "default_timeout": 5000,    # ms a toast stays before auto-dismiss (0 = persist)
+    },
 }
 
 
@@ -142,6 +149,35 @@ def validate(cfg: dict) -> dict:
         valid["align"] = "center"
 
     valid["use_pywal"] = bool(valid.get("use_pywal", True))
+
+    # ── monitors ─────────────────────────────────────────────────
+    monitors = valid.get("monitors", "primary")
+    if isinstance(monitors, list):
+        valid["monitors"] = [str(m) for m in monitors if str(m).strip()]
+    elif monitors not in ("primary", "all"):
+        log.warning("Unknown monitors %r, using primary", monitors)
+        valid["monitors"] = "primary"
+    else:
+        valid["monitors"] = monitors
+
+    # ── notifications ────────────────────────────────────────────
+    notif = valid.get("notifications")
+    if not isinstance(notif, dict):
+        valid["notifications"] = dict(DEFAULTS["notifications"])
+    else:
+        try:
+            valid["notifications"]["max_stored"] = max(
+                1, int(notif.get("max_stored", 50))
+            )
+        except (TypeError, ValueError):
+            valid["notifications"]["max_stored"] = 50
+        try:
+            valid["notifications"]["default_timeout"] = max(
+                0, int(notif.get("default_timeout", 5000))
+            )
+        except (TypeError, ValueError):
+            valid["notifications"]["default_timeout"] = 5000
+        valid["notifications"]["enabled"] = bool(notif.get("enabled", True))
 
     # ── theme source ─────────────────────────────────────────────
     theme = valid.get("theme") or {}
@@ -216,6 +252,7 @@ def _normalize_layout(raw: dict, valid: dict) -> dict:
     sysmon = valid.get("sysmon") or {}
     tray = valid.get("tray") or {}
     qs = valid.get("quicksettings") or {}
+    notif = valid.get("notifications") or {}
 
     if center.get("start_button", True):
         layout["center"].append("start_button")
@@ -226,6 +263,8 @@ def _normalize_layout(raw: dict, valid: dict) -> dict:
         layout["right"].append("sysmon")
     if clock.get("enabled", True):
         layout["right"].append("clock")
+    if notif.get("enabled", True):
+        layout["right"].append("notifications")
     if tray.get("enabled", True):
         layout["right"].append("tray")
     if qs.get("enabled", True):

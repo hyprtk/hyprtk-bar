@@ -12,6 +12,7 @@ import cairo
 
 import gi
 gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 
 from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
@@ -78,16 +79,32 @@ class Popup(Gtk.Window):
 
     # ── positioning ───────────────────────────────────────────────
 
+    def _monitor_geometry(self, bar_win):
+        """The bar window's monitor geometry, if the bar targets a monitor.
+
+        With multi-monitor bars the popup must clamp within its own monitor
+        rather than the whole screen (layer-shell margins are monitor-local).
+        """
+        monitor = getattr(bar_win, "monitor", None)
+        if monitor is not None:
+            geo = monitor.get_geometry()
+            return geo.x, geo.y, geo.width, geo.height
+        alloc = bar_win.get_allocation()
+        screen = Gdk.Screen.get_default()
+        return alloc.x, alloc.y, screen.get_width(), screen.get_height()
+
     def show_above(self, widget) -> None:
         """Size to content and float it just above the given bar widget."""
         nat = self.content.get_preferred_size().natural_size
-        self.set_size_request(max(nat.width, 1), max(nat.height, 1))
+        min_w, min_h = self.get_size_request()
+        width = max(nat.width, min_w if min_w > 0 else 1)
+        height = max(nat.height, min_h if min_h > 0 else 1)
+        self.set_size_request(width, height)
 
         bar_win = widget.get_toplevel()
         w_alloc = widget.get_allocation()
-        bar_alloc = bar_win.get_allocation()
-        cx = bar_alloc.x + w_alloc.x + w_alloc.width // 2
-        screen_w = Gdk.Screen.get_default().get_width()
+        _bx, _by, screen_w, _screen_h = self._monitor_geometry(bar_win)
+        cx = w_alloc.x + w_alloc.width // 2
         margin = self._cfg.get("margin", 6)
         x = max(margin, min(cx - nat.width // 2, screen_w - nat.width - margin))
 

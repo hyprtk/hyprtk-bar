@@ -15,6 +15,7 @@ import time
 
 import gi
 gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
 
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk  # noqa: E402
 
@@ -169,6 +170,8 @@ class SniItem:
         self.icon_name = ""
         self.tooltip = ""
         self.status = "Active"
+        self.menu_path = ""
+        self.item_is_menu = False
         self._pixmaps: list[tuple[int, int, bytes]] = []
         self._iface = None
         self._props_iface = None
@@ -216,6 +219,10 @@ class SniItem:
                     self.tooltip = value[2] or value[3] or ""
             elif prop == "IconPixmap":
                 self._pixmaps = list(value or [])
+            elif prop == "Menu":
+                self.menu_path = str(value or "")
+            elif prop == "ItemIsMenu":
+                self.item_is_menu = bool(value)
             elif prop == "IconThemePath":
                 if value and not self._theme_paths_added:
                     try:
@@ -231,7 +238,8 @@ class SniItem:
 
     def _load_props(self) -> None:
         for prop in (
-            "Id", "Title", "IconName", "Status", "IconPixmap", "ToolTip", "IconThemePath",
+            "Id", "Title", "IconName", "Status", "IconPixmap", "ToolTip",
+            "IconThemePath", "Menu", "ItemIsMenu",
         ):
             self._get_async(prop)
 
@@ -298,26 +306,38 @@ class TrayButton(HoverButton):
         self._item = item
         self._icon_size = icon_size
         self._bar_edge = bar_edge
+        self._dbusmenu = None
         self._image = Gtk.Image()
         self._image.set_pixel_size(icon_size)
         self.box.pack_start(self._image, True, True, 0)
 
+    def _monitor_geometry(self):
+        """(x, y, w, h) of the bar's monitor, or the whole screen fallback."""
+        bar_win = self.get_toplevel()
+        monitor = getattr(bar_win, "monitor", None)
+        if monitor is not None:
+            geo = monitor.get_geometry()
+            return geo.x, geo.y, geo.width, geo.height
+        bar_alloc = bar_win.get_allocation()
+        screen = Gdk.Screen.get_default()
+        return bar_alloc.x, bar_alloc.y, screen.get_width(), screen.get_height()
+
     def _screen_xy(self) -> tuple[int, int]:
         """Approximate global pointer target for Activate/ContextMenu.
 
-        The bar spans the monitor width at an edge, so the button's screen
+        The bar spans its monitor width at an edge, so the button's screen
         position is computable from allocations. Applets (e.g. nm-applet) use
         these to anchor their popup menu next to the icon.
         """
         bar_win = self.get_toplevel()
-        bar_alloc = bar_win.get_allocation()
+        base_x, base_y, _w, screen_h = self._monitor_geometry()
         alloc = self.get_allocation()
-        x = bar_alloc.x + alloc.x + alloc.width // 2
-        screen_h = Gdk.Screen.get_default().get_height()
+        x = base_x + alloc.x + alloc.width // 2
+        bar_alloc = bar_win.get_allocation()
         if self._bar_edge == "top":
-            y = bar_alloc.y + alloc.y + alloc.height // 2
+            y = base_y + alloc.y + alloc.height // 2
         else:
-            y = screen_h - bar_alloc.height + alloc.y + alloc.height // 2
+            y = base_y + screen_h - bar_alloc.height + alloc.y + alloc.height // 2
         return x, y
 
     def refresh(self) -> None:
@@ -339,12 +359,42 @@ class TrayButton(HoverButton):
         item = self._item
         x, y = self._screen_xy()
         if event.button == 1:
-            item.activate(x, y)
+            if item.item_is_menu and item.menu_path:
+                self._show_dbus_menu(event)
+            else:
+                item.activate(x, y)
         elif event.button == 2:
             item.secondary_activate(x, y)
         elif event.button == 3:
-            item.context_menu(x, y)
+            if item.menu_path:
+                self._show_dbus_menu(event)
+            else:
+                item.context_menu(x, y)
         return True
+
+    def _show_dbus_menu(self, event) -> None:
+        """Render the item's com.canonical.dbusmenu (if it exports one) as a Gtk.Menu."""
+        item = self._item
+        bus = item._ctrl.bus if item._ctrl is not None else None
+        if not (item.menu_path and bus):
+            return
+        if self._dbusmenu is None or self._dbusmenu.path != item.menu_path:
+            from .dbusmenu import DbusMenu
+            self._dbusmenu = DbusMenu(bus, item.service, item.menu_path)
+        try:
+            self._dbusmenu.build(lambda menu: self._popup_dbus_menu(menu, event))
+        except Exception as exc:
+            log.warning("failed to build tray menu: %s", exc)
+
+    def _popup_dbus_menu(self, menu, event) -> None:
+        if menu is None:
+            return
+        menu.show_all()
+        if event is not None:
+            menu.popup_at_pointer(event)
+        else:
+            x, y = self._screen_xy()
+            menu.popup(None, None, lambda *_a: (x, y), None, 0, Gdk.CURRENT_TIME)
 
 
 class Tray(Gtk.Box):

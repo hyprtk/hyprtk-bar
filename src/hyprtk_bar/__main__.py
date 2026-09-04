@@ -22,8 +22,9 @@ gi.require_version("GtkLayerShell", "0.1")
 
 from gi.repository import GLib, GLibUnix, Gtk
 
-from .app import BarWindow
+from .app import BarWindow, select_monitors
 from .config import load as load_config
+from .ipc import HyprIPC
 
 _lock_file = None
 
@@ -52,8 +53,27 @@ def _run_window() -> int:
         logging.warning("another hyprtk-bar is already running; exiting")
         return 1
     cfg = load_config()
-    win = BarWindow(cfg)
-    win.show_all()
+
+    # One Hyprland IPC + event-socket thread shared by all per-monitor bars.
+    ipc = HyprIPC()
+    monitors = select_monitors(cfg)
+    if not monitors:
+        logging.warning("no monitors available; giving up")
+        return 1
+
+    windows = []
+    for i, monitor in enumerate(monitors):
+        is_primary = i == 0 or monitor.is_primary()
+        win = BarWindow(
+            cfg,
+            monitor=monitor,
+            ipc=ipc,
+            is_primary=is_primary,
+            start_ipc=(i == 0),
+        )
+        win.show_all()
+        windows.append(win)
+    logging.info("started %d bar(s) on %d monitor(s)", len(windows), len(monitors))
 
     def on_sigterm(*_args):
         Gtk.main_quit()
@@ -64,7 +84,8 @@ def _run_window() -> int:
     try:
         Gtk.main()
     finally:
-        win.shutdown()
+        for win in windows:
+            win.shutdown()
     return 0
 
 

@@ -43,5 +43,13 @@
   "tray": {
     "enabled": true,
     "icon_size": 20
+  },
+  "quicksettings": {
+    "enabled": true
+  },
+  "notifications": {
+    "enabled": true,
+    "max_stored": 50,
+    "default_timeout": 5000
   }
 }

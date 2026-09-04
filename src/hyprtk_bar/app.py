@@ -6,6 +6,7 @@ import logging
 
 import gi
 gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 
 from gi.repository import Gdk, Gio, GLib, Gtk, GtkLayerShell  # noqa: E402
@@ -13,6 +14,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk, GtkLayerShell  # noqa: E402
 from .bar import Bar  # noqa: E402
 from .config import PYWAL_PATH  # noqa: E402
 from .ipc import HyprIPC  # noqa: E402
+from .notifications import NotificationController  # noqa: E402
 from .theme import build_css, resolve_palette  # noqa: E402
 from .waybar_theme import find_themes_dir  # noqa: E402
 
@@ -41,12 +43,94 @@ REFRESH_EVENTS = (
 )
 
 
+def select_monitors(cfg: dict) -> list[Gdk.Monitor]:
+    """Return the Gdk monitors the bar should be shown on.
+
+    ``monitors`` selects the target set:
+    - ``"primary"`` (default): only the primary monitor.
+    - ``"all"``: every monitor.
+    - a list of connector/model names (e.g. ``["DP-1", "HDMI-A-1"]``).
+    """
+    display = Gdk.Display.get_default()
+    if display is None:
+        return []
+    monitors = [display.get_monitor(i) for i in range(display.get_n_monitors())]
+    mode = cfg.get("monitors", "primary")
+    if mode == "all":
+        return list(monitors)
+    if isinstance(mode, list) and mode:
+        names = set(mode)
+        # Gdk Wayland monitors expose no connector name; map Hyprland connector
+        # names onto Gdk monitors by geometry so both names and models match.
+        hypr_names = _hypr_monitors_by_geometry()
+        matched = []
+        for m in monitors:
+            _connector, model, geo = _monitor_identifiers(m)
+            name = hypr_names.get(geo) or ""
+            if name in names or model in names:
+                matched.append(m)
+        return matched
+    primary = [m for m in monitors if m.is_primary()]
+    return primary or monitors[:1]
+
+
+def _hypr_monitors_by_geometry() -> dict:
+    """Map ``(x, y, w, h)`` -> Hyprland monitor connector name."""
+    import json
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["hyprctl", "-j", "monitors"], capture_output=True, text=True, timeout=5
+        )
+        data = json.loads(out.stdout)
+    except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
+        return {}
+    result = {}
+    for mon in data:
+        g = mon.get("geometry") or {}
+        key = (
+            g.get("x") if g.get("x") is not None else mon.get("x"),
+            g.get("y") if g.get("y") is not None else mon.get("y"),
+            g.get("width") if g.get("width") is not None else mon.get("width"),
+            g.get("height") if g.get("height") is not None else mon.get("height"),
+        )
+        result[key] = mon.get("name")
+    return result
+
+
+def _monitor_identifiers(monitor: Gdk.Monitor) -> tuple[str, str, tuple]:
+    """(connector, model, geometry) for a Gdk monitor.
+
+    Under Wayland ``get_connector()`` is unavailable (X11-only), so the model
+    name (e.g. "C49J89x") and the geometry are the reliable identifiers.
+    """
+    getter = getattr(monitor, "get_connector", None)
+    connector = getter() if getter is not None else ""
+    try:
+        model = monitor.get_model() or ""
+    except Exception:
+        model = ""
+    geo = monitor.get_geometry()
+    return connector, model, (geo.x, geo.y, geo.width, geo.height)
+
+
 class BarWindow(Gtk.Window):
     """A transparent, full-width layer-shell surface pinned to an edge."""
 
-    def __init__(self, cfg: dict):
+    def __init__(
+        self,
+        cfg: dict,
+        monitor: Gdk.Monitor | None = None,
+        ipc: HyprIPC | None = None,
+        is_primary: bool = True,
+        start_ipc: bool = False,
+        notif_ctrl: NotificationController | None = None,
+    ):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self._cfg = cfg
+        self.monitor = monitor
+        self.is_primary = is_primary
         self._refresh_id: int | None = None
         self._wal_monitor: Gio.FileMonitor | None = None
         self._theme_dir_monitor: Gio.FileMonitor | None = None
@@ -63,8 +147,16 @@ class BarWindow(Gtk.Window):
         if visual:
             self.set_visual(visual)
 
-        self._ipc = HyprIPC()
-        self._bar = Bar(cfg, self._ipc)
+        self._ipc = ipc if ipc is not None else HyprIPC()
+        self._notif_ctrl = notif_ctrl
+        if (
+            self._notif_ctrl is None
+            and is_primary
+            and (cfg.get("notifications") or {}).get("enabled", True)
+        ):
+            self._notif_ctrl = NotificationController(cfg, monitor=monitor)
+            self._notif_ctrl.start()
+        self._bar = Bar(cfg, self._ipc, is_primary=is_primary, notif_ctrl=self._notif_ctrl)
         self._bar.set_theme_callback(self._apply_theme)
         self._bar.set_height_callback(self._on_bar_height)
         self.add(self._bar)
@@ -79,7 +171,8 @@ class BarWindow(Gtk.Window):
         self._init_layer_shell()
 
         self._wire_ipc()
-        self._ipc.start()
+        if start_ipc:
+            self._ipc.start()
         self._bar.start()
 
         self._setup_theme_monitors()
@@ -138,6 +231,8 @@ class BarWindow(Gtk.Window):
     def _init_layer_shell(self) -> None:
         total_height = self._cfg["height"] + 2 * self._cfg["margin"]
         GtkLayerShell.init_for_window(self)
+        if self.monitor is not None:
+            GtkLayerShell.set_monitor(self, self.monitor)
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.TOP)
         GtkLayerShell.set_namespace(self, "hyprtk-bar")
         GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
@@ -208,9 +303,45 @@ class BarWindow(Gtk.Window):
         workspaces = self._ipc.query("workspaces") or []
         active = self._ipc.query("activeworkspace") or {}
         focus = self._ipc.query("activewindow") or {}
-        a_id = active.get("id", 1) if isinstance(active.get("id"), int) else 1
+        global_id = active.get("id") if isinstance(active.get("id"), int) else 1
+        a_id = self._active_workspace_on_this_monitor(global_id)
         self._bar.update(clients, workspaces, a_id, focus.get("address"))
         return GLib.SOURCE_REMOVE
+
+    def _active_workspace_on_this_monitor(self, fallback: int) -> int:
+        """The active workspace on THIS bar's monitor (each monitor has its own).
+
+        Gdk Wayland monitors expose no connector name, so the monitor is matched
+        against `hyprctl monitors` by model name or geometry; falls back to the
+        global active workspace when it can't be identified (e.g. a special: one).
+        """
+        if self.monitor is None:
+            return fallback
+        connector, model, geo = _monitor_identifiers(self.monitor)
+        monitors = self._ipc.query("monitors") or []
+        for m in monitors:
+            if not self._monitor_matches(m, connector, model, geo):
+                continue
+            aw = m.get("activeWorkspace") or {}
+            if isinstance(aw.get("id"), int):
+                return aw["id"]
+            break
+        return fallback
+
+    @staticmethod
+    def _monitor_matches(m: dict, connector: str, model: str, geo: tuple) -> bool:
+        if connector and m.get("name") == connector:
+            return True
+        if model and (m.get("model") or "") == model:
+            return True
+        g = m.get("geometry") or {}
+        return (
+            isinstance(g, dict)
+            and g.get("x") == geo[0]
+            and g.get("y") == geo[1]
+            and g.get("width") == geo[2]
+            and g.get("height") == geo[3]
+        )
 
     # ── shutdown ──────────────────────────────────────────────────
 
@@ -223,4 +354,6 @@ class BarWindow(Gtk.Window):
         if self._refresh_id is not None:
             GLib.source_remove(self._refresh_id)
         self._bar.shutdown()
+        if self._notif_ctrl is not None:
+            self._notif_ctrl.shutdown()
         self._ipc.stop()
