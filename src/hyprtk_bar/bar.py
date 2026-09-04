@@ -22,6 +22,7 @@ from .config import DEFAULT_LAYOUT, icon_size_for  # noqa: E402
 from .kbstate import KbState  # noqa: E402
 from .layout import SECTION_ORDER, SectionBox  # noqa: E402
 from .notifications import NotificationCenterButton  # noqa: E402
+from .popup import bind_hover_tooltip  # noqa: E402
 from .quicksettings import QuickSettingsButton  # noqa: E402
 from .sysmon import SysMon  # noqa: E402
 from .tasklist import TaskList  # noqa: E402
@@ -52,6 +53,7 @@ class StartButton(HoverButton):
         # Keep the start icon clear of the bar's left edge, with the same
         # breathing room as the spacing between the other modules.
         self.set_margin_start(6)
+        bind_hover_tooltip(self, cfg, lambda: "Open menu")
 
     def apply_font(self, font_size, icon_size=0) -> None:
         self._icon.set_pixel_size(icon_size_for(font_size, icon_size))

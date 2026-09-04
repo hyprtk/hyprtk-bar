@@ -6,17 +6,19 @@ gi.require_version("Gtk", "3.0")
 
 from gi.repository import Gtk  # noqa: E402
 
+from .popup import bind_hover_tooltip  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
 
 class WorkspaceChip(HoverButton):
-    def __init__(self, workspace_id: int, ipc):
+    def __init__(self, workspace_id: int, ipc, cfg: dict):
         super().__init__("workspace-chip", vertical=False, spacing=0)
         self._wid = workspace_id
         self._ipc = ipc
         self._label = Gtk.Label(label=str(workspace_id))
         self._label.set_xalign(0.5)
         self.box.pack_start(self._label, True, True, 0)
+        bind_hover_tooltip(self, cfg, lambda: f"Workspace {self._wid}")
 
     def set_state(self, active: bool, occupied: bool) -> None:
         ctx = self.box.get_style_context()
@@ -38,6 +40,7 @@ class WorkspaceChip(HoverButton):
 class Workspaces(Gtk.Box):
     def __init__(self, cfg: dict, ipc):
         super().__init__(spacing=4)
+        self._bar_cfg = cfg
         self._cfg = cfg.get("workspaces") or {}
         self._ipc = ipc
         self._chips: dict[int, WorkspaceChip] = {}
@@ -56,7 +59,7 @@ class Workspaces(Gtk.Box):
                 self._chips.pop(wid).destroy()
         for wid in ordered:
             if wid not in self._chips:
-                chip = WorkspaceChip(wid, self._ipc)
+                chip = WorkspaceChip(wid, self._ipc, self._bar_cfg)
                 self._chips[wid] = chip
                 self.pack_start(chip, False, False, 0)
 

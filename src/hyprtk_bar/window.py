@@ -12,6 +12,7 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, Pango  # noqa: E402
 
+from .popup import bind_hover_tooltip  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
 
@@ -28,6 +29,7 @@ class Window(HoverButton):
         except (TypeError, ValueError):
             self._width = 220
         self._app_class = ""
+        self._tip = ""
 
         self._label = Gtk.Label(label="")
         self._label.set_xalign(0)
@@ -37,6 +39,7 @@ class Window(HoverButton):
         # Expand so the label fills the fixed box and ellipsizes within it.
         self.box.pack_start(self._label, True, True, 0)
         self.set_size_request(self._width, -1)
+        bind_hover_tooltip(self, cfg, lambda: self._tip)
 
     def do_get_preferred_width(self):
         # A TRUE fixed width: size_request alone is only a minimum and a long
@@ -48,11 +51,10 @@ class Window(HoverButton):
         self._app_class = app_class or ""
         if not title:
             self._label.hide()
-            self.set_tooltip_text("")
+            self._tip = ""
             return
         if len(title) > self._max_length:
             title = title[: self._max_length].rstrip() + "…"
         self._label.set_text(title)
         self._label.show()
-        tip = f"{self._app_class} — {title}" if self._app_class else title
-        self.set_tooltip_text(tip)
+        self._tip = f"{self._app_class} — {title}" if self._app_class else title

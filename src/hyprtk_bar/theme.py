@@ -306,6 +306,7 @@ def build_css(palette: dict, cfg: dict) -> str:
 .popup-row {{ padding: 6px 8px; border-radius: 6px; }}
 .popup-row.hover {{ background-color: {hover}; }}
 .popup-title {{ font-weight: bold; padding-bottom: 4px; }}
+.tooltip-label {{ font-size: 12px; }}
 .popup-box {{
   background-color: {_rgba(palette["background"], popup_alpha)};
   border-radius: {radius}px;

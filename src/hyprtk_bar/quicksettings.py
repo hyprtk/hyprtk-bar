@@ -17,7 +17,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from .config import icon_size_for  # noqa: E402
-from .popup import Popup  # noqa: E402
+from .popup import Popup, bind_hover_tooltip  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.quicksettings")
@@ -237,6 +237,7 @@ class QuickSettingsButton(HoverButton):
         self.box.pack_start(self._icon, True, True, 0)
         self._popup = QuickSettings(cfg)
         self._popup.set_on_leave(self._hide)
+        bind_hover_tooltip(self, cfg, lambda: "Quick settings")
 
     def apply_font(self, font_size, icon_size=0) -> None:
         self._icon.set_pixel_size(icon_size_for(font_size, icon_size))

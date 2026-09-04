@@ -24,6 +24,7 @@ from dbus_next.glib import MessageBus  # noqa: E402
 from dbus_next.service import ServiceInterface, method, signal  # noqa: E402
 
 from .config import icon_size_for  # noqa: E402
+from .popup import Popup, bind_hover_tooltip  # noqa: E402
 from .popup import Popup  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
@@ -374,6 +375,11 @@ class NotificationCenterButton(HoverButton):
 
         ctrl.add_listener(self._on_change)
         self._refresh_badge()
+        bind_hover_tooltip(
+            self,
+            cfg,
+            lambda: f"Notifications ({self._ctrl._store.unread_count()} unread)",
+        )
 
     def apply_font(self, font_size, icon_size=0) -> None:
         self._icon.set_pixel_size(icon_size_for(font_size, icon_size))

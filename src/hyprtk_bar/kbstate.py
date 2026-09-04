@@ -15,6 +15,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from .config import icon_size_for  # noqa: E402
+from .popup import bind_hover_tooltip  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.kbstate")
@@ -62,8 +63,10 @@ class KbState(HoverButton):
             img.get_style_context().add_class(key)
             self.box.pack_start(img, False, False, 0)
             self._icons[key] = img
+        self._tip = ""
         self._update()
         GLib.timeout_add(self._interval, self._tick)
+        bind_hover_tooltip(self, cfg, lambda: self._tip)
 
     def apply_font(self, font_size, icon_size=0) -> None:
         size = icon_size_for(font_size, icon_size)
@@ -84,7 +87,7 @@ class KbState(HoverButton):
             else:
                 ctx.add_class("off")
                 ctx.remove_class("on")
-        self.set_tooltip_text(
+        self._tip = (
             f"Caps Lock: {'on' if states['caps'] else 'off'}\n"
             f"Num Lock: {'on' if states['num'] else 'off'}"
         )

@@ -244,3 +244,77 @@ class Popup(Gtk.Window):
             cairo.RectangleInt(alloc.x, alloc.y, alloc.width, alloc.height)
         )
         wnd.input_shape_combine_region(region, 0, 0)
+
+
+TOOLTIP_GRACE_MS = 180
+
+
+class Tooltip(Popup):
+    """A small themed popup tooltip: a label in the bar's glass style.
+
+    Rendered with the same ``.popup-box`` theme as the clock's hover date
+    popup, so tooltips match the bar instead of GTK's plain tooltip window.
+    """
+
+    def __init__(self, cfg: dict, position: str = "bottom"):
+        super().__init__(cfg, position)
+        self._label = Gtk.Label(label="")
+        self._label.set_xalign(0)
+        self._label.set_line_wrap(True)
+        self._label.get_style_context().add_class("tooltip-label")
+        self.content.pack_start(self._label, False, False, 0)
+        self.content.show_all()
+
+    def set_text(self, text: str) -> None:
+        self._label.set_text(text or "")
+
+
+def bind_hover_tooltip(button, cfg: dict, get_text):
+    """Show a themed popup tooltip while the pointer hovers ``button``.
+
+    ``get_text()`` is re-called on each enter so dynamic tooltips (sysmon,
+    kbstate, active window, ...) stay current. The tooltip hides shortly after
+    the pointer leaves the button or the tooltip (a grace prevents flicker
+    while crossing between the two surfaces) — the same behaviour as the
+    clock's hover date popup.
+    """
+    tooltip = Tooltip(cfg, cfg.get("position", "bottom"))
+    hide_timer = {"id": None}
+
+    def cancel(*_args) -> None:
+        if hide_timer["id"] is not None:
+            GLib.source_remove(hide_timer["id"])
+            hide_timer["id"] = None
+
+    def do_hide() -> bool:
+        hide_timer["id"] = None
+        tooltip.hide_popup()
+        return GLib.SOURCE_REMOVE
+
+    def schedule(*_args) -> None:
+        if hide_timer["id"] is None:
+            hide_timer["id"] = GLib.timeout_add(TOOLTIP_GRACE_MS, do_hide)
+
+    tooltip.set_on_enter(cancel)
+    tooltip.set_on_leave(schedule)
+
+    def on_enter(_widget, *_args):
+        cancel()
+        text = get_text()
+        if text:
+            tooltip.set_text(text)
+            tooltip.show_above(button)
+        return False
+
+    def on_leave(_widget, *_args):
+        schedule()
+        return False
+
+    def on_destroy(_widget):
+        cancel()
+        tooltip.destroy()
+
+    button.connect_after("enter-notify-event", on_enter)
+    button.connect_after("leave-notify-event", on_leave)
+    button.connect("destroy", on_destroy)
+    return tooltip

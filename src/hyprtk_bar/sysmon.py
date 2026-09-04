@@ -10,6 +10,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from .config import icon_size_for  # noqa: E402
+from .popup import bind_hover_tooltip  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.sysmon")
@@ -67,6 +68,7 @@ class SysMon(HoverButton):
         self._prev = _read_cpu_sample()
         self._labels: dict[str, Gtk.Label] = {}
         self._icons: list[Gtk.Image] = []
+        self._tip = ""
         font_cfg = cfg.get("font") or {}
         icon_size = icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
 
@@ -89,6 +91,7 @@ class SysMon(HoverButton):
 
         self._update()
         GLib.timeout_add_seconds(self._interval, self._tick)
+        bind_hover_tooltip(self, cfg, lambda: self._tip)
 
     def apply_font(self, font_size, icon_size=0) -> None:
         size = icon_size_for(font_size, icon_size)
@@ -109,7 +112,7 @@ class SysMon(HoverButton):
             label.set_text(f"{pct:.0f}%")
             self._apply_level(label, pct)
 
-        self.set_tooltip_text(
+        self._tip = (
             f"CPU: {cpu:.0f}%\n"
             f"RAM: {mem_pct:.0f}% ({mem_used:.1f}/{mem_total:.1f} GB)\n"
             f"Disk: {disk_pct:.0f}% ({disk_used:.1f}/{disk_total:.1f} GB)"
