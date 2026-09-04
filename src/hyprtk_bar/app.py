@@ -15,7 +15,7 @@ from .bar import Bar  # noqa: E402
 from .config import PYWAL_PATH  # noqa: E402
 from .ipc import HyprIPC  # noqa: E402
 from .notifications import NotificationController  # noqa: E402
-from .theme import build_css, resolve_palette  # noqa: E402
+from .theme import build_css, pill_margins, resolve_palette  # noqa: E402
 from .waybar_theme import find_themes_dir  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.app")
@@ -233,9 +233,17 @@ class BarWindow(Gtk.Window):
 
     def _on_bar_height(self) -> None:
         """Resize the layer surface when the bar height is changed in settings."""
-        total_height = self._cfg["height"] + 2 * self._cfg["margin"]
+        total_height = self._surface_height()
         GtkLayerShell.set_exclusive_zone(self, total_height)
         self.set_size_request(-1, total_height)
+
+    def _surface_height(self) -> int:
+        """Layer-surface height: pill height + gap_in (windows side) + gap_out (edge side)."""
+        return (
+            int(self._cfg.get("height", 42) or 42)
+            + int(self._cfg.get("gap_in", 6) or 6)
+            + int(self._cfg.get("gap_out", 6) or 6)
+        )
 
     def _on_bar_position(self) -> None:
         """Re-anchor the layer surface when the bar moves top/bottom in settings."""
@@ -251,9 +259,11 @@ class BarWindow(Gtk.Window):
         )
         GtkLayerShell.set_anchor(self, other, False)
         GtkLayerShell.set_anchor(self, edge, True)
-        total_height = self._cfg["height"] + 2 * self._cfg["margin"]
+        total_height = self._surface_height()
         GtkLayerShell.set_exclusive_zone(self, total_height)
         self.set_size_request(-1, total_height)
+        # The pill's gap_in/gap_out margins flip with the position — rebuild CSS.
+        self._apply_theme()
         # Move any open popups (calendar, previews, quick settings, notification
         # center) and the toast to the new bar edge.
         position = self._cfg["position"]
@@ -270,7 +280,7 @@ class BarWindow(Gtk.Window):
     # ── layer shell ───────────────────────────────────────────────
 
     def _init_layer_shell(self) -> None:
-        total_height = self._cfg["height"] + 2 * self._cfg["margin"]
+        total_height = self._surface_height()
         GtkLayerShell.init_for_window(self)
         if self.monitor is not None:
             GtkLayerShell.set_monitor(self, self.monitor)
@@ -295,23 +305,23 @@ class BarWindow(Gtk.Window):
         wnd = self.get_window()
         if wnd is None:
             return
-        margin = self._cfg["margin"]
         region = cairo.Region()
+        top_m, right_m, bottom_m, left_m = pill_margins(self._cfg)
 
-        def add(widget, inset_x: int, inset_y: int) -> None:
+        def add(widget, inset_left: int, inset_top: int, inset_right: int, inset_bottom: int) -> None:
             alloc = widget.get_allocation()
             rect = cairo.RectangleInt(
-                alloc.x + inset_x,
-                alloc.y + inset_y,
-                max(alloc.width - 2 * inset_x, 0),
-                max(alloc.height - 2 * inset_y, 0),
+                alloc.x + inset_left,
+                alloc.y + inset_top,
+                max(alloc.width - inset_left - inset_right, 0),
+                max(alloc.height - inset_top - inset_bottom, 0),
             )
             region.union(rect)
 
         for child in self._bar.get_children():
             if child is self._bar.pill:
-                # The pill's CSS margin insets it on all sides.
-                add(child, margin, margin)
+                # The pill's CSS margins inset it on all sides (gaps + rounded ends).
+                add(child, left_m, top_m, right_m, bottom_m)
         wnd.input_shape_combine_region(region, 0, 0)
 
     # ── IPC ───────────────────────────────────────────────────────

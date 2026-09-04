@@ -111,7 +111,8 @@ menu.
 | --- | --- | --- |
 | `position` | `"bottom"` | `bottom` or `top` edge of the monitor. |
 | `height` | `42` | Bar pill height in pixels (min 20). |
-| `margin` | `6` | Transparent inset around the pill. |
+| `gap_in` | `6` | Transparent gap between the pill and app windows (px). |
+| `gap_out` | `6` | Transparent gap between the pill and the screen edge (px). |
 | `radius` | `12` | Pill corner radius. |
 | `opacity` | `0.95` | Pill background alpha. |
 | `width` | `"100%"` | Pill width: a pixel value, or `"NN%"` of the monitor. |

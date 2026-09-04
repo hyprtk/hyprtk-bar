@@ -84,7 +84,7 @@ class Bar(Gtk.Box):
         self._width_idle: int | None = None
 
         self._spacer = Gtk.Box()
-        self._spacer.set_size_request(cfg.get("margin", 6), -1)
+        self._spacer.set_size_request(6, -1)
         self.pack_start(self._spacer, False, False, 0)
 
         self.pill = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -359,6 +359,19 @@ class Bar(Gtk.Box):
             if self._height_cb is not None:
                 self._height_cb()
 
+        def set_gaps(value) -> None:
+            try:
+                gap_in = max(0, min(60, int(str(value.get("gap_in", 6)).strip())))
+                gap_out = max(0, min(60, int(str(value.get("gap_out", 6)).strip())))
+            except (TypeError, ValueError, AttributeError):
+                return
+            cfg["gap_in"] = gap_in
+            cfg["gap_out"] = gap_out
+            config_module.save(cfg)
+            _theme()  # re-theme: CSS pill margins
+            if self._height_cb is not None:
+                self._height_cb()  # surface height = height + gap_in + gap_out
+
         def set_position(value) -> None:
             if value not in ("top", "bottom"):
                 return
@@ -422,6 +435,7 @@ class Bar(Gtk.Box):
             "set_width": set_width,
             "set_align": set_align,
             "set_height": set_height,
+            "set_gaps": set_gaps,
             "set_position": set_position,
             "set_opacity": set_opacity,
             "set_font": set_font,

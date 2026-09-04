@@ -147,7 +147,7 @@ class Popup(Gtk.Window):
         )
         offset = (
             self._cfg.get("height", 42)
-            + 2 * self._cfg.get("margin", 6)
+            + self._cfg.get("gap_in", 6) + self._cfg.get("gap_out", 6)
             + GAP
         )
         GtkLayerShell.set_margin(self, edge, offset)
@@ -167,7 +167,7 @@ class Popup(Gtk.Window):
         w_alloc = widget.get_allocation()
         _bx, _by, screen_w, _screen_h = self._monitor_geometry(bar_win)
         cx = w_alloc.x + w_alloc.width // 2
-        margin = self._cfg.get("margin", 6)
+        margin = 6
         pill_left, pill_right = self._pill_bounds(bar_win, screen_w)
         left_bound = max(margin, pill_left + margin)
         right_bound = min(screen_w - margin, pill_right - margin)
@@ -180,7 +180,7 @@ class Popup(Gtk.Window):
         )
         offset = (
             self._cfg.get("height", 42)
-            + 2 * self._cfg.get("margin", 6)
+            + self._cfg.get("gap_in", 6) + self._cfg.get("gap_out", 6)
             + GAP
         )
         GtkLayerShell.set_margin(self, edge, offset)

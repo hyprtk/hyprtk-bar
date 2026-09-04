@@ -599,7 +599,7 @@ class Toast(Popup):
         # Follow the bar's current edge (position may have changed since build).
         self.set_bar_edge(self._cfg.get("position", "bottom"))
 
-        margin = self._cfg.get("margin", 6)
+        margin = 6
         if self._monitor is not None:
             geo = self._monitor.get_geometry()
             screen_w = geo.width
@@ -616,7 +616,7 @@ class Toast(Popup):
         )
         offset = (
             self._cfg.get("height", 42)
-            + 2 * self._cfg.get("margin", 6)
+            + self._cfg.get("gap_in", 6) + self._cfg.get("gap_out", 6)
             + TOAST_GAP
         )
         GtkLayerShell.set_margin(self, edge, offset)

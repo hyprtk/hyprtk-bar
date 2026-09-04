@@ -232,6 +232,30 @@ class BarSettings(Gtk.Window):
         position_row.pack_start(position_label, False, False, 0)
         position_row.pack_start(position_box, True, True, 0)
 
+        gap_in_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        gap_in_label = Gtk.Label(label="Gap in:", xalign=1)
+        gap_in_label.set_size_request(70, -1)
+        self._gap_in = Gtk.SpinButton.new_with_range(0, 60, 2)
+        self._gap_in.set_value(int(self._cfg.get("gap_in", 6)))
+        self._gap_in.set_hexpand(True)
+        gap_in_hint = Gtk.Label(label="px — bar to windows", xalign=0)
+        gap_in_hint.set_opacity(0.7)
+        gap_in_row.pack_start(gap_in_label, False, False, 0)
+        gap_in_row.pack_start(self._gap_in, True, True, 0)
+        gap_in_row.pack_start(gap_in_hint, False, False, 0)
+
+        gap_out_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        gap_out_label = Gtk.Label(label="Gap out:", xalign=1)
+        gap_out_label.set_size_request(70, -1)
+        self._gap_out = Gtk.SpinButton.new_with_range(0, 60, 2)
+        self._gap_out.set_value(int(self._cfg.get("gap_out", 6)))
+        self._gap_out.set_hexpand(True)
+        gap_out_hint = Gtk.Label(label="px — bar to screen edge", xalign=0)
+        gap_out_hint.set_opacity(0.7)
+        gap_out_row.pack_start(gap_out_label, False, False, 0)
+        gap_out_row.pack_start(self._gap_out, True, True, 0)
+        gap_out_row.pack_start(gap_out_hint, False, False, 0)
+
         opacity_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         opacity_label = Gtk.Label(label="Opacity:", xalign=1)
         opacity_label.set_size_request(70, -1)
@@ -248,6 +272,8 @@ class BarSettings(Gtk.Window):
         tab.pack_start(width_row, False, False, 0)
         tab.pack_start(align_row, False, False, 0)
         tab.pack_start(position_row, False, False, 0)
+        tab.pack_start(gap_in_row, False, False, 0)
+        tab.pack_start(gap_out_row, False, False, 0)
         tab.pack_start(opacity_row, False, False, 0)
         return tab
 
@@ -500,6 +526,12 @@ class BarSettings(Gtk.Window):
         self._actions["set_align"](self._active_align())
         height = str(int(self._height.get_value()))
         self._actions["set_height"](height)
+        self._actions["set_gaps"](
+            {
+                "gap_in": str(int(self._gap_in.get_value())),
+                "gap_out": str(int(self._gap_out.get_value())),
+            }
+        )
         self._actions["set_position"](self._active_position())
         self._actions["set_opacity"](str(self._active_opacity()))
         self._actions["set_font"](self._active_font_family())

@@ -57,7 +57,8 @@ DEFAULT_PINNED = [
 DEFAULTS = {
     "position": "bottom",            # bottom | top
     "height": 42,                    # taskbar pill height in px
-    "margin": 6,                     # transparent inset around the pill
+    "gap_in": 6,                     # transparent gap between the pill and app windows
+    "gap_out": 6,                    # transparent gap between the pill and the screen edge
     "radius": 12,                    # pill corner radius
     "opacity": 0.95,                 # pill background alpha
     "width": "100%",                 # pill width: px int or "NN%" of the monitor
@@ -136,13 +137,22 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 def validate(cfg: dict) -> dict:
     """Coerce/correct known config fields, falling back to defaults."""
+    cfg = dict(cfg)
+    # Legacy ``margin`` (symmetric inset) migrates to gap_in/gap_out.
+    if "margin" in cfg and "gap_in" not in cfg and "gap_out" not in cfg:
+        try:
+            margin = max(0, int(cfg["margin"]))
+        except (TypeError, ValueError):
+            margin = DEFAULTS["gap_in"]
+        cfg["gap_in"] = margin
+        cfg["gap_out"] = margin
     valid = _deep_merge(DEFAULTS, cfg)
 
     if valid.get("position") not in ("bottom", "top"):
         log.warning("Unknown position %r, using bottom", valid.get("position"))
         valid["position"] = "bottom"
 
-    for key in ("height", "margin", "radius"):
+    for key in ("height", "gap_in", "gap_out", "radius"):
         try:
             valid[key] = max(0, int(valid.get(key, DEFAULTS[key])))
         except (TypeError, ValueError):

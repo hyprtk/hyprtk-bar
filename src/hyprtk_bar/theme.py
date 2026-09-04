@@ -137,8 +137,24 @@ def _vertical_padding(nums: list) -> float:
     return nums[0] + nums[2]
 
 
+def pill_margins(cfg: dict) -> tuple[int, int, int, int]:
+    """(top, right, bottom, left) CSS margins of the .taskbar pill.
+
+    ``gap_out`` is always the side toward the screen edge and ``gap_in`` the
+    side toward app windows, so the vertical margins flip with the bar's
+    position. The left/right margins stay a small fixed inset (the pill's
+    rounded ends never touch the screen edges).
+    """
+    gap_in = int(cfg.get("gap_in", 6) or 6)
+    gap_out = int(cfg.get("gap_out", 6) or 6)
+    h = 6
+    if cfg.get("position") == "top":
+        return gap_out, h, gap_in, h
+    return gap_in, h, gap_out, h
+
+
 def build_css(palette: dict, cfg: dict) -> str:
-    margin = cfg.get("margin", 6)
+    top_m, right_m, bottom_m, left_m = pill_margins(cfg)
     radius = palette.get("border_radius", cfg.get("radius", 12))
     height = cfg.get("height", 42)
     # The imported theme's background alpha (if any) maps to the bar opacity;
@@ -218,7 +234,7 @@ def build_css(palette: dict, cfg: dict) -> str:
 .taskbar {{
   background-color: {bg};
   border-radius: {radius}px;
-  margin: {margin}px {margin}px {margin}px {margin}px;
+  margin: {top_m}px {right_m}px {bottom_m}px {left_m}px;
   min-height: {min_height}px;
   color: {fg};
 {font_size_rule}{border_rule}{padding_rule}{font_rule}}}
