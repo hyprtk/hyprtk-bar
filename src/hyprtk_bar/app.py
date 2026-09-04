@@ -159,6 +159,7 @@ class BarWindow(Gtk.Window):
         self._bar = Bar(cfg, self._ipc, is_primary=is_primary, notif_ctrl=self._notif_ctrl)
         self._bar.set_theme_callback(self._apply_theme)
         self._bar.set_height_callback(self._on_bar_height)
+        self._bar.set_position_callback(self._on_bar_position)
         self.add(self._bar)
         self._bar.connect("size-allocate", self._on_size_allocate)
 
@@ -222,6 +223,24 @@ class BarWindow(Gtk.Window):
 
     def _on_bar_height(self) -> None:
         """Resize the layer surface when the bar height is changed in settings."""
+        total_height = self._cfg["height"] + 2 * self._cfg["margin"]
+        GtkLayerShell.set_exclusive_zone(self, total_height)
+        self.set_size_request(-1, total_height)
+
+    def _on_bar_position(self) -> None:
+        """Re-anchor the layer surface when the bar moves top/bottom in settings."""
+        edge = (
+            GtkLayerShell.Edge.TOP
+            if self._cfg["position"] == "top"
+            else GtkLayerShell.Edge.BOTTOM
+        )
+        other = (
+            GtkLayerShell.Edge.BOTTOM
+            if edge == GtkLayerShell.Edge.TOP
+            else GtkLayerShell.Edge.TOP
+        )
+        GtkLayerShell.set_anchor(self, other, False)
+        GtkLayerShell.set_anchor(self, edge, True)
         total_height = self._cfg["height"] + 2 * self._cfg["margin"]
         GtkLayerShell.set_exclusive_zone(self, total_height)
         self.set_size_request(-1, total_height)

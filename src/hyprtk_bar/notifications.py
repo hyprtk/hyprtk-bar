@@ -587,6 +587,9 @@ class Toast(Popup):
         h = max(nat.height, 1)
         self.set_size_request(w, h)
 
+        # Follow the bar's current edge (position may have changed since build).
+        self.set_bar_edge(self._cfg.get("position", "bottom"))
+
         margin = self._cfg.get("margin", 6)
         if self._monitor is not None:
             geo = self._monitor.get_geometry()

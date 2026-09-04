@@ -108,6 +108,28 @@ class Popup(Gtk.Window):
                 return alloc.x, alloc.x + alloc.width
         return 0, screen_w
 
+    def set_bar_edge(self, edge: str) -> None:
+        """Re-anchor the popup to the opposite bar edge (top/bottom toggle).
+
+        Used when the bar's position changes at runtime: the old edge anchor is
+        dropped and the new one set, so popups float from the current edge.
+        """
+        if edge not in ("top", "bottom") or edge == self._bar_edge:
+            return
+        old = (
+            GtkLayerShell.Edge.TOP
+            if self._bar_edge == "top"
+            else GtkLayerShell.Edge.BOTTOM
+        )
+        new = (
+            GtkLayerShell.Edge.BOTTOM
+            if edge == "top"
+            else GtkLayerShell.Edge.TOP
+        )
+        GtkLayerShell.set_anchor(self, old, False)
+        GtkLayerShell.set_anchor(self, new, True)
+        self._bar_edge = edge
+
     def show_above(self, widget) -> None:
         """Size to content and float it just above the given bar widget."""
         nat = self.content.get_preferred_size().natural_size
@@ -115,6 +137,9 @@ class Popup(Gtk.Window):
         width = max(nat.width, min_w if min_w > 0 else 1)
         height = max(nat.height, min_h if min_h > 0 else 1)
         self.set_size_request(width, height)
+
+        # Follow the bar's current edge (position may have changed since build).
+        self.set_bar_edge(self._cfg.get("position", "bottom"))
 
         bar_win = widget.get_toplevel()
         w_alloc = widget.get_allocation()

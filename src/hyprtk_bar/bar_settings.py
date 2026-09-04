@@ -172,9 +172,25 @@ class BarSettings(Gtk.Window):
         align_row.pack_start(align_label, False, False, 0)
         align_row.pack_start(align_box, True, True, 0)
 
+        position_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        position_label = Gtk.Label(label="Position:", xalign=1)
+        position_label.set_size_request(70, -1)
+        self._position_buttons = {}
+        position_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for key, label in (("bottom", "Bottom"), ("top", "Top")):
+            btn = Gtk.ToggleButton(label=label)
+            position_box.pack_start(btn, False, False, 0)
+            self._position_buttons[key] = btn
+        _exclusive_group(list(self._position_buttons.values()))
+        self._position_buttons[self._cfg.get("position", "bottom")].set_active(True)
+        position_box.set_hexpand(True)
+        position_row.pack_start(position_label, False, False, 0)
+        position_row.pack_start(position_box, True, True, 0)
+
         bar_group.pack_start(height_row, False, False, 0)
         bar_group.pack_start(width_row, False, False, 0)
         bar_group.pack_start(align_row, False, False, 0)
+        bar_group.pack_start(position_row, False, False, 0)
         root.pack_start(bar_group, False, False, 0)
 
         # ── Theme section ────────────────────────────────────────
@@ -354,12 +370,13 @@ class BarSettings(Gtk.Window):
         }
         self._actions["apply_layout"](layout)
 
-        # width / align / height
+        # width / align / height / position
         width = self._width.get_text().strip() or "100%"
         self._actions["set_width"](width)
         self._actions["set_align"](self._active_align())
         height = str(int(self._height.get_value()))
         self._actions["set_height"](height)
+        self._actions["set_position"](self._active_position())
 
     def _on_reset(self, *_args) -> None:
         self._actions["reset_layout"]()
@@ -387,6 +404,12 @@ class BarSettings(Gtk.Window):
             if btn.get_active():
                 return s
         return "center"
+
+    def _active_position(self) -> str:
+        for key, btn in self._position_buttons.items():
+            if btn.get_active():
+                return key
+        return "bottom"
 
     def _get_waybar_theme(self) -> str:
         for name, btn in self._theme_buttons.items():

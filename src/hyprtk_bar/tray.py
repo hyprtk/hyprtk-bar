@@ -425,6 +425,12 @@ class Tray(Gtk.Box):
             btn.destroy()
         self._buttons.clear()
 
+    def set_bar_edge(self, edge: str) -> None:
+        """Re-target the tray's screen coordinates after a top/bottom toggle."""
+        self._bar_edge = edge
+        for btn in self._buttons.values():
+            btn._bar_edge = edge
+
 
 class TrayController:
     """Owns the watcher name (when possible), adopts items otherwise."""

@@ -107,6 +107,7 @@ class Bar(Gtk.Box):
         self._notif_ctrl = notif_ctrl
         self._theme_cb = None
         self._height_cb = None
+        self._position_cb = None
         self._widgets: dict[str, Gtk.Widget] = {}
         self._sections: dict[str, SectionBox] = {}
         self._tray_ctrl: TrayController | None = None
@@ -365,6 +366,17 @@ class Bar(Gtk.Box):
             if self._height_cb is not None:
                 self._height_cb()
 
+        def set_position(value) -> None:
+            if value not in ("top", "bottom"):
+                return
+            cfg["position"] = value
+            config_module.save(cfg)
+            tray = self._widgets.get("tray")
+            if tray is not None:
+                tray.set_bar_edge(value)
+            if self._position_cb is not None:
+                self._position_cb()
+
         def apply_layout(layout: dict) -> None:
             cfg["layout"] = {
                 "left": list(layout.get("left", [])),
@@ -385,6 +397,7 @@ class Bar(Gtk.Box):
             "set_width": set_width,
             "set_align": set_align,
             "set_height": set_height,
+            "set_position": set_position,
             "apply_layout": apply_layout,
             "open_settings": open_settings,
         }
@@ -396,6 +409,9 @@ class Bar(Gtk.Box):
 
     def set_height_callback(self, callback) -> None:
         self._height_cb = callback
+
+    def set_position_callback(self, callback) -> None:
+        self._position_cb = callback
 
     # ── data ────────────────────────────────────────────────────
 
