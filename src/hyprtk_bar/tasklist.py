@@ -152,13 +152,23 @@ class TaskButton(HoverButton):
         )
         self._icon.set_pixel_size(self._icon_size)
         self._icon.get_style_context().add_class("task-icon")
-        self.box.pack_start(self._icon, True, True, 0)
+        self._icon.set_halign(Gtk.Align.CENTER)
+        self._icon.set_valign(Gtk.Align.CENTER)
 
-        self._indicator = Gtk.Box()
-        self._indicator.get_style_context().add_class("task-indicator")
-        self._indicator.set_no_show_all(True)
-        self._indicator.hide()
-        self.box.pack_start(self._indicator, False, False, 0)
+        # Running/active indicator: a small dot overlaid on the icon's
+        # bottom-right corner.
+        self._overlay = Gtk.Overlay()
+        self._overlay.add(self._icon)
+        self._dot = Gtk.Box()
+        self._dot.get_style_context().add_class("task-dot")
+        self._dot.set_no_show_all(True)
+        self._dot.set_halign(Gtk.Align.END)
+        self._dot.set_valign(Gtk.Align.END)
+        self._dot.set_margin_end(2)
+        self._dot.set_margin_bottom(2)
+        self._dot.hide()
+        self._overlay.add_overlay(self._dot)
+        self.box.pack_start(self._overlay, True, True, 0)
 
         self.connect("enter-notify-event", self._on_enter_preview)
         self.connect("leave-notify-event", self._on_leave_preview)
@@ -169,10 +179,10 @@ class TaskButton(HoverButton):
         self._windows = windows
         ctx = self.box.get_style_context()
         if windows:
-            self._indicator.show()
+            self._dot.show()
             ctx.remove_class("dimmed")
         else:
-            self._indicator.hide()
+            self._dot.hide()
             ctx.add_class("dimmed")
         if active:
             ctx.add_class("active")

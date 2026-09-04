@@ -228,15 +228,15 @@ def build_css(palette: dict, cfg: dict) -> str:
 .tray-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .tray-button.hover {{ background-color: {hover}; }}
 .dimmed {{ opacity: 0.45; }}
-.task-indicator {{
-  min-width: 10px;
-  min-height: 4px;
-  border-radius: 2px;
+.task-dot {{
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 4px;
   background-color: {running};
-  margin: 0 3px;
 }}
-.task-button.active .task-indicator {{
-  min-width: 22px;
+.task-button.active .task-dot {{
+  min-width: 10px;
+  min-height: 10px;
   background-color: {accent};
 }}
 .workspace-chip {{
