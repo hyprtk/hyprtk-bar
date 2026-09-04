@@ -29,7 +29,10 @@ class Clock(HoverButton):
             self._date = Gtk.Label(label="")
             self._date.get_style_context().add_class("clock-date")
             self._date.set_justify(Gtk.Justification.CENTER)
+            # Time on launch; the date appears on hover.
+            self._date.set_no_show_all(True)
             self.box.pack_start(self._date, False, False, 0)
+            self._date.hide()
         else:
             self._date = None
 
@@ -60,6 +63,18 @@ class Clock(HoverButton):
         self._time.set_text(now.strftime(fmt))
         if self._date and self._clock.get("date_format"):
             self._date.set_text(now.strftime(self._clock["date_format"]))
+
+    def _on_enter(self, *_args):
+        super()._on_enter(*_args)
+        if self._date is not None:
+            self._date.show()
+        return False
+
+    def _on_leave(self, *_args):
+        super()._on_leave(*_args)
+        if self._date is not None:
+            self._date.hide()
+        return False
 
     def _popup_hide(self) -> None:
         if self._popup is not None:

@@ -109,10 +109,12 @@ class Popup(Gtk.Window):
         return 0, screen_w
 
     def set_bar_edge(self, edge: str) -> None:
-        """Re-anchor the popup to the opposite bar edge (top/bottom toggle).
+        """Re-anchor the popup to the current bar edge (top/bottom toggle).
 
-        Used when the bar's position changes at runtime: the old edge anchor is
-        dropped and the new one set, so popups float from the current edge.
+        A popup floats from the same edge the bar is on: a bottom bar floats it
+        above (anchor BOTTOM), a top bar floats it below (anchor TOP). The old
+        edge anchor is dropped and the new one set, so popups reposition when
+        the bar's position changes at runtime.
         """
         if edge not in ("top", "bottom") or edge == self._bar_edge:
             return
@@ -122,13 +124,33 @@ class Popup(Gtk.Window):
             else GtkLayerShell.Edge.BOTTOM
         )
         new = (
-            GtkLayerShell.Edge.BOTTOM
+            GtkLayerShell.Edge.TOP
             if edge == "top"
-            else GtkLayerShell.Edge.TOP
+            else GtkLayerShell.Edge.BOTTOM
         )
         GtkLayerShell.set_anchor(self, old, False)
         GtkLayerShell.set_anchor(self, new, True)
         self._bar_edge = edge
+
+    def reposition(self) -> None:
+        """Re-apply the floating offset on the current bar edge.
+
+        Called when the bar moves top/bottom while this popup is open, so it
+        follows the bar instead of staying at the old edge.
+        """
+        if not self.get_visible():
+            return
+        edge = (
+            GtkLayerShell.Edge.TOP
+            if self._bar_edge == "top"
+            else GtkLayerShell.Edge.BOTTOM
+        )
+        offset = (
+            self._cfg.get("height", 42)
+            + 2 * self._cfg.get("margin", 6)
+            + GAP
+        )
+        GtkLayerShell.set_margin(self, edge, offset)
 
     def show_above(self, widget) -> None:
         """Size to content and float it just above the given bar widget."""

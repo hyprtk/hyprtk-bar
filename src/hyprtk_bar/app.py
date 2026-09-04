@@ -249,6 +249,18 @@ class BarWindow(Gtk.Window):
         total_height = self._cfg["height"] + 2 * self._cfg["margin"]
         GtkLayerShell.set_exclusive_zone(self, total_height)
         self.set_size_request(-1, total_height)
+        # Move any open popups (calendar, previews, quick settings, notification
+        # center) and the toast to the new bar edge.
+        position = self._cfg["position"]
+        for widget in self._bar._widgets.values():
+            for attr in ("_popup", "_preview"):
+                popup = getattr(widget, attr, None)
+                if popup is not None:
+                    popup.set_bar_edge(position)
+                    popup.reposition()
+        if self._notif_ctrl is not None and self._notif_ctrl._toast is not None:
+            self._notif_ctrl._toast.set_bar_edge(position)
+            self._notif_ctrl._toast.reposition()
 
     # ── layer shell ───────────────────────────────────────────────
 
