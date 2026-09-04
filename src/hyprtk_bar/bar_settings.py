@@ -28,18 +28,23 @@ THEME_SOURCES = (
 )
 
 
-def _exclusive_group(buttons: list[Gtk.ToggleButton]) -> None:
-    """Make a set of toggle buttons radio-like (only one active)."""
+def _radio_group(labels: list[tuple[str, str]]) -> dict[str, Gtk.RadioButton]:
+    """Build a Gtk.RadioButton group from ``(key, label)`` pairs.
 
-    def on_toggled(btn: Gtk.ToggleButton) -> None:
-        if not btn.get_active():
-            return
-        for other in buttons:
-            if other is not btn:
-                other.set_active(False)
-
-    for btn in buttons:
-        btn.connect("toggled", on_toggled)
+    Gtk.RadioButton.new_with_label(group, ...) crashes in this build and the
+    ``group=`` kwarg rejects a sequence, so buttons are created standalone
+    (``group=None``) and joined with ``join_group``.
+    """
+    buttons: dict[str, Gtk.RadioButton] = {}
+    first: Gtk.RadioButton | None = None
+    for key, label in labels:
+        btn = Gtk.RadioButton(group=None, label=label)
+        if first is not None:
+            btn.join_group(first)
+        else:
+            first = btn
+        buttons[key] = btn
+    return buttons
 
 
 class BarSettings(Gtk.Window):
@@ -160,13 +165,12 @@ class BarSettings(Gtk.Window):
         align_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         align_label = Gtk.Label(label="Align:", xalign=1)
         align_label.set_size_request(70, -1)
-        self._align_buttons = {}
+        self._align_buttons = _radio_group(
+            [(s, SECTION_LABELS[s]) for s in SECTION_ORDER]
+        )
         align_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        for s in SECTION_ORDER:
-            btn = Gtk.ToggleButton(label=SECTION_LABELS[s])
+        for btn in self._align_buttons.values():
             align_box.pack_start(btn, False, False, 0)
-            self._align_buttons[s] = btn
-        _exclusive_group(list(self._align_buttons.values()))
         self._align_buttons[self._cfg.get("align", "center")].set_active(True)
         align_box.set_hexpand(True)
         align_row.pack_start(align_label, False, False, 0)
@@ -175,13 +179,12 @@ class BarSettings(Gtk.Window):
         position_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         position_label = Gtk.Label(label="Position:", xalign=1)
         position_label.set_size_request(70, -1)
-        self._position_buttons = {}
+        self._position_buttons = _radio_group(
+            [("bottom", "Bottom"), ("top", "Top")]
+        )
         position_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        for key, label in (("bottom", "Bottom"), ("top", "Top")):
-            btn = Gtk.ToggleButton(label=label)
+        for btn in self._position_buttons.values():
             position_box.pack_start(btn, False, False, 0)
-            self._position_buttons[key] = btn
-        _exclusive_group(list(self._position_buttons.values()))
         self._position_buttons[self._cfg.get("position", "bottom")].set_active(True)
         position_box.set_hexpand(True)
         position_row.pack_start(position_label, False, False, 0)
@@ -203,13 +206,10 @@ class BarSettings(Gtk.Window):
         source_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         source_label = Gtk.Label(label="Source:", xalign=1)
         source_label.set_size_request(70, -1)
-        self._source_buttons = {}
+        self._source_buttons = _radio_group(list(THEME_SOURCES))
         source_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        for key, label in THEME_SOURCES:
-            btn = Gtk.ToggleButton(label=label)
+        for btn in self._source_buttons.values():
             source_box.pack_start(btn, False, False, 0)
-            self._source_buttons[key] = btn
-        _exclusive_group(list(self._source_buttons.values()))
         source_key = theme.get("source", "pywal")
         self._source_buttons[source_key if source_key in self._source_buttons else "pywal"].set_active(True)
         source_box.set_hexpand(True)
@@ -281,13 +281,10 @@ class BarSettings(Gtk.Window):
         row.pack_start(check, True, True, 0)
 
         position = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
-        buttons = {}
-        for s in SECTION_ORDER:
-            btn = Gtk.ToggleButton(label=SECTION_LABELS[s])
+        buttons = _radio_group([(s, SECTION_LABELS[s]) for s in SECTION_ORDER])
+        for s, btn in buttons.items():
             btn.connect("toggled", self._on_position, mid, s)
             position.pack_start(btn, False, False, 0)
-            buttons[s] = btn
-        _exclusive_group(list(buttons.values()))
         row.pack_start(position, False, False, 0)
 
         up = Gtk.Button.new_from_icon_name("go-up-symbolic", Gtk.IconSize.BUTTON)
