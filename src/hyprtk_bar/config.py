@@ -15,6 +15,35 @@ PYWAL_PATH = Path.home() / ".cache" / "wal" / "colors.json"
 
 log = logging.getLogger("hyprtk_bar.config")
 
+# Module ids and their positions. The bar builds its widgets from ``layout``;
+# drag & drop reorders the same set of module ids between the left/center/right
+# sections, and the bar menu can show/hide individual modules.
+MODULE_IDS = [
+    "start_button",
+    "workspaces",
+    "tasklist",
+    "sysmon",
+    "clock",
+    "tray",
+    "quicksettings",
+]
+
+MODULE_LABELS = {
+    "start_button": "Start button",
+    "workspaces": "Workspaces",
+    "tasklist": "Task list",
+    "sysmon": "System monitor",
+    "clock": "Clock",
+    "tray": "System tray",
+    "quicksettings": "Quick settings",
+}
+
+DEFAULT_LAYOUT = {
+    "left": ["start_button", "workspaces", "tasklist"],
+    "center": [],
+    "right": ["sysmon", "clock", "tray", "quicksettings"],
+}
+
 DEFAULT_PINNED = [
     {"class": "firefox", "command": "firefox", "icon": "firefox"},
     {"class": "kitty", "command": "kitty", "icon": "kitty"},
@@ -27,15 +56,20 @@ DEFAULTS = {
     "margin": 6,                     # transparent inset around the pill
     "radius": 12,                    # pill corner radius
     "opacity": 0.95,                 # pill background alpha
-    "use_pywal": True,               # theme background/foreground/accent from pywal
+    "width": "100%",                 # pill width: px int or "NN%" of the monitor
+    "align": "center",               # pill placement when width < 100%: left|center|right
+    "use_pywal": True,               # legacy: seed theme.source from this on first run
     "monitors": "primary",           # primary | all (multi-monitor = later)
     "theme": {
+        "source": "pywal",           # pywal | waybar | manual
+        "waybar_theme": "",          # name of an imported theme (source=waybar)
         "background": "#1a1b26",
         "foreground": "#c0caf5",
         "accent": "#7aa2f7",
         "hover": "rgba(255, 255, 255, 0.08)",
         "running": "#7aa2f7",
     },
+    "layout": DEFAULT_LAYOUT,
     "center": {
         "start_button": True,
         "start_icon": "view-grid-symbolic",
@@ -101,7 +135,26 @@ def validate(cfg: dict) -> dict:
     except (TypeError, ValueError):
         valid["opacity"] = 0.95
 
+    valid["width"] = _normalize_width(valid.get("width", "100%"))
+
+    if valid.get("align") not in ("left", "center", "right"):
+        log.warning("Unknown align %r, using center", valid.get("align"))
+        valid["align"] = "center"
+
     valid["use_pywal"] = bool(valid.get("use_pywal", True))
+
+    # ── theme source ─────────────────────────────────────────────
+    theme = valid.get("theme") or {}
+    source = theme.get("source")
+    if source not in ("pywal", "waybar", "manual"):
+        # migrate the legacy use_pywal flag into an explicit source
+        source = "pywal" if valid.get("use_pywal", True) else "manual"
+    theme["source"] = source
+    theme["waybar_theme"] = str(theme.get("waybar_theme", "") or "")
+    valid["theme"] = theme
+
+    # ── layout ───────────────────────────────────────────────────
+    valid["layout"] = _normalize_layout(cfg, valid)
 
     center = valid.get("center") or {}
     if not isinstance(center.get("pinned"), list):
@@ -114,6 +167,70 @@ def validate(cfg: dict) -> dict:
             valid[section] = dict(DEFAULTS[section])
 
     return valid
+
+
+def _normalize_width(value) -> str:
+    """Return a canonical width: an int px string or a clamped "NN%" string."""
+    if isinstance(value, (int, float)):
+        return str(max(0, int(value)))
+    value = str(value).strip()
+    if value.endswith("%"):
+        try:
+            pct = max(0.0, min(100.0, float(value[:-1].strip())))
+        except ValueError:
+            log.warning("Bad width %r, using 100%%", value)
+            return "100%"
+        return f"{int(round(pct))}%"
+    try:
+        return str(max(0, int(value)))
+    except ValueError:
+        log.warning("Bad width %r, using 100%%", value)
+        return "100%"
+
+
+def _normalize_layout(raw: dict, valid: dict) -> dict:
+    """Return a sanitized layout dict.
+
+    If the user config carries an explicit ``layout``, sanitize it (known ids,
+    no duplicates) and leave modules the user omitted out — the bar menu can
+    add them back. Otherwise migrate the legacy ``*.enabled`` flags into a
+    layout so existing configs keep their visible modules.
+    """
+    user_layout = raw.get("layout")
+    if isinstance(user_layout, dict):
+        seen: list[str] = []
+        layout: dict[str, list[str]] = {}
+        for section in ("left", "center", "right"):
+            cleaned: list[str] = []
+            for mid in user_layout.get(section) or []:
+                if mid in MODULE_IDS and mid not in seen:
+                    cleaned.append(mid)
+                    seen.append(mid)
+            layout[section] = cleaned
+        return layout
+
+    layout = {"left": [], "center": [], "right": []}
+    center = valid.get("center") or {}
+    workspaces = valid.get("workspaces") or {}
+    clock = valid.get("clock") or {}
+    sysmon = valid.get("sysmon") or {}
+    tray = valid.get("tray") or {}
+    qs = valid.get("quicksettings") or {}
+
+    if center.get("start_button", True):
+        layout["center"].append("start_button")
+    if workspaces.get("enabled", True):
+        layout["center"].append("workspaces")
+    layout["center"].append("tasklist")
+    if sysmon.get("enabled", True):
+        layout["right"].append("sysmon")
+    if clock.get("enabled", True):
+        layout["right"].append("clock")
+    if tray.get("enabled", True):
+        layout["right"].append("tray")
+    if qs.get("enabled", True):
+        layout["right"].append("quicksettings")
+    return layout
 
 
 def load() -> dict:

@@ -18,8 +18,8 @@
     "start_icon": "view-grid-symbolic",
     "start_command": "hyprtk-menu",
     "pinned": [
-      { "class": "firefox", "command": "firefox", "icon": "firefox" },
-      { "class": "kitty", "command": "kitty", "icon": "kitty" },
+      { "class": "Brave", "command": "brave", "icon": "brave" },
+      { "class": "Alacritty", "command": "alacritty", "icon": "alacritty" },
       { "class": "thunar", "command": "thunar", "icon": "system-file-manager" }
     ]
   },

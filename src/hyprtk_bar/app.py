@@ -14,6 +14,7 @@ from .bar import Bar  # noqa: E402
 from .config import PYWAL_PATH  # noqa: E402
 from .ipc import HyprIPC  # noqa: E402
 from .theme import build_css, resolve_palette  # noqa: E402
+from .waybar_theme import find_themes_dir  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.app")
 
@@ -48,6 +49,7 @@ class BarWindow(Gtk.Window):
         self._cfg = cfg
         self._refresh_id: int | None = None
         self._wal_monitor: Gio.FileMonitor | None = None
+        self._theme_dir_monitor: Gio.FileMonitor | None = None
         self._wal_debounce: int | None = None
 
         self.set_title("hyprtk-bar")
@@ -63,6 +65,8 @@ class BarWindow(Gtk.Window):
 
         self._ipc = HyprIPC()
         self._bar = Bar(cfg, self._ipc)
+        self._bar.set_theme_callback(self._apply_theme)
+        self._bar.set_height_callback(self._on_bar_height)
         self.add(self._bar)
         self._bar.connect("size-allocate", self._on_size_allocate)
 
@@ -78,8 +82,7 @@ class BarWindow(Gtk.Window):
         self._ipc.start()
         self._bar.start()
 
-        if cfg.get("use_pywal", True):
-            self._setup_wal_monitor()
+        self._setup_theme_monitors()
 
     # ── theming ───────────────────────────────────────────────────
 
@@ -87,28 +90,48 @@ class BarWindow(Gtk.Window):
         css = build_css(resolve_palette(self._cfg), self._cfg)
         self._provider.load_from_data(css.encode())
 
-    def _setup_wal_monitor(self) -> None:
-        """Watch ~/.cache/wal/ so a wallpaper change re-themes the bar live."""
+    def _setup_theme_monitors(self) -> None:
+        """Watch the sources a live re-theme depends on.
+
+        - pywal colors (``~/.cache/wal`` — colors.json + the generated
+          ``colors-waybar*.css`` that waybar themes @import),
+        - the hyprtk waybar theme switcher file (``~/.cache/.themestyle.sh``),
+        - the waybar themes directory itself.
+        """
         try:
             self._wal_monitor = Gio.File.new_for_path(
                 str(PYWAL_PATH.parent)
             ).monitor_directory(Gio.FileMonitorFlags.NONE, None)
         except GLib.Error as exc:
             log.warning("Could not monitor pywal cache: %s", exc)
-            return
-        self._wal_monitor.connect("changed", self._on_wal_changed)
+        else:
+            self._wal_monitor.connect("changed", self._on_theme_source_changed)
 
-    def _on_wal_changed(self, _monitor, file, *_args) -> None:
-        if file.get_basename() != PYWAL_PATH.name:
-            return
+        base = find_themes_dir()
+        try:
+            self._theme_dir_monitor = Gio.File.new_for_path(
+                str(base)
+            ).monitor_directory(Gio.FileMonitorFlags.NONE, None)
+        except GLib.Error as exc:
+            log.warning("Could not monitor themes dir: %s", exc)
+        else:
+            self._theme_dir_monitor.connect("changed", self._on_theme_source_changed)
+
+    def _on_theme_source_changed(self, _monitor, *_args) -> None:
         if self._wal_debounce is not None:
             GLib.source_remove(self._wal_debounce)
-        self._wal_debounce = GLib.timeout_add(400, self._reload_wal)
+        self._wal_debounce = GLib.timeout_add(350, self._reload_theme)
 
-    def _reload_wal(self) -> bool:
+    def _reload_theme(self) -> bool:
         self._wal_debounce = None
         self._apply_theme()
         return GLib.SOURCE_REMOVE
+
+    def _on_bar_height(self) -> None:
+        """Resize the layer surface when the bar height is changed in settings."""
+        total_height = self._cfg["height"] + 2 * self._cfg["margin"]
+        GtkLayerShell.set_exclusive_zone(self, total_height)
+        self.set_size_request(-1, total_height)
 
     # ── layer shell ───────────────────────────────────────────────
 
@@ -192,8 +215,9 @@ class BarWindow(Gtk.Window):
     # ── shutdown ──────────────────────────────────────────────────
 
     def shutdown(self) -> None:
-        if self._wal_monitor is not None:
-            self._wal_monitor.cancel()
+        for monitor in (self._wal_monitor, self._theme_dir_monitor):
+            if monitor is not None:
+                monitor.cancel()
         if self._wal_debounce is not None:
             GLib.source_remove(self._wal_debounce)
         if self._refresh_id is not None:

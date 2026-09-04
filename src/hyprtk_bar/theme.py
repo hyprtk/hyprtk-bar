@@ -1,9 +1,13 @@
-"""Theming: resolve a palette (pywal + config) and emit GTK CSS for the bar."""
+"""Theming: resolve a palette (pywal + waybar import + config) and emit GTK CSS."""
 from __future__ import annotations
 
+import logging
 import re
 
-from .config import load_pywal_colors
+from .config import load_pywal_colors  # noqa: E402
+from .waybar_theme import parse_palette  # noqa: E402
+
+log = logging.getLogger("hyprtk_bar.theme")
 
 
 def _contrast_fg(hex_color: str) -> str:
@@ -20,9 +24,9 @@ def _contrast_fg(hex_color: str) -> str:
 
 
 def _rgba(color: str, alpha: float) -> str:
-    """Convert a #rgb/#rrggbb/rgba() color to an rgba() string at ``alpha``."""
+    """Convert a #rgb/#rrggbb/#rrggbbaa/rgba()/rgb() color to an rgba() string."""
     color = color.strip()
-    m = re.fullmatch(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})", color)
+    m = re.fullmatch(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})", color)
     if m:
         h = m.group(1)
         if len(h) == 3:
@@ -38,9 +42,29 @@ def _rgba(color: str, alpha: float) -> str:
     return color
 
 
+def _hover_color(color: str) -> str:
+    """Return a translucent hover color, preserving the source's alpha.
+
+    Hex colors get a subtle default alpha; rgba()/rgb() values are kept as-is so
+    waybar-imported hover colors (already translucent) are not made opaque.
+    """
+    color = color.strip()
+    if color.startswith("#"):
+        return _rgba(color, 0.12)
+    if color.lower().startswith("rgb"):
+        return color
+    return "rgba(255, 255, 255, 0.12)"
+
+
 def resolve_palette(cfg: dict) -> dict:
-    """Background/foreground/accent palette from pywal (if enabled) + config."""
+    """Background/foreground/accent palette from the configured theme source.
+
+    ``theme.source`` selects the source: ``pywal`` (live wallpaper palette),
+    ``waybar`` (an imported waybar theme, dynamic to its pywal import), or
+    ``manual`` (colors from the config's ``theme`` block).
+    """
     theme = cfg.get("theme") or {}
+    source = theme.get("source", "pywal" if cfg.get("use_pywal", True) else "manual")
     palette = {
         "background": theme.get("background", "#1a1b26"),
         "foreground": theme.get("foreground", "#c0caf5"),
@@ -48,13 +72,37 @@ def resolve_palette(cfg: dict) -> dict:
         "hover": theme.get("hover", "rgba(255, 255, 255, 0.08)"),
         "running": theme.get("running", theme.get("accent", "#7aa2f7")),
     }
-    if cfg.get("use_pywal", True):
-        pywal = load_pywal_colors()
-        if pywal:
-            palette["background"] = pywal.get("background") or palette["background"]
-            palette["foreground"] = pywal.get("foreground") or palette["foreground"]
-            palette["accent"] = pywal.get("color5") or pywal.get("color4") or palette["accent"]
-            palette["running"] = palette["accent"]
+
+    if source == "manual":
+        return palette
+
+    if source == "waybar":
+        imported = import_waybar_palette(theme)
+        if imported is not None:
+            return imported
+
+    # pywal (also the fallback when a waybar import fails)
+    pywal = load_pywal_colors()
+    if pywal:
+        palette["background"] = pywal.get("background") or palette["background"]
+        palette["foreground"] = pywal.get("foreground") or palette["foreground"]
+        palette["accent"] = pywal.get("color5") or pywal.get("color4") or palette["accent"]
+        palette["running"] = palette["accent"]
+    return palette
+
+
+def import_waybar_palette(theme: dict) -> dict | None:
+    """Import the configured waybar theme into a palette."""
+    name = theme.get("waybar_theme")
+    if not name:
+        return None
+    try:
+        palette = parse_palette(name)
+    except Exception as exc:  # never let a bad theme take down the bar
+        log.warning("failed to import waybar theme %r: %s", name, exc)
+        return None
+    if palette is not None:
+        palette["waybar_theme"] = name
     return palette
 
 
@@ -65,11 +113,13 @@ def build_css(palette: dict, cfg: dict) -> str:
     opacity = cfg.get("opacity", 0.95)
 
     bg = _rgba(palette["background"], opacity)
-    hover = _rgba(palette["hover"], 1.0)
+    hover = _hover_color(palette["hover"])
     accent = palette["accent"]
     running = palette["running"]
     fg = palette["foreground"]
     active_fg = _contrast_fg(accent)
+    font = palette.get("font")
+    font_rule = f"  font-family: {font};\n" if font else ""
 
     return f"""
 .taskbar {{
@@ -78,11 +128,11 @@ def build_css(palette: dict, cfg: dict) -> str:
   margin: {margin}px {margin}px {margin}px {margin}px;
   min-height: {height}px;
   color: {fg};
-}}
+{font_rule}}}
 .show-desktop {{
   background-color: {bg};
   border-radius: 5px;
-  margin: {margin}px 0 {margin}px 0;
+  margin: 0;
   min-width: 10px;
   min-height: {height}px;
 }}
