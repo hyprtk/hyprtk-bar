@@ -266,7 +266,7 @@ class BarWindow(Gtk.Window):
         GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
         self.set_size_request(-1, total_height)
 
-    # ── input shape: only the pill and strip are clickable ────────
+    # ── input shape: only the pill is clickable ─────────────────────
 
     def _on_size_allocate(self, *_args) -> None:
         self._apply_input_shape()
@@ -292,9 +292,6 @@ class BarWindow(Gtk.Window):
             if child is self._bar.pill:
                 # The pill's CSS margin insets it on all sides.
                 add(child, margin, margin)
-            elif child is getattr(self._bar, "strip", None):
-                # The strip only has top/bottom CSS margins; hug the right edge.
-                add(child, 0, margin)
         wnd.input_shape_combine_region(region, 0, 0)
 
     # ── IPC ───────────────────────────────────────────────────────

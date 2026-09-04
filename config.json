@@ -18,9 +18,21 @@
     "start_icon": "go-home-symbolic",
     "start_command": "hyprtk-menu",
     "pinned": [
-      { "class": "Brave", "command": "brave", "icon": "brave" },
-      { "class": "Alacritty", "command": "alacritty", "icon": "alacritty" },
-      { "class": "thunar", "command": "thunar", "icon": "system-file-manager" }
+      {
+        "class": "Brave",
+        "command": "brave",
+        "icon": "brave"
+      },
+      {
+        "class": "Alacritty",
+        "command": "alacritty",
+        "icon": "alacritty"
+      },
+      {
+        "class": "thunar",
+        "command": "thunar",
+        "icon": "system-file-manager"
+      }
     ]
   },
   "workspaces": {
@@ -39,7 +51,6 @@
     "interval": 2,
     "disk_path": "/"
   },
-  "show_desktop": true,
   "tray": {
     "enabled": true,
     "icon_size": 20

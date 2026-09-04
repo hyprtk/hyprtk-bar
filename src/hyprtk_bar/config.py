@@ -94,7 +94,6 @@ DEFAULTS = {
         "interval": 2,          # seconds between reads
         "disk_path": "/",       # mount point to monitor
     },
-    "show_desktop": True,
     "tray": {
         "enabled": True,
         "icon_size": 20,

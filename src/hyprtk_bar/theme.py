@@ -197,14 +197,6 @@ def build_css(palette: dict, cfg: dict) -> str:
   min-height: {min_height}px;
   color: {fg};
 {font_size_rule}{border_rule}{padding_rule}{font_rule}}}
-.show-desktop {{
-  background-color: {bg};
-  border-radius: 5px;
-  margin: 0;
-  min-width: 10px;
-  min-height: {height}px;
-}}
-.show-desktop.hover {{ background-color: {hover}; }}
 .task-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .task-button.hover {{ background-color: {hover}; }}
 .tray-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}

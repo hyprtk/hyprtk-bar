@@ -1,17 +1,11 @@
-"""The bar: a Win11-style horizontal layout with edge widgets.
+"""The bar: a horizontal taskbar with left/center/right module sections.
 
 Layout (inside the transparent layer-shell surface):
 
-    [ left spacer ][ pill (left | centered | right sections) ][ show-desktop strip ]
+    [ left spacer ][ pill (left | centered | right sections) ]
 
-The pill carries the background/rounded corners; the strip hugs the screen's
-right edge, Windows-11 style, and toggles "show desktop".
-
-The pill is composed of three sections (left/center/right) populated from the
-config's ``layout``. Every module lives in a ``ModuleShell`` with a drag grip,
-so modules can be re-arranged by drag & drop — the shells are reparented (never
-recreated), the new order is persisted to ``config.json``, and right-clicking
-empty bar space opens a menu for theme/module/layout control.
+The pill carries the background/rounded corners and is composed of three
+sections (left/center/right) populated from the config's ``layout``.
 """
 from __future__ import annotations
 
@@ -61,43 +55,6 @@ class StartButton(HoverButton):
         return True
 
 
-class ShowDesktopStrip(HoverButton):
-    """Win11 'show desktop' sliver: hides/restores all windows on the active workspace."""
-
-    def __init__(self, cfg: dict, ipc):
-        super().__init__("show-desktop", vertical=False, spacing=0)
-        self._ipc = ipc
-        self._hidden: list[tuple[str, int]] = []
-
-    def _on_button_press(self, _widget, event):
-        if event.button == 1:
-            self.toggle()
-        return True
-
-    def toggle(self) -> None:
-        if self._hidden:
-            for addr, ws in self._hidden:
-                self._ipc.move_window(ws, addr)
-            self._hidden = []
-            return
-        active = self._ipc.query("activeworkspace") or {}
-        a_id = active.get("id")
-        if not isinstance(a_id, int) or a_id <= 0:
-            return
-        clients = self._ipc.query("clients") or []
-        for c in clients:
-            if not c.get("mapped"):
-                continue
-            ws = c.get("workspace")
-            c_id = ws.get("id") if isinstance(ws, dict) else ws
-            if c_id == a_id:
-                addr = c.get("address")
-                if not addr:
-                    continue
-                self._ipc.move_window("special:show-desktop", addr)
-                self._hidden.append((addr, a_id))
-
-
 class Bar(Gtk.Box):
     def __init__(self, cfg: dict, ipc, is_primary: bool = True, notif_ctrl=None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
@@ -112,7 +69,6 @@ class Bar(Gtk.Box):
         self._sections: dict[str, SectionBox] = {}
         self._tray_ctrl: TrayController | None = None
         self._settings_win = None
-        self.strip = None
         self._width = cfg.get("width", "100%")
         self._align = cfg.get("align", "center")
         self._last_width = -1
@@ -148,12 +104,6 @@ class Bar(Gtk.Box):
         self._apply_width()
 
         self._build_layout(cfg.get("layout") or DEFAULT_LAYOUT)
-
-        if cfg.get("show_desktop"):
-            self.strip = ShowDesktopStrip(cfg, ipc)
-            # Aligned to the bar's right end: pack inside the pill so it tracks
-            # the pill's width/alignment instead of the screen edge.
-            self.pill.pack_end(self.strip, False, False, 0)
 
     # ── width & alignment ────────────────────────────────────────
 
