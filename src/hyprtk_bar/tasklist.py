@@ -54,10 +54,15 @@ def resolve_command(app_class: str) -> str:
 
 
 def resolve_icon(app_class: str, explicit: str | None = None) -> str:
-    """Best icon name for an app class: config override, desktop entry, class, generic."""
+    """Best icon name for an app class: config override, desktop entry, class, generic.
+
+    Prefers the symbolic variant (``<name>-symbolic``) when the icon theme
+    ships one, so tasklist icons match the bar's monochrome modules; otherwise
+    the original colour icon is kept.
+    """
     theme = Gtk.IconTheme.get_default()
     if explicit and theme.has_icon(explicit):
-        return explicit
+        return _prefer_symbolic(theme, explicit)
     try:
         info = Gio.DesktopAppInfo.new(f"{app_class}.desktop")
     except (TypeError, GLib.Error):
@@ -68,10 +73,44 @@ def resolve_icon(app_class: str, explicit: str | None = None) -> str:
         if icon is not None:
             name = icon.to_string()
             if name and theme.has_icon(name):
-                return name
+                return _prefer_symbolic(theme, name)
     if theme.has_icon(app_class):
-        return app_class
-    return GENERIC_ICON
+        return _prefer_symbolic(theme, app_class)
+    return _prefer_symbolic(theme, GENERIC_ICON)
+
+
+def _prefer_symbolic(theme: Gtk.IconTheme, name: str) -> str:
+    """Return ``name-symbolic`` when the icon theme provides it, else ``name``."""
+    if name and theme.has_icon(f"{name}-symbolic"):
+        return f"{name}-symbolic"
+    return name
+
+
+# Generic symbolic icons per app category, offered when pinning an app that
+# has no symbolic variant of its own icon.
+CATEGORY_SYMBOLIC = (
+    ("FILEMANAGER", "system-file-manager-symbolic"),
+    ("TERMINALEMULATOR", "utilities-terminal-symbolic"),
+    ("TEXTEDITOR", "accessories-text-editor-symbolic"),
+    ("WEBBROWSER", "web-browser-symbolic"),
+)
+
+
+def generic_symbolic_icon(app_class: str) -> str | None:
+    """A generic symbolic icon for the app's category, or None."""
+    for candidate in (f"{app_class}.desktop", f"{app_class.lower()}.desktop"):
+        try:
+            info = Gio.DesktopAppInfo.new(candidate)
+        except (TypeError, GLib.Error):
+            # constructor returns NULL (raised by pygobject) when no match
+            info = None
+        if info is None:
+            continue
+        categories = (info.get_categories() or "").upper()
+        for token, icon in CATEGORY_SYMBOLIC:
+            if token in categories:
+                return icon
+    return None
 
 
 def build_preview_content(
@@ -400,11 +439,41 @@ class TaskList(Gtk.Box):
         pinned.append({
             "class": cls,
             "command": resolve_command(cls),
-            "icon": resolve_icon(cls, None),
+            "icon": self._choose_pin_icon(cls),
         })
         config_module.save(self._cfg)
         self._pinned = {p["class"]: p for p in pinned}
         self._refresh()
+
+    def _choose_pin_icon(self, cls: str) -> str:
+        """Ask whether to use the generic symbolic category icon or the actual
+        application icon when pinning. Falls back to the app icon when the app
+        has no category mapping or the icons are the same."""
+        generic = generic_symbolic_icon(cls)
+        actual = resolve_icon(cls, None)
+        if generic is None or generic == actual:
+            return actual
+
+        dialog = Gtk.MessageDialog(
+            transient_for=None,
+            modal=True,
+            destroy_with_parent=False,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.NONE,
+            text=f"Pin “{cls}” to the taskbar",
+        )
+        dialog.format_secondary_text(
+            "Choose which icon the pinned app should use."
+        )
+        dialog.set_keep_above(True)
+        resp_generic = 1
+        resp_actual = 2
+        dialog.add_button(f"Generic symbolic icon ({generic})", resp_generic)
+        dialog.add_button(f"Application icon ({actual})", resp_actual)
+        dialog.set_default_response(resp_generic)
+        response = dialog.run()
+        dialog.destroy()
+        return generic if response == resp_generic else actual
 
     def _unpin(self, cls: str) -> None:
         pinned = self._cfg.setdefault("center", {}).setdefault("pinned", [])
