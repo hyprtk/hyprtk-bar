@@ -23,6 +23,21 @@ log = logging.getLogger("hyprtk_bar.tasklist")
 GENERIC_ICON = "application-x-executable"
 
 
+def _class_matches(pinned_class: str, window_class: str) -> bool:
+    """Case-insensitive match, also treating a prefix as a match.
+
+    Apps often report a class that differs from the pinned entry
+    (``Brave`` vs ``brave-browser``); matching keeps one icon per app.
+    """
+    a = (pinned_class or "").strip().lower()
+    b = (window_class or "").strip().lower()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    return a.startswith(b) or b.startswith(a)
+
+
 def resolve_icon(app_class: str, explicit: str | None = None) -> str:
     """Best icon name for an app class: config override, desktop entry, class, generic."""
     theme = Gtk.IconTheme.get_default()
@@ -224,6 +239,18 @@ class TaskList(Gtk.Box):
 
     # ── public ────────────────────────────────────────────────────
 
+    def _display_class(self, window_class: str) -> str:
+        """Map a running window class to a pinned class when they match.
+
+        Apps can report a class that differs from the pinned entry (e.g. pinned
+        ``Brave`` vs the window's ``brave-browser``). Matching those keeps a
+        single taskbar icon that turns active instead of duplicating.
+        """
+        for pinned_class in self._pinned:
+            if _class_matches(pinned_class, window_class):
+                return pinned_class
+        return window_class
+
     def update(self, clients: list, focus_address: str | None, active_workspace: int) -> None:
         self._focus_address = focus_address
         self._active_workspace = active_workspace
@@ -232,7 +259,8 @@ class TaskList(Gtk.Box):
         for c in clients:
             if not c.get("mapped"):
                 continue
-            grouped.setdefault(c.get("class") or "unknown", []).append(c)
+            cls = self._display_class(c.get("class") or "unknown")
+            grouped.setdefault(cls, []).append(c)
         self._grouped = grouped
 
         order = list(self._pinned)
