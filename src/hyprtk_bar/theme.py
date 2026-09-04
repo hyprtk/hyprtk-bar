@@ -91,6 +91,9 @@ def resolve_palette(cfg: dict) -> dict:
         # 2px bar border drawn in the pywal accent color.
         palette["border_width"] = 2
         palette["border_color"] = palette["accent"]
+        # Match the imported themes' base font size so switching between pywal
+        # and an imported theme never changes the text size.
+        palette["font_size"] = 16
     return palette
 
 

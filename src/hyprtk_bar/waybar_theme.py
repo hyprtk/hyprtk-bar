@@ -12,7 +12,8 @@ The palette is derived from the theme's CSS:
   background/foreground -> ``window#waybar`` (solidified)
   accent                -> a real accent color (define-colors / wal color)
   hover                 -> ``#workspaces button:hover`` (alpha preserved)
-  font                  -> ``font-family`` from the ``*`` rule
+The font family is NOT taken from the theme — the bar uses the system font so
+pywal and imported themes render identically.
 """
 from __future__ import annotations
 
@@ -358,17 +359,6 @@ def _text_color(body: str, colors: dict[str, str]) -> str | None:
     return _resolve_value(_prop(body, "color") or "", colors)
 
 
-def _font_family(blocks: dict[str, str]) -> str | None:
-    for selector in ("*", "window#waybar"):
-        body = blocks.get(selector)
-        value = _prop(body, "font-family") if body else None
-        if value:
-            first = value.split(",")[0].strip().strip('"').strip("'")
-            if first:
-                return first
-    return None
-
-
 # ── palette extraction ──────────────────────────────────────────
 
 def parse_palette(theme_name: str) -> dict | None:
@@ -427,7 +417,6 @@ def parse_palette(theme_name: str) -> dict | None:
         pick("background", "#workspaces button:hover")
         or "rgba(255, 255, 255, 0.08)"
     )
-    font = _font_family(blocks)
 
     palette = {
         "background": background,
@@ -438,8 +427,9 @@ def parse_palette(theme_name: str) -> dict | None:
     }
     if background_alpha is not None:
         palette["background_alpha"] = background_alpha
-    if font:
-        palette["font"] = font
+    # Font-family is intentionally NOT taken from the theme: the bar uses the
+    # system font (the same one the pywal theme renders with), so switching
+    # between pywal and imported themes never changes the font type.
     if border_width is not None and border_color:
         palette["border_width"] = border_width
         palette["border_color"] = border_color
