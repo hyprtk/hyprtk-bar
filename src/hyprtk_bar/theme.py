@@ -88,6 +88,9 @@ def resolve_palette(cfg: dict) -> dict:
         palette["foreground"] = pywal.get("foreground") or palette["foreground"]
         palette["accent"] = pywal.get("color5") or pywal.get("color4") or palette["accent"]
         palette["running"] = palette["accent"]
+        # 2px bar border drawn in the pywal accent color.
+        palette["border_width"] = 2
+        palette["border_color"] = palette["accent"]
     return palette
 
 
