@@ -15,7 +15,7 @@
   },
   "center": {
     "start_button": true,
-    "start_icon": "view-grid-symbolic",
+    "start_icon": "go-home-symbolic",
     "start_command": "hyprtk-menu",
     "pinned": [
       { "class": "Brave", "command": "brave", "icon": "brave" },

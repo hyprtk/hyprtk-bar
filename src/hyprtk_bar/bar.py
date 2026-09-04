@@ -44,10 +44,13 @@ class StartButton(HoverButton):
         self._ipc = ipc
         self._command = center.get("start_command", "hyprtk-menu")
         icon = Gtk.Image.new_from_icon_name(
-            center.get("start_icon", "view-grid-symbolic"), Gtk.IconSize.INVALID
+            center.get("start_icon", "go-home-symbolic"), Gtk.IconSize.INVALID
         )
         icon.set_pixel_size(22)
         self.box.pack_start(icon, True, True, 0)
+        # Keep the start icon clear of the bar's left edge, with the same
+        # breathing room as the spacing between the other modules.
+        self.set_margin_start(6)
 
     def _on_button_press(self, _widget, event):
         if event.button == 1:
