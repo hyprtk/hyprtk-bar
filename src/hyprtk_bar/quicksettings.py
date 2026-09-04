@@ -23,6 +23,7 @@ from .widgets import HoverButton  # noqa: E402
 log = logging.getLogger("hyprtk_bar.quicksettings")
 
 SINK = "@DEFAULT_AUDIO_SINK@"
+SOURCE = "@DEFAULT_AUDIO_SOURCE@"
 
 
 def _run(args, timeout=3) -> str:
@@ -65,6 +66,24 @@ def set_volume_pct(pct: int) -> None:
 
 def toggle_mute() -> None:
     _run(["wpctl", "set-mute", SINK, "toggle"])
+
+
+# ── microphone (source) volume ────────────────────────────────────
+
+def get_mic_volume() -> tuple[float, bool] | None:
+    out = _run(["wpctl", "get-volume", SOURCE])
+    m = re.search(r"Volume:\s+([\d.]+)", out)
+    if not m:
+        return None
+    return float(m.group(1)), "[MUTED]" in out
+
+
+def set_mic_volume_pct(pct: int) -> None:
+    _run(["wpctl", "set-volume", SOURCE, f"{max(0, min(pct, 100)) / 100:.2f}"])
+
+
+def toggle_mic_mute() -> None:
+    _run(["wpctl", "set-mute", SOURCE, "toggle"])
 
 
 # ── wifi ─────────────────────────────────────────────────────────
@@ -290,6 +309,17 @@ class QuickSettings(Popup):
         )
         self.content.pack_start(self._volume, False, False, 0)
 
+        self._mic = SliderRow(
+            "audio-input-microphone-symbolic",
+            "audio-input-microphone-muted-symbolic",
+            "Mic",
+            get_pct=lambda: int(round((get_mic_volume() or (1.0, False))[0] * 100)),
+            set_pct=set_mic_volume_pct,
+            muted_get=lambda: bool(get_mic_volume() and get_mic_volume()[1]),
+            mute_toggle=toggle_mic_mute,
+        )
+        self.content.pack_start(self._mic, False, False, 0)
+
         backlight = find_backlight()
         if backlight is not None:
             device, _cur, _mx = backlight
@@ -328,6 +358,7 @@ class QuickSettings(Popup):
         self._wifi.set_state(get_wifi())
         self._bt.set_state(get_bt())
         self._volume.refresh()
+        self._mic.refresh()
         if self._brightness_row is not None:
             self._brightness_row.refresh()
 
