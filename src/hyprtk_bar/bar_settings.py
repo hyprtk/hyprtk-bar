@@ -74,7 +74,7 @@ class BarSettings(Gtk.Window):
 
         self.set_decorated(False)
         self.set_keep_above(True)
-        self.set_default_size(640, 780)
+        self.set_default_size(620, 580)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.connect("key-press-event", self._on_key)
         self._build()
@@ -132,13 +132,53 @@ class BarSettings(Gtk.Window):
         self._style_header(header)
         root.pack_start(header, False, False, 0)
 
-        # ── Bar section ──────────────────────────────────────────
-        # Inline controls only: GtkComboBox popups mis-position on this
-        # GTK3/Wayland build, so no dropdowns here.
-        bar_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        title = Gtk.Label(label="Bar", xalign=0)
-        title.get_style_context().add_class("settings-heading")
-        bar_group.pack_start(title, False, False, 0)
+        notebook = Gtk.Notebook()
+        notebook.set_tab_pos(Gtk.PositionType.TOP)
+        root.pack_start(notebook, True, True, 0)
+
+        # ── Bar tab ──────────────────────────────────────────────
+        bar_tab = self._build_bar_tab()
+        notebook.append_page(bar_tab, Gtk.Label(label="Bar"))
+
+        # ── Fonts tab ────────────────────────────────────────────
+        font_tab = self._build_font_tab()
+        notebook.append_page(font_tab, Gtk.Label(label="Fonts"))
+
+        # ── Themes tab ───────────────────────────────────────────
+        themes_tab = self._build_themes_tab()
+        notebook.append_page(themes_tab, Gtk.Label(label="Themes"))
+        self._refresh_themes(select=(self._cfg.get("theme") or {}).get("waybar_theme") or None)
+        self._update_source_state()
+
+        # ── Modules tab ──────────────────────────────────────────
+        modules_tab = self._build_modules_tab()
+        notebook.append_page(modules_tab, Gtk.Label(label="Modules"))
+
+        # ── buttons ──────────────────────────────────────────────
+        buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        buttons.set_halign(Gtk.Align.END)
+        reset_btn = Gtk.Button(label="Reset layout")
+        reset_btn.connect("clicked", self._on_reset)
+        close_btn = Gtk.Button(label="Close")
+        close_btn.connect("clicked", lambda *_a: self.close())
+        apply_btn = Gtk.Button(label="Apply")
+        apply_btn.get_style_context().add_class("suggested-action")
+        apply_btn.connect("clicked", self._on_apply)
+        buttons.pack_start(reset_btn, False, False, 0)
+        buttons.pack_start(close_btn, False, False, 0)
+        buttons.pack_start(apply_btn, False, False, 0)
+        root.pack_start(buttons, False, False, 0)
+
+    def _tab_margins(self) -> Gtk.Box:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin_top(8)
+        box.set_margin_bottom(4)
+        box.set_margin_start(4)
+        box.set_margin_end(4)
+        return box
+
+    def _build_bar_tab(self) -> Gtk.Box:
+        tab = self._tab_margins()
 
         height_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         height_label = Gtk.Label(label="Height:", xalign=1)
@@ -149,14 +189,14 @@ class BarSettings(Gtk.Window):
         height_row.pack_start(height_label, False, False, 0)
         height_row.pack_start(self._height, True, True, 0)
 
+        # Width is a percentage only.
         width_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         width_label = Gtk.Label(label="Width:", xalign=1)
         width_label.set_size_request(70, -1)
-        self._width = Gtk.Entry()
-        self._width.set_text(str(self._cfg.get("width", "100%")))
-        self._width.set_placeholder_text("e.g. 75% or 600")
+        self._width = Gtk.SpinButton.new_with_range(10, 100, 5)
+        self._width.set_value(self._width_percent())
         self._width.set_hexpand(True)
-        width_hint = Gtk.Label(label="% or px", xalign=0)
+        width_hint = Gtk.Label(label="% of the monitor", xalign=0)
         width_hint.set_opacity(0.7)
         width_row.pack_start(width_label, False, False, 0)
         width_row.pack_start(self._width, True, True, 0)
@@ -193,72 +233,26 @@ class BarSettings(Gtk.Window):
         opacity_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         opacity_label = Gtk.Label(label="Opacity:", xalign=1)
         opacity_label.set_size_request(70, -1)
-        self._opacity = Gtk.Entry()
-        self._opacity.set_text(str(int(round(self._cfg.get("opacity", 0.95) * 100))))
-        self._opacity.set_width_chars(4)
-        self._opacity.set_input_purpose(Gtk.InputPurpose.NUMBER)
-        opacity_hint = Gtk.Label(label="% (0–100)", xalign=0)
+        self._opacity = Gtk.SpinButton.new_with_range(10, 100, 5)
+        self._opacity.set_value(int(round(self._cfg.get("opacity", 0.95) * 100)))
+        self._opacity.set_hexpand(True)
+        opacity_hint = Gtk.Label(label="%", xalign=0)
         opacity_hint.set_opacity(0.7)
         opacity_row.pack_start(opacity_label, False, False, 0)
         opacity_row.pack_start(self._opacity, True, True, 0)
         opacity_row.pack_start(opacity_hint, False, False, 0)
 
-        bar_group.pack_start(height_row, False, False, 0)
-        bar_group.pack_start(width_row, False, False, 0)
-        bar_group.pack_start(align_row, False, False, 0)
-        bar_group.pack_start(position_row, False, False, 0)
-        bar_group.pack_start(opacity_row, False, False, 0)
-        root.pack_start(bar_group, False, False, 0)
+        tab.pack_start(height_row, False, False, 0)
+        tab.pack_start(width_row, False, False, 0)
+        tab.pack_start(align_row, False, False, 0)
+        tab.pack_start(position_row, False, False, 0)
+        tab.pack_start(opacity_row, False, False, 0)
+        return tab
 
-        # ── Theme section ────────────────────────────────────────
-        theme_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        theme_title = Gtk.Label(label="Theme", xalign=0)
-        theme_title.get_style_context().add_class("settings-heading")
-        theme_group.pack_start(theme_title, False, False, 0)
-
-        theme = self._cfg.get("theme") or {}
-        source_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        source_label = Gtk.Label(label="Source:", xalign=1)
-        source_label.set_size_request(70, -1)
-        self._source_buttons = _radio_group(list(THEME_SOURCES))
-        source_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        for btn in self._source_buttons.values():
-            btn.connect("toggled", self._on_source_toggled)
-            source_box.pack_start(btn, False, False, 0)
-        source_key = theme.get("source", "pywal")
-        self._source_buttons[source_key if source_key in self._source_buttons else "pywal"].set_active(True)
-        source_box.set_hexpand(True)
-        source_row.pack_start(source_label, False, False, 0)
-        source_row.pack_start(source_box, True, True, 0)
-
-        theme_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        theme_label = Gtk.Label(label="Imported theme:", xalign=1)
-        theme_label.set_size_request(70, -1)
-        self._themes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        themes_scroller = Gtk.ScrolledWindow()
-        themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        themes_scroller.set_min_content_height(96)
-        themes_scroller.add(self._themes_box)
-        themes_scroller.set_hexpand(True)
-        import_btn = Gtk.Button(label="Import…")
-        import_btn.connect("clicked", self._on_import)
-        theme_row.pack_start(theme_label, False, False, 0)
-        theme_row.pack_start(themes_scroller, True, True, 0)
-        theme_row.pack_start(import_btn, False, False, 0)
-
-        theme_group.pack_start(source_row, False, False, 0)
-        theme_group.pack_start(theme_row, False, False, 0)
-        root.pack_start(theme_group, False, False, 0)
-        self._refresh_themes(select=theme.get("waybar_theme") or None)
-        self._update_source_state()
-
-        # ── Font section ──────────────────────────────────────────
-        font_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        font_title = Gtk.Label(label="Font", xalign=0)
-        font_title.get_style_context().add_class("settings-heading")
-        font_group.pack_start(font_title, False, False, 0)
-
+    def _build_font_tab(self) -> Gtk.Box:
+        tab = self._tab_margins()
         font_cfg = self._cfg.get("font") or {}
+
         family_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         family_label = Gtk.Label(label="Family:", xalign=1)
         family_label.set_size_request(70, -1)
@@ -280,18 +274,57 @@ class BarSettings(Gtk.Window):
         size_row.pack_start(self._font_size, True, True, 0)
         size_row.pack_start(size_hint, False, False, 0)
 
-        font_group.pack_start(family_row, False, False, 0)
-        font_group.pack_start(size_row, False, False, 0)
-        root.pack_start(font_group, False, False, 0)
+        tab.pack_start(family_row, False, False, 0)
+        tab.pack_start(size_row, False, False, 0)
+        return tab
 
-        # ── Modules section ──────────────────────────────────────
-        mod_title = Gtk.Label(
-            label="Modules — position (left/center/right) and order within the bar.",
+    def _build_themes_tab(self) -> Gtk.Box:
+        tab = self._tab_margins()
+        theme = self._cfg.get("theme") or {}
+
+        source_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        source_label = Gtk.Label(label="Source:", xalign=1)
+        source_label.set_size_request(70, -1)
+        self._source_buttons = _radio_group(list(THEME_SOURCES))
+        source_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for btn in self._source_buttons.values():
+            btn.connect("toggled", self._on_source_toggled)
+            source_box.pack_start(btn, False, False, 0)
+        source_key = theme.get("source", "pywal")
+        self._source_buttons[source_key if source_key in self._source_buttons else "pywal"].set_active(True)
+        source_box.set_hexpand(True)
+        source_row.pack_start(source_label, False, False, 0)
+        source_row.pack_start(source_box, True, True, 0)
+
+        theme_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        theme_label = Gtk.Label(label="Imported theme:", xalign=1)
+        theme_label.set_size_request(70, -1)
+        self._themes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        themes_scroller = Gtk.ScrolledWindow()
+        themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        themes_scroller.set_min_content_height(120)
+        themes_scroller.add(self._themes_box)
+        themes_scroller.set_hexpand(True)
+        themes_scroller.set_vexpand(True)
+        import_btn = Gtk.Button(label="Import…")
+        import_btn.connect("clicked", self._on_import)
+        theme_row.pack_start(theme_label, False, False, 0)
+        theme_row.pack_start(themes_scroller, True, True, 0)
+        theme_row.pack_start(import_btn, False, False, 0)
+
+        tab.pack_start(source_row, False, False, 0)
+        tab.pack_start(theme_row, True, True, 0)
+        return tab
+
+    def _build_modules_tab(self) -> Gtk.Box:
+        tab = self._tab_margins()
+        hint = Gtk.Label(
+            label="Position (left/center/right) and order within the bar.",
             xalign=0,
             wrap=True,
         )
-        mod_title.get_style_context().add_class("settings-heading")
-        root.pack_start(mod_title, False, False, 0)
+        hint.set_opacity(0.8)
+        tab.pack_start(hint, False, False, 0)
 
         list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         for mid in MODULE_IDS:
@@ -301,22 +334,17 @@ class BarSettings(Gtk.Window):
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroller.set_vexpand(True)
         scroller.add(list_box)
-        root.pack_start(scroller, True, True, 0)
+        tab.pack_start(scroller, True, True, 0)
+        return tab
 
-        # ── buttons ──────────────────────────────────────────────
-        buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        buttons.set_halign(Gtk.Align.END)
-        reset_btn = Gtk.Button(label="Reset layout")
-        reset_btn.connect("clicked", self._on_reset)
-        close_btn = Gtk.Button(label="Close")
-        close_btn.connect("clicked", lambda *_a: self.close())
-        apply_btn = Gtk.Button(label="Apply")
-        apply_btn.get_style_context().add_class("suggested-action")
-        apply_btn.connect("clicked", self._on_apply)
-        buttons.pack_start(reset_btn, False, False, 0)
-        buttons.pack_start(close_btn, False, False, 0)
-        buttons.pack_start(apply_btn, False, False, 0)
-        root.pack_start(buttons, False, False, 0)
+    def _width_percent(self) -> int:
+        width = str(self._cfg.get("width", "100%"))
+        if width.endswith("%"):
+            try:
+                return max(10, min(100, int(width[:-1].strip())))
+            except ValueError:
+                pass
+        return 100
 
     def _make_row(self, mid: str) -> Gtk.Box:
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -415,8 +443,7 @@ class BarSettings(Gtk.Window):
         self._actions["apply_layout"](layout)
 
         # width / align / height / position / opacity
-        width = self._width.get_text().strip() or "100%"
-        self._actions["set_width"](width)
+        self._actions["set_width"](self._active_width())
         self._actions["set_align"](self._active_align())
         height = str(int(self._height.get_value()))
         self._actions["set_height"](height)
@@ -458,12 +485,11 @@ class BarSettings(Gtk.Window):
                 return key
         return "bottom"
 
+    def _active_width(self) -> str:
+        return f"{int(self._width.get_value())}%"
+
     def _active_opacity(self) -> float:
-        text = self._opacity.get_text().strip().rstrip("%")
-        try:
-            return max(0.0, min(1.0, float(text) / 100.0))
-        except (TypeError, ValueError):
-            return 0.95
+        return max(0.0, min(1.0, self._opacity.get_value() / 100.0))
 
     def _get_imported_theme(self) -> str:
         for name, btn in self._theme_buttons.items():
