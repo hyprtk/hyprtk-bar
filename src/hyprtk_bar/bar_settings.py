@@ -323,9 +323,21 @@ class BarSettings(Gtk.Window):
         icon_row.pack_start(self._icon_size, True, True, 0)
         icon_row.pack_start(icon_hint, False, False, 0)
 
+        ql_icon_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        ql_icon_label = Gtk.Label(label="Quicklink icons:", xalign=1)
+        ql_icon_label.set_size_request(70, -1)
+        self._ql_icon_size = Gtk.SpinButton.new_with_range(0, 48, 1)
+        self._ql_icon_size.set_value(int((self._cfg.get("quicklinks") or {}).get("icon_size", 0) or 0))
+        ql_icon_hint = Gtk.Label(label="px (0 = follow icon size)", xalign=0)
+        ql_icon_hint.set_opacity(0.7)
+        ql_icon_row.pack_start(ql_icon_label, False, False, 0)
+        ql_icon_row.pack_start(self._ql_icon_size, True, True, 0)
+        ql_icon_row.pack_start(ql_icon_hint, False, False, 0)
+
         tab.pack_start(family_row, False, False, 0)
         tab.pack_start(size_row, False, False, 0)
         tab.pack_start(icon_row, False, False, 0)
+        tab.pack_start(ql_icon_row, False, False, 0)
         self._font_ready = True
         return tab
 
@@ -537,6 +549,7 @@ class BarSettings(Gtk.Window):
         self._actions["set_font"](self._active_font_family())
         self._actions["set_font_size"](str(int(self._font_size.get_value())))
         self._actions["set_icon_size"](str(int(self._icon_size.get_value())))
+        self._actions["set_quicklink_icon_size"](str(int(self._ql_icon_size.get_value())))
 
     def _on_reset(self, *_args) -> None:
         self._actions["reset_layout"]()

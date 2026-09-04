@@ -177,6 +177,7 @@ flags automatically.
 "quicklinks": {
   "enabled": true,
   "glyph_font": "Symbols Nerd Font",
+  "icon_size": 0,
   "links": [
     { "id": "terminal", "label": "Terminal", "icon": "\uf120", "command": "alacritty" }
   ]
@@ -206,6 +207,10 @@ flags automatically.
   the default browser link) resolves its launch command from `xdg-settings`.
   Commands containing shell operators (`&&`, `;`) are run through a shell
   automatically.
+- **quicklinks.icon_size**: glyph size in px for the quicklink icons (default
+  `0` = follow the global icon size). Editable in the settings window under
+  *Fonts → Quicklink icons*. Glyphs render in pixels (like other module icons),
+  so they scale with the font/icon size settings.
 - **notifications**: `max_stored` caps the center history; `default_timeout`
   is the toast duration in ms (0 persists). Urgent notifications and those
   with actions persist until dismissed.

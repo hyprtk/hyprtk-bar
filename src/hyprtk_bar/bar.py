@@ -455,6 +455,15 @@ class Bar(Gtk.Box):
             config_module.save(cfg)
             _theme()
 
+        def set_quicklink_icon_size(size) -> None:
+            try:
+                size = max(0, int(str(size).strip()))
+            except (TypeError, ValueError):
+                size = 0
+            cfg.setdefault("quicklinks", {})["icon_size"] = size
+            config_module.save(cfg)
+            _theme()
+
         def apply_layout(layout: dict) -> None:
             cfg["layout"] = {
                 "left": list(layout.get("left", [])),
@@ -481,6 +490,7 @@ class Bar(Gtk.Box):
             "set_font": set_font,
             "set_font_size": set_font_size,
             "set_icon_size": set_icon_size,
+            "set_quicklink_icon_size": set_quicklink_icon_size,
             "apply_layout": apply_layout,
             "open_settings": open_settings,
         }

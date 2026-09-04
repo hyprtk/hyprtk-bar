@@ -78,11 +78,17 @@ class QuickLinkButton(HoverButton):
 
     def _set_glyph_size(self, size: int) -> None:
         attrs = Pango.AttrList()
-        attrs.insert(Pango.attr_size_new(int(max(size, 10)) * Pango.SCALE))
+        # attr_size_new takes POINTS (size * SCALE == size pt, ~1.33x larger
+        # than px at 96dpi); attr_size_new_absolute takes device units so the
+        # glyph matches the pixel size used by every other module icon.
+        attrs.insert(Pango.attr_size_new_absolute(int(max(size, 10)) * Pango.SCALE))
         self._glyph.set_attributes(attrs)
 
     def apply_font(self, font_size, icon_size=0) -> None:
-        self._set_glyph_size(icon_size_for(font_size, icon_size))
+        if icon_size:
+            self._set_glyph_size(max(10, int(icon_size)))
+        else:
+            self._set_glyph_size(icon_size_for(font_size, icon_size))
 
     def _on_button_press(self, _widget, event):
         command = self._link.get(
@@ -103,19 +109,28 @@ class QuickLinks(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         self._cfg = cfg
         self._buttons: list[QuickLinkButton] = []
-        font_cfg = cfg.get("font") or {}
-        icon_size = icon_size_for(
-            font_cfg.get("size", 16), font_cfg.get("icon_size", 0)
-        )
         links = (cfg.get("quicklinks") or {}).get("links") or DEFAULT_LINKS
         for link in links:
             if not isinstance(link, dict) or not link.get("icon"):
                 continue
-            button = QuickLinkButton(cfg, link, icon_size)
+            button = QuickLinkButton(cfg, link, self._glyph_size())
             self._buttons.append(button)
             self.pack_start(button, False, False, 0)
 
+    def _glyph_size(self, font_size=None, icon_size=0) -> int:
+        ql = self._cfg.get("quicklinks") or {}
+        try:
+            override = int(ql.get("icon_size", 0) or 0)
+        except (TypeError, ValueError):
+            override = 0
+        if override > 0:
+            return max(10, override)
+        if icon_size:
+            return max(10, int(icon_size))
+        font_size = font_size if font_size else (self._cfg.get("font") or {}).get("size", 16)
+        return icon_size_for(font_size, 0)
+
     def apply_font(self, font_size, icon_size=0) -> None:
-        size = icon_size_for(font_size, icon_size)
+        size = self._glyph_size(font_size, icon_size)
         for button in self._buttons:
             button.apply_font(font_size, size)
