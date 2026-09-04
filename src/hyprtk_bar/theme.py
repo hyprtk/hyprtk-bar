@@ -134,6 +134,8 @@ def build_css(palette: dict, cfg: dict) -> str:
     active_fg = _contrast_fg(accent)
     font = palette.get("font")
     font_rule = f"  font-family: {font};\n" if font else ""
+    font_size = palette.get("font_size")
+    font_size_rule = f"  font-size: {font_size:g}px;\n" if font_size else ""
 
     border_rule = ""
     extra_v = 0.0
@@ -149,6 +151,42 @@ def build_css(palette: dict, cfg: dict) -> str:
         extra_v += _vertical_padding(padding)
     min_height = max(20, int(round(height - extra_v)))
 
+    # ── workspace chips (#workspaces button) ─────────────────────
+    chip_padding_rule = ""
+    chip_padding = palette.get("chip_padding")
+    if chip_padding:
+        chip_padding_rule = f"  padding: {_padding_css(chip_padding)};\n"
+    chip_radius = palette.get("chip_radius", max(radius - 6, 4))
+    chip_border_rule = ""
+    chip_bw = palette.get("chip_border_width")
+    chip_bc = palette.get("chip_border_color")
+    if chip_bw and chip_bc:
+        chip_border_rule = f"  border: {chip_bw:g}px solid {chip_bc};\n"
+    chip_bg_rule = ""
+    chip_bg = palette.get("chip_bg")
+    if chip_bg:
+        chip_bg_rule = f"  background-color: {chip_bg};\n"
+    chip_fg_rule = ""
+    chip_fg = palette.get("chip_fg")
+    if chip_fg:
+        chip_fg_rule = f"  color: {chip_fg};\n"
+    chip_fs_rule = ""
+    chip_fs = palette.get("chip_font_size")
+    if chip_fs:
+        chip_fs_rule = f"  font-size: {chip_fs:g}px;\n"
+    chip_fw_rule = ""
+    chip_fw = palette.get("chip_font_weight")
+    if chip_fw:
+        chip_fw_rule = f"  font-weight: {chip_fw};\n"
+
+    # active chip (focused)
+    active_bg = palette.get("active_bg", accent)
+    if "active_bg" in palette and "active_fg" in palette:
+        active_fg_final = palette["active_fg"]
+    else:
+        active_fg_final = _contrast_fg(active_bg)
+    occupied_fg = palette.get("occupied_fg", accent)
+
     return f"""
 .taskbar {{
   background-color: {bg};
@@ -156,7 +194,7 @@ def build_css(palette: dict, cfg: dict) -> str:
   margin: {margin}px {margin}px {margin}px {margin}px;
   min-height: {min_height}px;
   color: {fg};
-{border_rule}{padding_rule}{font_rule}}}
+{font_size_rule}{border_rule}{padding_rule}{font_rule}}}
 .show-desktop {{
   background-color: {bg};
   border-radius: 5px;
@@ -182,16 +220,15 @@ def build_css(palette: dict, cfg: dict) -> str:
   background-color: {accent};
 }}
 .workspace-chip {{
-  padding: 0 10px;
   min-height: {max(height - 12, 16)}px;
-  border-radius: {max(radius - 6, 4)}px;
-  color: {fg};
-}}
+  border-radius: {chip_radius}px;
+  color: {chip_fg or fg};
+{chip_padding_rule}{chip_border_rule}{chip_bg_rule}{chip_fs_rule}{chip_fw_rule}}}
 .workspace-chip.hover {{ background-color: {hover}; }}
-.workspace-chip.occupied {{ color: {accent}; }}
+.workspace-chip.occupied {{ color: {occupied_fg}; }}
 .workspace-chip.active {{
-  background-color: {accent};
-  color: {active_fg};
+  background-color: {active_bg};
+  color: {active_fg_final};
 }}
 .divider {{
   min-width: 1px;

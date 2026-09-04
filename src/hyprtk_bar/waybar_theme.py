@@ -198,8 +198,12 @@ def _strip_comments(css: str) -> str:
 
 
 def _css_blocks(css: str) -> dict[str, str]:
+    cleaned = _strip_comments(css)
+    # @define-color is parsed separately; leaving it in the text would merge it
+    # into the next selector (e.g. the `*` rule), hiding that rule from blocks.
+    cleaned = re.sub(r"@define-color\s+[\w-]+\s+[^;]+;", "", cleaned)
     blocks: dict[str, str] = {}
-    for match in _BLOCK_RE.finditer(_strip_comments(css)):
+    for match in _BLOCK_RE.finditer(cleaned):
         selector = " ".join(match.group(1).split())
         body = match.group(2).strip()
         if body and selector:
@@ -418,4 +422,57 @@ def parse_palette(theme_name: str) -> dict | None:
     padding = _padding(win_body)
     if padding:
         palette["padding"] = padding
+
+    # base font-size (window#waybar or the `*` rule)
+    font_size = _length(win_body, "font-size") or _length(blocks.get("*"), "font-size")
+    if font_size is not None:
+        palette["font_size"] = font_size
+
+    # ── workspace chips (#workspaces button) ─────────────────────
+    chip = blocks.get("#workspaces button")
+    if chip:
+        pad = _padding(chip)
+        if pad:
+            palette["chip_padding"] = pad
+        cradius = _length(chip, "border-radius")
+        if cradius is not None:
+            palette["chip_radius"] = cradius
+        cwidth, ccolor = _border(chip, colors)
+        if cwidth is not None and ccolor:
+            palette["chip_border_width"] = cwidth
+            palette["chip_border_color"] = ccolor
+        # Chip backgrounds keep their alpha — waybar themes use translucent
+        # highlights that look wrong when solidified to opaque.
+        cbg = _background_color(chip, colors)
+        if cbg and cbg.strip().lower() not in ("transparent", "none"):
+            palette["chip_bg"] = cbg
+        cfg_color = _text_color(chip, colors)
+        if cfg_color:
+            palette["chip_fg"] = cfg_color
+        csize = _length(chip, "font-size")
+        if csize is not None:
+            palette["chip_font_size"] = csize
+        weight = _prop(chip, "font-weight")
+        if weight and weight.strip().lower() not in ("normal", ""):
+            palette["chip_font_weight"] = weight.strip()
+
+    # active / focused chip
+    for sel in ("#workspaces button.focused", "#workspaces button.active"):
+        body = blocks.get(sel)
+        if not body:
+            continue
+        bg = _background_color(body, colors)
+        if bg and bg.strip().lower() not in ("transparent", "none"):
+            palette.setdefault("active_bg", bg)
+        fg = _text_color(body, colors)
+        if fg:
+            palette.setdefault("active_fg", fg)
+
+    # occupied chip
+    occ = blocks.get("#workspaces button.occupied")
+    if occ:
+        fg = _text_color(occ, colors)
+        if fg:
+            palette["occupied_fg"] = fg
+
     return palette
