@@ -34,9 +34,14 @@ class Window(HoverButton):
         self._label.set_ellipsize(Pango.EllipsizeMode.END)
         self._label.set_max_width_chars(self._max_length)
         self._label.set_no_show_all(True)
-        self.box.pack_start(self._label, False, False, 0)
-        # Fixed width: a variable-length title must not move the other modules.
+        # Expand so the label fills the fixed box and ellipsizes within it.
+        self.box.pack_start(self._label, True, True, 0)
         self.set_size_request(self._width, -1)
+
+    def do_get_preferred_width(self):
+        # A TRUE fixed width: size_request alone is only a minimum and a long
+        # title would still widen the module (shifting its neighbors).
+        return self._width, self._width
 
     def update(self, title: str | None, app_class: str | None = None) -> None:
         title = (title or "").strip()
