@@ -54,6 +54,8 @@ class BarSettings(Gtk.Window):
         self._actions = actions
         self._hidden: set[str] = set()
         self._rows: dict[str, dict] = {}
+        self._theme_buttons: dict[str, Gtk.CheckButton] = {}
+        self._themes: list[str] = []
         self._layout = cfg.get("layout") or {}
 
         visible = {

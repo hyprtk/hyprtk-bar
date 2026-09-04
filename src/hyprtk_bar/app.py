@@ -186,8 +186,9 @@ class BarWindow(Gtk.Window):
         self._provider.load_from_data(css.encode())
         self._bar.apply_palette_layout(palette)
         self._bar.apply_font(palette.get("font_size"))
-        # Force a redraw so symbolic module icons re-render with the new
-        # foreground color immediately (not only on the next pointer event).
+        # Force a redraw + re-layout so module text re-renders at the new font
+        # size immediately (not only on the next pointer event).
+        self._bar.queue_resize()
         self._bar.queue_draw()
 
     def _setup_theme_monitors(self) -> None:
