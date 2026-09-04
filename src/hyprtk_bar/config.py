@@ -76,6 +76,7 @@ DEFAULTS = {
     "font": {
         "family": "",                # "" = system default font
         "size": 16,                  # base text size (px); module icons scale from it
+        "icon_size": 0,              # 0 = auto (scales with the font size), else px
     },
     "layout": DEFAULT_LAYOUT,
     "center": {
@@ -199,6 +200,10 @@ def validate(cfg: dict) -> dict:
             valid["font"]["size"] = max(8, int(font.get("size", 16)))
         except (TypeError, ValueError):
             valid["font"]["size"] = 16
+        try:
+            valid["font"]["icon_size"] = max(0, int(font.get("icon_size", 0)))
+        except (TypeError, ValueError):
+            valid["font"]["icon_size"] = 0
 
     # ── theme source ─────────────────────────────────────────────
     theme = valid.get("theme") or {}
@@ -329,8 +334,18 @@ def load_pywal_colors() -> dict | None:
     return out or None
 
 
-def icon_size_for(font_size) -> int:
-    """Derive a module-icon pixel size from the bar's base font size."""
+def icon_size_for(font_size, icon_size=0) -> int:
+    """Derive a module-icon pixel size.
+
+    ``icon_size`` > 0 is used verbatim (manual override); otherwise the icon
+    scales with the bar's base font size.
+    """
+    try:
+        icon_size = int(icon_size)
+    except (TypeError, ValueError):
+        icon_size = 0
+    if icon_size > 0:
+        return max(14, icon_size)
     try:
         return max(14, int(round(int(font_size) * 1.25)))
     except (TypeError, ValueError):

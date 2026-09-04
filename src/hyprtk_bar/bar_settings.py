@@ -256,6 +256,8 @@ class BarSettings(Gtk.Window):
         font_cfg = self._cfg.get("font") or {}
         self._font_family = str(font_cfg.get("family", "") or "")
         font_size = int(font_cfg.get("size", 16))
+        icon_size = int(font_cfg.get("icon_size", 0))
+        self._font_ready = False  # ignore the FontButton's init-time font-set
 
         family_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         family_label = Gtk.Label(label="Family:", xalign=1)
@@ -278,18 +280,33 @@ class BarSettings(Gtk.Window):
         self._font_size = Gtk.SpinButton.new_with_range(8, 40, 1)
         self._font_size.set_value(font_size)
         self._font_size.connect("value-changed", self._on_size_changed)
-        size_hint = Gtk.Label(label="px (icons scale to match)", xalign=0)
+        size_hint = Gtk.Label(label="px", xalign=0)
         size_hint.set_opacity(0.7)
         size_row.pack_start(size_label, False, False, 0)
         size_row.pack_start(self._font_size, True, True, 0)
         size_row.pack_start(size_hint, False, False, 0)
 
+        icon_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        icon_label = Gtk.Label(label="Icon size:", xalign=1)
+        icon_label.set_size_request(70, -1)
+        self._icon_size = Gtk.SpinButton.new_with_range(0, 48, 1)
+        self._icon_size.set_value(icon_size)
+        icon_hint = Gtk.Label(label="px (0 = auto with font size)", xalign=0)
+        icon_hint.set_opacity(0.7)
+        icon_row.pack_start(icon_label, False, False, 0)
+        icon_row.pack_start(self._icon_size, True, True, 0)
+        icon_row.pack_start(icon_hint, False, False, 0)
+
         tab.pack_start(family_row, False, False, 0)
         tab.pack_start(size_row, False, False, 0)
+        tab.pack_start(icon_row, False, False, 0)
+        self._font_ready = True
         return tab
 
     def _on_font_set(self, *_args) -> None:
         """Sync the picked font's family + size into the settings state."""
+        if not getattr(self, "_font_ready", False):
+            return
         try:
             fd = Pango.FontDescription.from_string(self._font_button.get_font())
         except Exception:
@@ -487,6 +504,7 @@ class BarSettings(Gtk.Window):
         self._actions["set_opacity"](str(self._active_opacity()))
         self._actions["set_font"](self._active_font_family())
         self._actions["set_font_size"](str(int(self._font_size.get_value())))
+        self._actions["set_icon_size"](str(int(self._icon_size.get_value())))
 
     def _on_reset(self, *_args) -> None:
         self._actions["reset_layout"]()

@@ -67,7 +67,8 @@ class SysMon(HoverButton):
         self._prev = _read_cpu_sample()
         self._labels: dict[str, Gtk.Label] = {}
         self._icons: list[Gtk.Image] = []
-        icon_size = icon_size_for((cfg.get("font") or {}).get("size", 16))
+        font_cfg = cfg.get("font") or {}
+        icon_size = icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
 
         for key, icon in (
             ("cpu", "utilities-system-monitor-symbolic"),
@@ -89,8 +90,8 @@ class SysMon(HoverButton):
         self._update()
         GLib.timeout_add_seconds(self._interval, self._tick)
 
-    def apply_font(self, font_size) -> None:
-        size = icon_size_for(font_size)
+    def apply_font(self, font_size, icon_size=0) -> None:
+        size = icon_size_for(font_size, icon_size)
         for img in self._icons:
             img.set_pixel_size(size)
 

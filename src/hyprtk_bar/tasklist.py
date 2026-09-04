@@ -246,9 +246,10 @@ class TaskList(Gtk.Box):
 
         for cls in order:
             if cls not in self._buttons:
+                font_cfg = self._cfg.get("font") or {}
                 self._buttons[cls] = TaskButton(
                     cls, self._pinned.get(cls, {}), self._callbacks(cls),
-                    icon_size_for((self._cfg.get("font") or {}).get("size", 16)),
+                    icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0)),
                 )
                 self.pack_start(self._buttons[cls], False, False, 0)
 
@@ -261,8 +262,8 @@ class TaskList(Gtk.Box):
         self._preview.hide_popup()
         self._preview.destroy()
 
-    def apply_font(self, font_size) -> None:
-        size = icon_size_for(font_size)
+    def apply_font(self, font_size, icon_size=0) -> None:
+        size = icon_size_for(font_size, icon_size)
         for btn in self._buttons.values():
             btn._icon_size = size
             btn._icon.set_pixel_size(size)

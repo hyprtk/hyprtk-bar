@@ -41,16 +41,19 @@ class StartButton(HoverButton):
         icon = Gtk.Image.new_from_icon_name(
             center.get("start_icon", "go-home-symbolic"), Gtk.IconSize.INVALID
         )
+        font_cfg = cfg.get("font") or {}
         self._icon = icon
-        self._icon.set_pixel_size(icon_size_for((cfg.get("font") or {}).get("size", 16)))
+        self._icon.set_pixel_size(
+            icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
+        )
         self._icon.get_style_context().add_class("accent-icon")
         self.box.pack_start(self._icon, True, True, 0)
         # Keep the start icon clear of the bar's left edge, with the same
         # breathing room as the spacing between the other modules.
         self.set_margin_start(6)
 
-    def apply_font(self, font_size) -> None:
-        self._icon.set_pixel_size(icon_size_for(font_size))
+    def apply_font(self, font_size, icon_size=0) -> None:
+        self._icon.set_pixel_size(icon_size_for(font_size, icon_size))
 
     def _on_button_press(self, _widget, event):
         if event.button == 1:
@@ -259,15 +262,15 @@ class Bar(Gtk.Box):
         for section in self._sections.values():
             section.box.set_spacing(s)
 
-    def apply_font(self, font_size) -> None:
-        """Scale module icons to match the configured font size."""
+    def apply_font(self, font_size, icon_size=0) -> None:
+        """Scale module icons to the configured font/icon sizes."""
         if not font_size:
             return
         for widget in self._widgets.values():
             apply = getattr(widget, "apply_font", None)
             if apply is not None:
                 try:
-                    apply(font_size)
+                    apply(font_size, icon_size)
                 except Exception:
                     log.exception("apply_font failed on %r", widget)
 
@@ -379,6 +382,15 @@ class Bar(Gtk.Box):
             config_module.save(cfg)
             _theme()
 
+        def set_icon_size(size) -> None:
+            try:
+                size = max(0, int(str(size).strip()))
+            except (TypeError, ValueError):
+                size = 0
+            cfg.setdefault("font", {})["icon_size"] = size
+            config_module.save(cfg)
+            _theme()
+
         def apply_layout(layout: dict) -> None:
             cfg["layout"] = {
                 "left": list(layout.get("left", [])),
@@ -403,6 +415,7 @@ class Bar(Gtk.Box):
             "set_opacity": set_opacity,
             "set_font": set_font,
             "set_font_size": set_font_size,
+            "set_icon_size": set_icon_size,
             "apply_layout": apply_layout,
             "open_settings": open_settings,
         }

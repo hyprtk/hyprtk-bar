@@ -185,7 +185,10 @@ class BarWindow(Gtk.Window):
         css = build_css(palette, self._cfg)
         self._provider.load_from_data(css.encode())
         self._bar.apply_palette_layout(palette)
-        self._bar.apply_font(palette.get("font_size"))
+        self._bar.apply_font(
+            palette.get("font_size"),
+            (self._cfg.get("font") or {}).get("icon_size", 0),
+        )
         # Force a redraw + re-layout so module text re-renders at the new font
         # size immediately (not only on the next pointer event).
         self._bar.queue_resize()

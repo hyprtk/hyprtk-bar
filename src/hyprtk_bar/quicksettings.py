@@ -228,15 +228,18 @@ class QuickSettingsButton(HoverButton):
         icon = Gtk.Image.new_from_icon_name(
             "preferences-system-symbolic", Gtk.IconSize.INVALID
         )
+        font_cfg = cfg.get("font") or {}
         self._icon = icon
-        self._icon.set_pixel_size(icon_size_for((cfg.get("font") or {}).get("size", 16)))
+        self._icon.set_pixel_size(
+            icon_size_for(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
+        )
         self._icon.get_style_context().add_class("accent-icon")
         self.box.pack_start(self._icon, True, True, 0)
         self._popup = QuickSettings(cfg)
         self._popup.set_on_leave(self._hide)
 
-    def apply_font(self, font_size) -> None:
-        self._icon.set_pixel_size(icon_size_for(font_size))
+    def apply_font(self, font_size, icon_size=0) -> None:
+        self._icon.set_pixel_size(icon_size_for(font_size, icon_size))
 
     def _toggle(self) -> None:
         if self._popup.get_visible():
