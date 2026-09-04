@@ -124,7 +124,9 @@ def build_css(palette: dict, cfg: dict) -> str:
     margin = cfg.get("margin", 6)
     radius = palette.get("border_radius", cfg.get("radius", 12))
     height = cfg.get("height", 42)
-    opacity = cfg.get("opacity", 0.95)
+    # The imported theme's background alpha (if any) maps to the bar opacity;
+    # otherwise the configured opacity applies.
+    opacity = palette.get("background_alpha", cfg.get("opacity", 0.95))
 
     bg = _rgba(palette["background"], opacity)
     hover = _hover_color(palette["hover"])

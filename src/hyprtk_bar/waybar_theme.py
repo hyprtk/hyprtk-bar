@@ -271,6 +271,22 @@ def _solid(color: str) -> str:
     return color
 
 
+def _color_alpha(color: str | None) -> float | None:
+    """Return a translucent rgba() alpha (0 <= a < 1), else None."""
+    if not color:
+        return None
+    m = re.search(
+        r"rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)", color, re.I
+    )
+    if m:
+        try:
+            alpha = float(m.group(1))
+        except ValueError:
+            return None
+        return alpha if 0.0 <= alpha < 1.0 else None
+    return None
+
+
 def _prop(body: str, name: str) -> str | None:
     m = re.search(rf"\b{name}\s*:\s*([^;]+);", body)
     return m.group(1).strip() if m else None
@@ -371,12 +387,14 @@ def parse_palette(theme_name: str) -> dict | None:
             return _text_color(body, colors)
         return None
 
-    background = _solid(
+    bg_value = (
         pick("background", "window#waybar")
         or colors.get("background")
         or colors.get("color0")
         or "#1a1b26"
     )
+    background = _solid(bg_value)
+    background_alpha = _color_alpha(bg_value)
     foreground = _solid(
         pick("color", "window#waybar")
         or colors.get("foreground")
@@ -408,6 +426,8 @@ def parse_palette(theme_name: str) -> dict | None:
         "hover": hover,
         "running": accent,
     }
+    if background_alpha is not None:
+        palette["background_alpha"] = background_alpha
     if font:
         palette["font"] = font
     if border_width is not None and border_color:
