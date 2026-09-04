@@ -275,6 +275,7 @@ class BarSettings(Gtk.Window):
         size_label.set_size_request(70, -1)
         self._font_size = Gtk.SpinButton.new_with_range(8, 40, 1)
         self._font_size.set_value(font_size)
+        self._font_size.connect("value-changed", self._on_size_changed)
         size_hint = Gtk.Label(label="px (icons scale to match)", xalign=0)
         size_hint.set_opacity(0.7)
         size_row.pack_start(size_label, False, False, 0)
@@ -298,6 +299,15 @@ class BarSettings(Gtk.Window):
         if size and size > 0:
             self._font_size.set_value(round(size / Pango.SCALE))
 
+    def _on_size_changed(self, *_args) -> None:
+        """Keep the font picker's preview in step with the size spin."""
+        try:
+            fd = Pango.FontDescription.from_string(self._font_button.get_font())
+            family = fd.get_family() or "Sans"
+        except Exception:
+            return
+        self._font_button.set_font_name(f"{family} {int(self._font_size.get_value())}")
+
     def _active_font_family(self) -> str:
         return self._font_family
 
@@ -319,9 +329,9 @@ class BarSettings(Gtk.Window):
         source_row.pack_start(source_label, False, False, 0)
         source_row.pack_start(source_box, True, True, 0)
 
-        theme_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        theme_label = Gtk.Label(label="Imported theme:", xalign=1)
-        theme_label.set_size_request(70, -1)
+        theme_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        theme_label = Gtk.Label(label="Imported theme:", xalign=0)
+        theme_label.set_size_request(-1, -1)
         self._themes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         themes_scroller = Gtk.ScrolledWindow()
         themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -329,7 +339,8 @@ class BarSettings(Gtk.Window):
         themes_scroller.add(self._themes_box)
         themes_scroller.set_hexpand(True)
         themes_scroller.set_vexpand(True)
-        import_btn = Gtk.Button(label="Import…")
+        import_btn = Gtk.Button(label="Import theme…")
+        import_btn.set_size_request(120, 26)
         import_btn.connect("clicked", self._on_import)
         theme_row.pack_start(theme_label, False, False, 0)
         theme_row.pack_start(themes_scroller, True, True, 0)

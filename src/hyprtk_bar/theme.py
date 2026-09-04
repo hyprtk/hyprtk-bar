@@ -98,9 +98,13 @@ def resolve_palette(cfg: dict) -> dict:
     if family:
         palette["font"] = family
     try:
-        palette["font_size"] = max(8, int(font_cfg.get("size", 16)))
+        size = max(8, int(font_cfg.get("size", 16)))
     except (TypeError, ValueError):
-        pass
+        size = 16
+    palette["font_size"] = size
+    # Chips follow the configured base size too — an imported theme's
+    # chip_font_size must not pin them to a stale size when the user changes it.
+    palette["chip_font_size"] = size
     return palette
 
 
