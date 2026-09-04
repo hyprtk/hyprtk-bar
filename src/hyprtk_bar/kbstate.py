@@ -1,9 +1,8 @@
 """Keyboard state widget: Caps Lock / Num Lock indicators.
 
 Reads the keyboard LED brightness files under /sys/class/leds (the same source
-the old waybar keyboard_state.sh polled) so it works on Wayland. Each key is a
-short label that dims when the lock is off and lights up (accent + bold) when
-it is on.
+the old waybar keyboard_state.sh polled) so it works on Wayland. Each lock is
+a symbolic icon: lit up (accent) while the lock is on, dimmed while it is off.
 """
 from __future__ import annotations
 
@@ -15,6 +14,7 @@ gi.require_version("Gtk", "3.0")
 
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from .config import icon_size_for  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.kbstate")
@@ -26,7 +26,11 @@ _LED_GLOBS = {
     "num": "/sys/class/leds/*::numlock/brightness",
 }
 
-_LABELS = (("caps", "CAPS"), ("num", "NUM"))
+# (state key, icon name) — caps uses a padlock, num uses a keyboard.
+_ICONS = (
+    ("caps", "system-lock-screen-symbolic"),
+    ("num", "input-keyboard-symbolic"),
+)
 
 
 def _led_on(led_class: str) -> bool:
@@ -46,24 +50,34 @@ class KbState(HoverButton):
         self._cfg = cfg
         kb_cfg = cfg.get("kbstate") or {}
         self._interval = max(100, int(kb_cfg.get("poll_ms", POLL_MS)))
-        self._labels: dict[str, Gtk.Label] = {}
-        for key, text in _LABELS:
-            label = Gtk.Label(label=text)
-            label.get_style_context().add_class("kbstate-key")
-            label.get_style_context().add_class(key)
-            self.box.pack_start(label, False, False, 0)
-            self._labels[key] = label
+        font_cfg = cfg.get("font") or {}
+        icon_size = icon_size_for(
+            font_cfg.get("size", 16), font_cfg.get("icon_size", 0)
+        )
+        self._icons: dict[str, Gtk.Image] = {}
+        for key, name in _ICONS:
+            img = Gtk.Image.new_from_icon_name(name, Gtk.IconSize.INVALID)
+            img.set_pixel_size(icon_size)
+            img.get_style_context().add_class("kbstate-icon")
+            img.get_style_context().add_class(key)
+            self.box.pack_start(img, False, False, 0)
+            self._icons[key] = img
         self._update()
         GLib.timeout_add(self._interval, self._tick)
+
+    def apply_font(self, font_size, icon_size=0) -> None:
+        size = icon_size_for(font_size, icon_size)
+        for img in self._icons.values():
+            img.set_pixel_size(size)
 
     def _tick(self) -> bool:
         self._update()
         return GLib.SOURCE_CONTINUE
 
     def _update(self) -> None:
-        states = {key: _led_on(key) for key, _label in _LABELS}
+        states = {key: _led_on(key) for key, _name in _ICONS}
         for key, on in states.items():
-            ctx = self._labels[key].get_style_context()
+            ctx = self._icons[key].get_style_context()
             if on:
                 ctx.add_class("on")
                 ctx.remove_class("off")
