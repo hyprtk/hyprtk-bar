@@ -453,8 +453,16 @@ def parse_palette(theme_name: str) -> dict | None:
     if padding:
         palette["padding"] = padding
 
-    # base font-size (window#waybar or the `*` rule)
+    # base font-size (window#waybar or the `*` rule); fall back to the theme's
+# module font-size (#workspaces button / #clock / #tray) when the bar rules
+# don't set one — waybar themes size their text on the modules.
     font_size = _length(win_body, "font-size") or _length(blocks.get("*"), "font-size")
+    if font_size is None:
+        for sel in ("#workspaces button", "#clock", "#tray", "#workspaces"):
+            fs = _length(blocks.get(sel), "font-size")
+            if fs is not None:
+                font_size = fs
+                break
     if font_size is not None:
         palette["font_size"] = font_size
 
