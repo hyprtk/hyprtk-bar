@@ -164,6 +164,8 @@ def build_css(palette: dict, cfg: dict) -> str:
     chip_padding = palette.get("chip_padding")
     if chip_padding:
         chip_padding_rule = f"  padding: {_padding_css(chip_padding)};\n"
+    else:
+        chip_padding_rule = "  padding: 0 10px;\n"
     chip_radius = palette.get("chip_radius", max(radius - 6, 4))
     chip_border_rule = ""
     chip_bw = palette.get("chip_border_width")

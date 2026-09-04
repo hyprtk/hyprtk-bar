@@ -185,6 +185,9 @@ class BarWindow(Gtk.Window):
         css = build_css(palette, self._cfg)
         self._provider.load_from_data(css.encode())
         self._bar.apply_palette_layout(palette)
+        # Force a redraw so symbolic module icons re-render with the new
+        # foreground color immediately (not only on the next pointer event).
+        self._bar.queue_draw()
 
     def _setup_theme_monitors(self) -> None:
         """Watch the sources a live re-theme depends on.
