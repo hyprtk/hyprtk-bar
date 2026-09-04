@@ -14,6 +14,7 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gio, GLib, Gtk, Pango  # noqa: E402
 
+from . import config as config_module  # noqa: E402
 from .config import icon_size_for  # noqa: E402
 from .popup import Popup  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
@@ -36,6 +37,20 @@ def _class_matches(pinned_class: str, window_class: str) -> bool:
     if a == b:
         return True
     return a.startswith(b) or b.startswith(a)
+
+
+def resolve_command(app_class: str) -> str:
+    """Best-guess launch command for an app class (via its .desktop entry)."""
+    try:
+        info = Gio.DesktopAppInfo.new(f"{app_class}.desktop")
+        line = info.get_commandline() if info is not None else None
+        if line:
+            cmd = line.split()[0].rsplit("/", 1)[-1]
+            if cmd:
+                return cmd
+    except (TypeError, GLib.Error):
+        pass
+    return app_class.lower()
 
 
 def resolve_icon(app_class: str, explicit: str | None = None) -> str:
@@ -174,8 +189,25 @@ class TaskButton(HoverButton):
             self._cb["hide_preview"]()
             self._cb["middle"]()
         elif event.button == 3:
-            self._show_preview(force=True)
+            self._cb["hide_preview"]()
+            self._show_context_menu(event)
         return True
+
+    def _show_context_menu(self, event) -> None:
+        menu = Gtk.Menu()
+        if self.pinned:
+            item = Gtk.MenuItem(label="Unpin from taskbar")
+            item.connect("activate", lambda *_a: self._cb["unpin"]())
+        else:
+            item = Gtk.MenuItem(label="Pin to taskbar")
+            item.connect("activate", lambda *_a: self._cb["pin"]())
+        menu.append(item)
+        if self._windows:
+            close = Gtk.MenuItem(label="Close window")
+            close.connect("activate", lambda *_a: self._cb["middle"]())
+            menu.append(close)
+        menu.show_all()
+        menu.popup_at_pointer(event)
 
     # ── hover preview ─────────────────────────────────────────────
 
@@ -233,6 +265,7 @@ class TaskList(Gtk.Box):
         self._grouped: dict[str, list] = {}
         self._focus_address = None
         self._active_workspace = 1
+        self._last_clients: list = []
 
         self._preview = Popup(cfg, cfg.get("position", "bottom"))
         self._preview.set_on_leave(self._preview_leave)
@@ -254,6 +287,7 @@ class TaskList(Gtk.Box):
     def update(self, clients: list, focus_address: str | None, active_workspace: int) -> None:
         self._focus_address = focus_address
         self._active_workspace = active_workspace
+        self._last_clients = clients
 
         grouped: dict[str, list] = {}
         for c in clients:
@@ -343,7 +377,34 @@ class TaskList(Gtk.Box):
             "focus": lambda win: self._focus_win(win),
             "close": lambda win: self._close_win(win),
             "launch": lambda: self._launch(cls),
+            "pin": lambda: self._pin(cls),
+            "unpin": lambda: self._unpin(cls),
         }
+
+    # ── pin / unpin (right-click) ─────────────────────────────────
+
+    def _pin(self, cls: str) -> None:
+        pinned = self._cfg.setdefault("center", {}).setdefault("pinned", [])
+        if any(p.get("class") == cls for p in pinned):
+            return
+        pinned.append({
+            "class": cls,
+            "command": resolve_command(cls),
+            "icon": resolve_icon(cls, None),
+        })
+        config_module.save(self._cfg)
+        self._pinned = {p["class"]: p for p in pinned}
+        self._refresh()
+
+    def _unpin(self, cls: str) -> None:
+        pinned = self._cfg.setdefault("center", {}).setdefault("pinned", [])
+        self._cfg["center"]["pinned"] = [p for p in pinned if p.get("class") != cls]
+        config_module.save(self._cfg)
+        self._pinned = {p["class"]: p for p in self._cfg["center"]["pinned"]}
+        self._refresh()
+
+    def _refresh(self) -> None:
+        self.update(self._last_clients, self._focus_address, self._active_workspace)
 
     def _windows(self, cls: str) -> list:
         return self._grouped.get(cls, [])
