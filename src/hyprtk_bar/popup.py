@@ -106,7 +106,7 @@ class Popup(Gtk.Window):
         _bx, _by, screen_w, _screen_h = self._monitor_geometry(bar_win)
         cx = w_alloc.x + w_alloc.width // 2
         margin = self._cfg.get("margin", 6)
-        x = max(margin, min(cx - nat.width // 2, screen_w - nat.width - margin))
+        x = max(margin, min(cx - width // 2, screen_w - width - margin))
 
         edge = (
             GtkLayerShell.Edge.TOP

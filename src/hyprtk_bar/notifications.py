@@ -404,6 +404,7 @@ class NotificationCenter(Popup):
     """The notification history panel (Win11-style)."""
 
     WIDTH = 380
+    MIN_HEIGHT = 320
     MAX_HEIGHT = 460
 
     def __init__(self, cfg: dict, ctrl: NotificationController):
@@ -427,7 +428,7 @@ class NotificationCenter(Popup):
         scroller.add(self._list_box)
         self.content.pack_start(scroller, True, True, 0)
 
-        self.set_size_request(self.WIDTH, -1)
+        self.set_size_request(self.WIDTH, self.MIN_HEIGHT)
 
     def refresh(self) -> None:
         for child in self._list_box.get_children():
