@@ -146,6 +146,12 @@ def build_css(palette: dict, cfg: dict) -> str:
     if border_width and border_color:
         border_rule = f"  border: {border_width:g}px solid {border_color};\n"
         extra_v += 2 * border_width
+    # Popups (notification center, quick settings, toasts, previews) and the
+    # right-click menu use the theme's background/foreground/border. Popups stay
+    # mostly opaque for readability but carry the theme's border and color.
+    popup_alpha = max(opacity, 0.9)
+    popup_border_rule = border_rule if (border_width and border_color) else ""
+    menu_border = border_color or _rgba(palette["foreground"], 0.18)
     padding_rule = ""
     padding = palette.get("padding")
     if padding:
@@ -243,10 +249,24 @@ def build_css(palette: dict, cfg: dict) -> str:
 .popup-row.hover {{ background-color: {hover}; }}
 .popup-title {{ font-weight: bold; padding-bottom: 4px; }}
 .popup-box {{
-  background-color: {_rgba(palette["background"], 1.0)};
+  background-color: {_rgba(palette["background"], popup_alpha)};
   border-radius: {radius}px;
   padding: 8px;
   color: {fg};
+{popup_border_rule}}}
+menu {{
+  background-color: {_rgba(palette["background"], 0.97)};
+  border: 1px solid {menu_border};
+  border-radius: {max(radius - 2, 6)}px;
+  padding: 4px;
+  color: {fg};
+}}
+menu menuitem {{ padding: 6px 14px; border-radius: 4px; }}
+menu menuitem:hover {{ background-color: {hover}; }}
+menu separator {{
+  background-color: {_rgba(palette["foreground"], 0.15)};
+  min-height: 1px;
+  margin: 3px 6px;
 }}
 .qs-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .qs-button.hover {{ background-color: {hover}; }}
