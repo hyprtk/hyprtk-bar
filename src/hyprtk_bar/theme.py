@@ -190,6 +190,20 @@ def build_css(palette: dict, cfg: dict) -> str:
         glyph_font = ((cfg.get("quicklinks") or {}).get("glyph_font") or "").strip() or glyph_font
     except AttributeError:
         pass
+    # Quicklink glyph color: a palette key (accent/fg/running) or an explicit
+    # color. Defaults to the pywal accent, matching the other icon modules.
+    glyph_color = accent
+    try:
+        gcolor = ((cfg.get("quicklinks") or {}).get("glyph_color") or "").strip()
+        if gcolor:
+            glyph_color = {
+                "accent": accent,
+                "fg": fg,
+                "foreground": fg,
+                "running": running,
+            }.get(gcolor, gcolor)
+    except AttributeError:
+        pass
 
     border_rule = ""
     extra_v = 0.0
@@ -259,7 +273,7 @@ def build_css(palette: dict, cfg: dict) -> str:
 {font_size_rule}{border_rule}{padding_rule}{font_rule}}}
 .task-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .task-button.hover {{ background-color: {hover}; }}
-.quicklink-glyph {{ color: {fg}; font-family: {glyph_font}; }}
+.quicklink-glyph {{ color: {glyph_color}; font-family: {glyph_font}; }}
 .accent-icon {{ color: {accent}; }}
 .tray-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .tray-button.hover {{ background-color: {hover}; }}

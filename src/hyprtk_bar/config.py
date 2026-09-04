@@ -135,6 +135,7 @@ DEFAULTS = {
     "quicklinks": {
         "enabled": True,
         "glyph_font": "Symbols Nerd Font",
+        "glyph_color": "accent",
         "icon_size": 0,
         "links": DEFAULT_LINKS,
     },

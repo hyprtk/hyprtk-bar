@@ -177,6 +177,7 @@ flags automatically.
 "quicklinks": {
   "enabled": true,
   "glyph_font": "Symbols Nerd Font",
+  "glyph_color": "accent",
   "icon_size": 0,
   "links": [
     { "id": "terminal", "label": "Terminal", "icon": "\uf120", "command": "alacritty" }
@@ -211,6 +212,9 @@ flags automatically.
   `0` = follow the global icon size). Editable in the settings window under
   *Fonts → Quicklink icons*. Glyphs render in pixels (like other module icons),
   so they scale with the font/icon size settings.
+- **quicklinks.glyph_color**: glyph color (default `accent`, the pywal accent
+  like the other icon modules). Accepts a palette key (`accent`, `fg`/`foreground`,
+  `running`) or an explicit CSS color (hex/rgba).
 - **notifications**: `max_stored` caps the center history; `default_timeout`
   is the toast duration in ms (0 persists). Urgent notifications and those
   with actions persist until dismissed.
