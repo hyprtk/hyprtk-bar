@@ -23,7 +23,7 @@ SECTION_ORDER = ("left", "center", "right")
 SECTION_LABELS = {"left": "Left", "center": "Center", "right": "Right"}
 THEME_SOURCES = (
     ("pywal", "Pywal (dynamic)"),
-    ("waybar", "Waybar theme"),
+    ("waybar", "Imported theme"),
     ("manual", "Manual (config)"),
 )
 
@@ -216,9 +216,9 @@ class BarSettings(Gtk.Window):
         source_row.pack_start(source_label, False, False, 0)
         source_row.pack_start(source_box, True, True, 0)
 
-        waybar_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        waybar_label = Gtk.Label(label="Waybar theme:", xalign=1)
-        waybar_label.set_size_request(70, -1)
+        theme_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        theme_label = Gtk.Label(label="Imported theme:", xalign=1)
+        theme_label.set_size_request(70, -1)
         self._themes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         themes_scroller = Gtk.ScrolledWindow()
         themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -227,12 +227,12 @@ class BarSettings(Gtk.Window):
         themes_scroller.set_hexpand(True)
         import_btn = Gtk.Button(label="Import…")
         import_btn.connect("clicked", self._on_import)
-        waybar_row.pack_start(waybar_label, False, False, 0)
-        waybar_row.pack_start(themes_scroller, True, True, 0)
-        waybar_row.pack_start(import_btn, False, False, 0)
+        theme_row.pack_start(theme_label, False, False, 0)
+        theme_row.pack_start(themes_scroller, True, True, 0)
+        theme_row.pack_start(import_btn, False, False, 0)
 
         theme_group.pack_start(source_row, False, False, 0)
-        theme_group.pack_start(waybar_row, False, False, 0)
+        theme_group.pack_start(theme_row, False, False, 0)
         root.pack_start(theme_group, False, False, 0)
         self._refresh_themes(select=theme.get("waybar_theme") or None)
         self._update_source_state()
@@ -358,7 +358,7 @@ class BarSettings(Gtk.Window):
         source = self._active_source()
         self._actions["set_source"](source)
         if source == "waybar":
-            self._actions["set_waybar_theme"](self._get_waybar_theme())
+            self._actions["set_waybar_theme"](self._get_imported_theme())
 
         # layout
         layout = {
@@ -408,7 +408,7 @@ class BarSettings(Gtk.Window):
                 return key
         return "bottom"
 
-    def _get_waybar_theme(self) -> str:
+    def _get_imported_theme(self) -> str:
         for name, btn in self._theme_buttons.items():
             if btn.get_active():
                 return name
@@ -449,7 +449,7 @@ class BarSettings(Gtk.Window):
 
     def _on_import(self, *_args) -> None:
         chooser = Gtk.FileChooserNative.new(
-            "Import waybar theme folder",
+            "Import theme folder",
             self,
             Gtk.FileChooserAction.SELECT_FOLDER,
             "Import",
