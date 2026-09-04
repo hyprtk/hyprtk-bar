@@ -21,6 +21,8 @@ import re
 import shutil
 from pathlib import Path
 
+from .config import load_pywal_colors  # noqa: E402
+
 log = logging.getLogger("hyprtk_bar.waybar_theme")
 
 BAR_THEMES_DIR = Path.home() / ".config" / "hyprtk-bar" / "themes"
@@ -376,6 +378,14 @@ def parse_palette(theme_name: str) -> dict | None:
         return None
     css = _read_theme_css(theme_dir)
     colors = _parse_define_colors(css)
+    # Overlay the LIVE pywal palette onto the theme's @colorN definitions.
+    # Imported themes reference colors-waybar*.css files which may be stale
+    # (e.g. a theme importing a custom css that nothing regenerates after a
+    # wallpaper change). colors.json is always current, so this makes the
+    # theme's pywal-derived colors track the active wallpaper.
+    pywal_live = load_pywal_colors()
+    if pywal_live:
+        colors.update(pywal_live)
     blocks = _css_blocks(css)
     win_body = blocks.get("window#waybar")
 
