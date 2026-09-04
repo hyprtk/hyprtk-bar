@@ -14,7 +14,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 
-from gi.repository import Gdk, Gtk  # noqa: E402
+from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
 from .config import DEFAULT_LAYOUT, MODULE_IDS, MODULE_LABELS  # noqa: E402
 from .waybar_theme import import_theme, list_themes  # noqa: E402
@@ -252,22 +252,29 @@ class BarSettings(Gtk.Window):
     def _build_font_tab(self) -> Gtk.Box:
         tab = self._tab_margins()
         font_cfg = self._cfg.get("font") or {}
+        self._font_family = str(font_cfg.get("family", "") or "")
+        font_size = int(font_cfg.get("size", 16))
 
         family_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         family_label = Gtk.Label(label="Family:", xalign=1)
         family_label.set_size_request(70, -1)
-        self._font_family = Gtk.Entry()
-        self._font_family.set_text(str(font_cfg.get("family", "") or ""))
-        self._font_family.set_placeholder_text("blank = system font")
-        self._font_family.set_hexpand(True)
+        self._font_button = Gtk.FontButton()
+        self._font_button.set_use_font(True)
+        base = self._font_family if self._font_family else "Sans"
+        self._font_button.set_font_name(f"{base} {font_size}")
+        self._font_button.connect("font-set", self._on_font_set)
+        self._font_button.set_hexpand(True)
+        family_hint = Gtk.Label(label="blank = system font", xalign=0)
+        family_hint.set_opacity(0.7)
         family_row.pack_start(family_label, False, False, 0)
-        family_row.pack_start(self._font_family, True, True, 0)
+        family_row.pack_start(self._font_button, True, True, 0)
+        family_row.pack_start(family_hint, False, False, 0)
 
         size_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         size_label = Gtk.Label(label="Size:", xalign=1)
         size_label.set_size_request(70, -1)
         self._font_size = Gtk.SpinButton.new_with_range(8, 40, 1)
-        self._font_size.set_value(int(font_cfg.get("size", 16)))
+        self._font_size.set_value(font_size)
         size_hint = Gtk.Label(label="px (icons scale to match)", xalign=0)
         size_hint.set_opacity(0.7)
         size_row.pack_start(size_label, False, False, 0)
@@ -277,6 +284,22 @@ class BarSettings(Gtk.Window):
         tab.pack_start(family_row, False, False, 0)
         tab.pack_start(size_row, False, False, 0)
         return tab
+
+    def _on_font_set(self, *_args) -> None:
+        """Sync the picked font's family + size into the settings state."""
+        try:
+            fd = Pango.FontDescription.from_string(self._font_button.get_font())
+        except Exception:
+            return
+        family = fd.get_family()
+        size = fd.get_size()
+        if family:
+            self._font_family = family
+        if size and size > 0:
+            self._font_size.set_value(round(size / Pango.SCALE))
+
+    def _active_font_family(self) -> str:
+        return self._font_family
 
     def _build_themes_tab(self) -> Gtk.Box:
         tab = self._tab_margins()
@@ -449,7 +472,7 @@ class BarSettings(Gtk.Window):
         self._actions["set_height"](height)
         self._actions["set_position"](self._active_position())
         self._actions["set_opacity"](str(self._active_opacity()))
-        self._actions["set_font"](self._font_family.get_text().strip())
+        self._actions["set_font"](self._active_font_family())
         self._actions["set_font_size"](str(int(self._font_size.get_value())))
 
     def _on_reset(self, *_args) -> None:
