@@ -232,7 +232,7 @@ def build_css(palette: dict, cfg: dict) -> str:
   min-width: 8px;
   min-height: 8px;
   border-radius: 4px;
-  background-color: {running};
+  background-color: {_rgba(palette["foreground"], 0.55)};
 }}
 .task-button.active .task-dot {{
   min-width: 10px;
