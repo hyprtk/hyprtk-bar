@@ -219,8 +219,19 @@ def validate(cfg: dict) -> dict:
     valid["layout"] = _normalize_layout(cfg, valid)
 
     center = valid.get("center") or {}
-    if not isinstance(center.get("pinned"), list):
-        center["pinned"] = list(DEFAULT_PINNED)
+    raw_center = cfg.get("center")
+    if isinstance(raw_center, dict) and "pinned" in raw_center:
+        # Explicit pinned list (even empty) is honored as-is.
+        center["pinned"] = (
+            [p for p in raw_center["pinned"] if isinstance(p, dict)]
+            if isinstance(raw_center["pinned"], list)
+            else []
+        )
+    else:
+        # Null / missing / empty center block means no pinned apps. The default
+        # pinned set only ships with a fresh config (DEFAULTS written on first
+        # run); an edited config is taken as the user's explicit choice.
+        center["pinned"] = []
     valid["center"] = center
 
     for section in ("workspaces", "clock"):
