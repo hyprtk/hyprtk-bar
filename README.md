@@ -150,6 +150,7 @@ Module ids:
 | Id | Module |
 | --- | --- |
 | `start_button` | Launches your app menu. |
+| `quicklinks` | Launcher buttons with Nerd Font glyphs (terminal, files, apps, browser, wallpaper, clipboard, screenshot). |
 | `workspaces` | Workspace chips. |
 | `tasklist` | Pinned + running application buttons. |
 | `sysmon` | CPU / RAM / disk readout. |
@@ -173,6 +174,12 @@ flags automatically.
     { "class": "firefox", "command": "firefox", "icon": "firefox" }
   ]
 },
+"quicklinks": {
+  "enabled": true,
+  "links": [
+    { "id": "terminal", "label": "Terminal", "icon": "\uf120", "command": "alacritty" }
+  ]
+},
 "workspaces": { "enabled": true, "show_empty": true, "max": 5 },
 "clock":      { "enabled": true, "format": "%H:%M", "date_format": "%a %d %b", "calendar": true },
 "sysmon":     { "enabled": true, "interval": 2, "disk_path": "/" },
@@ -188,6 +195,12 @@ flags automatically.
 
 - **pinned** entries: `class` is matched against running windows, `command` is
   launched on click when the app is not running, `icon` overrides the icon.
+- **quicklinks.links** entries: `icon` is a Nerd Font glyph (any font glyph the
+  bar can render), `label` is the hover tooltip, `command` runs on left-click;
+  optional `command_right` / `command_middle` run on right- / middle-click.
+  A link whose `command` is empty (e.g. the default browser link) resolves its
+  launch command from `xdg-settings`. Commands containing shell operators
+  (`&&`, `;`) are run through a shell automatically.
 - **notifications**: `max_stored` caps the center history; `default_timeout`
   is the toast duration in ms (0 persists). Urgent notifications and those
   with actions persist until dismissed.

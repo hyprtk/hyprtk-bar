@@ -25,6 +25,7 @@ from .layout import SECTION_ORDER, SectionBox  # noqa: E402
 from .notifications import NotificationCenterButton  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
 from .quicksettings import QuickSettingsButton  # noqa: E402
+from .quicklinks import QuickLinks  # noqa: E402
 from .sysmon import SysMon  # noqa: E402
 from .tasklist import TaskList  # noqa: E402
 from .tray import Tray, TrayController  # noqa: E402
@@ -220,6 +221,8 @@ class Bar(Gtk.Box):
         cfg, ipc = self._cfg, self._ipc
         if mid == "start_button":
             return StartButton(cfg, ipc)
+        if mid == "quicklinks":
+            return QuickLinks(cfg, ipc)
         if mid == "workspaces":
             return Workspaces(cfg, ipc)
         if mid == "tasklist":

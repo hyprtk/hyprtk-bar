@@ -254,6 +254,7 @@ def build_css(palette: dict, cfg: dict) -> str:
 {font_size_rule}{border_rule}{padding_rule}{font_rule}}}
 .task-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .task-button.hover {{ background-color: {hover}; }}
+.quicklink-glyph {{ color: {fg}; }}
 .accent-icon {{ color: {accent}; }}
 .tray-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .tray-button.hover {{ background-color: {hover}; }}

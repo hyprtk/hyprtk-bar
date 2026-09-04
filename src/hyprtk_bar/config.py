@@ -20,6 +20,7 @@ log = logging.getLogger("hyprtk_bar.config")
 # sections, and the bar menu can show/hide individual modules.
 MODULE_IDS = [
     "start_button",
+    "quicklinks",
     "workspaces",
     "tasklist",
     "window",
@@ -33,6 +34,7 @@ MODULE_IDS = [
 
 MODULE_LABELS = {
     "start_button": "Start button",
+    "quicklinks": "Quick links",
     "workspaces": "Workspaces",
     "tasklist": "Task list",
     "window": "Active window",
@@ -45,7 +47,7 @@ MODULE_LABELS = {
 }
 
 DEFAULT_LAYOUT = {
-    "left": ["start_button", "workspaces", "tasklist"],
+    "left": ["start_button", "quicklinks", "workspaces", "tasklist"],
     "center": ["window"],
     "right": ["sysmon", "kbstate", "clock", "notifications", "tray", "quicksettings"],
 }
@@ -54,6 +56,54 @@ DEFAULT_PINNED = [
     {"class": "firefox", "command": "firefox", "icon": "firefox"},
     {"class": "kitty", "command": "kitty", "icon": "kitty"},
     {"class": "thunar", "command": "thunar", "icon": "system-file-manager"},
+]
+
+DEFAULT_LINKS = [
+    {
+        "id": "apps",
+        "label": "Apps menu",
+        "icon": "\uf00a",  # nf-fa-bars
+        "command": "~/hyprtk/installer/scripts/appsmenu.sh",
+    },
+    {
+        "id": "terminal",
+        "label": "Terminal",
+        "icon": "\uf120",  # nf-fa-terminal
+        "command": "alacritty",
+    },
+    {
+        "id": "files",
+        "label": "File manager",
+        "icon": "\uf07c",  # nf-fa-folder_open_o
+        "command": "thunar",
+    },
+    {
+        "id": "web",
+        "label": "Web browser",
+        "icon": "\uf0ac",  # nf-fa-globe
+        "command": "",
+    },
+    {
+        "id": "wallpaper",
+        "label": "Wallpaper",
+        "icon": "\uf03e",  # nf-fa-picture_o
+        "command": "~/.local/bin/theme-gui",
+        "command_right": "~/hyprtk/installer/scripts/updatewal-awww.sh",
+    },
+    {
+        "id": "cliphist",
+        "label": "Clipboard history",
+        "icon": "\uf0ea",  # nf-fa-clipboard
+        "command": "sleep 0.1 && ~/hyprtk/installer/scripts/cliphist.sh",
+        "command_right": "sleep 0.1 && ~/hyprtk/installer/scripts/cliphist.sh d",
+        "command_middle": "sleep 0.1 && ~/hyprtk/installer/scripts/cliphist.sh w",
+    },
+    {
+        "id": "screenshot",
+        "label": "Screenshot",
+        "icon": "\uf083",  # nf-fa-camera
+        "command": "~/hyprtk/installer/scripts/ssdetect.sh",
+    },
 ]
 
 DEFAULTS = {
@@ -82,6 +132,10 @@ DEFAULTS = {
         "icon_size": 0,              # 0 = auto (scales with the font size), else px
     },
     "layout": DEFAULT_LAYOUT,
+    "quicklinks": {
+        "enabled": True,
+        "links": DEFAULT_LINKS,
+    },
     "center": {
         "start_button": True,
         "start_icon": "view-grid-symbolic",
@@ -306,6 +360,9 @@ def _normalize_layout(raw: dict, valid: dict) -> dict:
 
     if center.get("start_button", True):
         layout["center"].append("start_button")
+    ql = valid.get("quicklinks") or {}
+    if ql.get("enabled", True):
+        layout["left"].append("quicklinks")
     if workspaces.get("enabled", True):
         layout["center"].append("workspaces")
     layout["center"].append("tasklist")
