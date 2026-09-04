@@ -209,6 +209,7 @@ class BarSettings(Gtk.Window):
         self._source_buttons = _radio_group(list(THEME_SOURCES))
         source_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         for btn in self._source_buttons.values():
+            btn.connect("toggled", self._on_source_toggled)
             source_box.pack_start(btn, False, False, 0)
         source_key = theme.get("source", "pywal")
         self._source_buttons[source_key if source_key in self._source_buttons else "pywal"].set_active(True)
@@ -418,6 +419,10 @@ class BarSettings(Gtk.Window):
         source = self._active_source()
         for btn in self._theme_buttons.values():
             btn.set_sensitive(source == "waybar")
+
+    def _on_source_toggled(self, btn, *_args) -> None:
+        if btn.get_active():
+            self._update_source_state()
 
     def _on_theme_toggled(self, btn: Gtk.CheckButton, name: str) -> None:
         if not btn.get_active():
