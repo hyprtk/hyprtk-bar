@@ -41,7 +41,7 @@ class StartButton(HoverButton):
         icon = Gtk.Image.new_from_icon_name(
             center.get("start_icon", "go-home-symbolic"), Gtk.IconSize.INVALID
         )
-        icon.set_pixel_size(22)
+        icon.set_pixel_size(20)
         icon.get_style_context().add_class("accent-icon")
         self.box.pack_start(icon, True, True, 0)
         # Keep the start icon clear of the bar's left edge, with the same
