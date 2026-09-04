@@ -19,6 +19,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from . import config as config_module  # noqa: E402
 from .clock import Clock  # noqa: E402
 from .config import DEFAULT_LAYOUT, icon_size_for  # noqa: E402
+from .kbstate import KbState  # noqa: E402
 from .layout import SECTION_ORDER, SectionBox  # noqa: E402
 from .notifications import NotificationCenterButton  # noqa: E402
 from .quicksettings import QuickSettingsButton  # noqa: E402
@@ -224,6 +225,8 @@ class Bar(Gtk.Box):
             return Window(cfg, ipc)
         if mid == "sysmon":
             return SysMon(cfg, ipc)
+        if mid == "kbstate":
+            return KbState(cfg, ipc)
         if mid == "clock":
             return Clock(cfg, ipc)
         if mid == "notifications":

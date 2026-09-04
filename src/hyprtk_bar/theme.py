@@ -290,6 +290,11 @@ def build_css(palette: dict, cfg: dict) -> str:
 .clock.hover {{ background-color: {hover}; }}
 .clock-label {{ font-weight: bold; font-size: inherit; }}
 .clock-date {{ opacity: 0.85; font-size: inherit; }}
+.kbstate {{ padding: 0 8px; border-radius: {max(radius - 6, 4)}px; }}
+.kbstate.hover {{ background-color: {hover}; }}
+.kbstate-key {{ font-size: inherit; font-weight: bold; }}
+.kbstate-key.off {{ opacity: 0.4; }}
+.kbstate-key.on {{ color: {accent}; }}
 .window {{ padding: 2px 10px; border-radius: {max(radius - 6, 4)}px; }}
 .window.hover {{ background-color: {hover}; }}
 .window label {{ font-size: inherit; }}

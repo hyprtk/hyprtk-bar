@@ -24,6 +24,7 @@ MODULE_IDS = [
     "tasklist",
     "window",
     "sysmon",
+    "kbstate",
     "clock",
     "notifications",
     "tray",
@@ -36,6 +37,7 @@ MODULE_LABELS = {
     "tasklist": "Task list",
     "window": "Active window",
     "sysmon": "System monitor",
+    "kbstate": "Keyboard state",
     "clock": "Clock",
     "notifications": "Notification center",
     "tray": "System tray",
@@ -45,7 +47,7 @@ MODULE_LABELS = {
 DEFAULT_LAYOUT = {
     "left": ["start_button", "workspaces", "tasklist"],
     "center": ["window"],
-    "right": ["sysmon", "clock", "notifications", "tray", "quicksettings"],
+    "right": ["sysmon", "kbstate", "clock", "notifications", "tray", "quicksettings"],
 }
 
 DEFAULT_PINNED = [

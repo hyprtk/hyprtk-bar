@@ -141,7 +141,7 @@ module ids:
 "layout": {
   "left":   ["start_button", "workspaces", "tasklist"],
   "center": [],
-  "right":  ["sysmon", "clock", "notifications", "tray", "quicksettings"]
+  "right":  ["sysmon", "kbstate", "clock", "notifications", "tray", "quicksettings"]
 }
 ```
 
@@ -153,6 +153,7 @@ Module ids:
 | `workspaces` | Workspace chips. |
 | `tasklist` | Pinned + running application buttons. |
 | `sysmon` | CPU / RAM / disk readout. |
+| `kbstate` | Caps Lock / Num Lock indicators (from the keyboard LEDs). |
 | `clock` | Time, date and a calendar popup. |
 | `notifications` | Bell button with an unread badge + notification center. |
 | `tray` | StatusNotifier system tray. |
@@ -175,6 +176,7 @@ flags automatically.
 "workspaces": { "enabled": true, "show_empty": true, "max": 5 },
 "clock":      { "enabled": true, "format": "%H:%M", "date_format": "%a %d %b", "calendar": true },
 "sysmon":     { "enabled": true, "interval": 2, "disk_path": "/" },
+"kbstate":    { "enabled": true, "poll_ms": 500 },
 "tray":       { "enabled": true, "icon_size": 20, "reset_nm_applet": true },
 "quicksettings": { "enabled": true },
 "notifications": {

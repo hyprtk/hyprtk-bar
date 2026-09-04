@@ -1,7 +1,6 @@
 {
   "position": "bottom",
   "height": 42,
-  "margin": 6,
   "radius": 12,
   "opacity": 0.95,
   "use_pywal": true,
@@ -72,5 +71,7 @@
     "family": "",
     "size": 16,
     "icon_size": 0
-  }
+  },
+  "gap_in": 6,
+  "gap_out": 6
 }
