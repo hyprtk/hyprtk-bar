@@ -367,7 +367,11 @@ class Bar(Gtk.Box):
             self.rebuild_layout()
 
         def reload_config() -> None:
-            self.reload_config()
+            # A full process restart: the bar runs the latest source and re-reads
+            # config.json. An in-place config reload cannot pick up new modules
+            # (their code is already loaded), so it would silently ignore config
+            # that references them.
+            self.restart()
 
         def set_width(value: str) -> None:
             self._width = str(value)

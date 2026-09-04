@@ -176,6 +176,7 @@ flags automatically.
 },
 "quicklinks": {
   "enabled": true,
+  "glyph_font": "Symbols Nerd Font",
   "links": [
     { "id": "terminal", "label": "Terminal", "icon": "\uf120", "command": "alacritty" }
   ]
@@ -198,9 +199,13 @@ flags automatically.
 - **quicklinks.links** entries: `icon` is a Nerd Font glyph (any font glyph the
   bar can render), `label` is the hover tooltip, `command` runs on left-click;
   optional `command_right` / `command_middle` run on right- / middle-click.
-  A link whose `command` is empty (e.g. the default browser link) resolves its
-  launch command from `xdg-settings`. Commands containing shell operators
-  (`&&`, `;`) are run through a shell automatically.
+  `quicklinks.glyph_font` is the font used to render the glyphs (default
+  `Symbols Nerd Font`) — it must be a font that actually contains them, since
+  the system font's glyph fallback renders PUA codepoints as the wrong glyphs
+  (e.g. an apps-menu grid showing as "5"). A link whose `command` is empty (e.g.
+  the default browser link) resolves its launch command from `xdg-settings`.
+  Commands containing shell operators (`&&`, `;`) are run through a shell
+  automatically.
 - **notifications**: `max_stored` caps the center history; `default_timeout`
   is the toast duration in ms (0 persists). Urgent notifications and those
   with actions persist until dismissed.
@@ -223,6 +228,7 @@ flags automatically.
 | Bell (notifications) | Left-click: open the notification center; the unread badge resets. |
 | Quick settings | Left-click: open the flyout. |
 | Empty bar space | Right-click: bar menu → *Bar settings…* and *Reload config*. |
+| Reload config | Restarts the bar process so the latest source **and** config are loaded (a plain config reload cannot pick up new modules). |
 | Show-desktop strip | Left-click: minimize / restore all windows on the active workspace. |
 
 ### The settings window

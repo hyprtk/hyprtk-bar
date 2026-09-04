@@ -185,6 +185,11 @@ def build_css(palette: dict, cfg: dict) -> str:
     font_rule = f"  font-family: {font};\n" if font else ""
     font_size = palette.get("font_size")
     font_size_rule = f"  font-size: {font_size:g}px;\n" if font_size else ""
+    glyph_font = "Symbols Nerd Font"
+    try:
+        glyph_font = ((cfg.get("quicklinks") or {}).get("glyph_font") or "").strip() or glyph_font
+    except AttributeError:
+        pass
 
     border_rule = ""
     extra_v = 0.0
@@ -254,7 +259,7 @@ def build_css(palette: dict, cfg: dict) -> str:
 {font_size_rule}{border_rule}{padding_rule}{font_rule}}}
 .task-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .task-button.hover {{ background-color: {hover}; }}
-.quicklink-glyph {{ color: {fg}; }}
+.quicklink-glyph {{ color: {fg}; font-family: {glyph_font}; }}
 .accent-icon {{ color: {accent}; }}
 .tray-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .tray-button.hover {{ background-color: {hover}; }}

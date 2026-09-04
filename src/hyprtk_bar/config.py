@@ -134,6 +134,7 @@ DEFAULTS = {
     "layout": DEFAULT_LAYOUT,
     "quicklinks": {
         "enabled": True,
+        "glyph_font": "Symbols Nerd Font",
         "links": DEFAULT_LINKS,
     },
     "center": {
