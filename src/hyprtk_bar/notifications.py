@@ -23,6 +23,7 @@ from dbus_next.constants import NameFlag, RequestNameReply  # noqa: E402
 from dbus_next.glib import MessageBus  # noqa: E402
 from dbus_next.service import ServiceInterface, method, signal  # noqa: E402
 
+from .config import icon_size_for  # noqa: E402
 from .popup import Popup  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
@@ -350,9 +351,10 @@ class NotificationCenterButton(HoverButton):
         icon = Gtk.Image.new_from_icon_name(
             "notification-symbolic", Gtk.IconSize.INVALID
         )
-        icon.set_pixel_size(20)
-        icon.get_style_context().add_class("accent-icon")
-        self.box.pack_start(icon, True, True, 0)
+        self._icon = icon
+        self._icon.set_pixel_size(icon_size_for((cfg.get("font") or {}).get("size", 16)))
+        self._icon.get_style_context().add_class("accent-icon")
+        self.box.pack_start(self._icon, True, True, 0)
 
         self._badge = Gtk.Label(label="")
         self._badge.get_style_context().add_class("notif-badge")
@@ -361,6 +363,9 @@ class NotificationCenterButton(HoverButton):
 
         ctrl.add_listener(self._on_change)
         self._refresh_badge()
+
+    def apply_font(self, font_size) -> None:
+        self._icon.set_pixel_size(icon_size_for(font_size))
 
     def _on_change(self, kind: str, _nid: int) -> None:
         if kind not in ("add", "close", "clear", "read"):

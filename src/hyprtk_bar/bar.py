@@ -18,7 +18,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from . import config as config_module  # noqa: E402
 from .clock import Clock  # noqa: E402
-from .config import DEFAULT_LAYOUT  # noqa: E402
+from .config import DEFAULT_LAYOUT, icon_size_for  # noqa: E402
 from .layout import SECTION_ORDER, SectionBox  # noqa: E402
 from .notifications import NotificationCenterButton  # noqa: E402
 from .quicksettings import QuickSettingsButton  # noqa: E402
@@ -41,12 +41,16 @@ class StartButton(HoverButton):
         icon = Gtk.Image.new_from_icon_name(
             center.get("start_icon", "go-home-symbolic"), Gtk.IconSize.INVALID
         )
-        icon.set_pixel_size(20)
-        icon.get_style_context().add_class("accent-icon")
-        self.box.pack_start(icon, True, True, 0)
+        self._icon = icon
+        self._icon.set_pixel_size(icon_size_for((cfg.get("font") or {}).get("size", 16)))
+        self._icon.get_style_context().add_class("accent-icon")
+        self.box.pack_start(self._icon, True, True, 0)
         # Keep the start icon clear of the bar's left edge, with the same
         # breathing room as the spacing between the other modules.
         self.set_margin_start(6)
+
+    def apply_font(self, font_size) -> None:
+        self._icon.set_pixel_size(icon_size_for(font_size))
 
     def _on_button_press(self, _widget, event):
         if event.button == 1:
@@ -255,6 +259,18 @@ class Bar(Gtk.Box):
         for section in self._sections.values():
             section.box.set_spacing(s)
 
+    def apply_font(self, font_size) -> None:
+        """Scale module icons to match the configured font size."""
+        if not font_size:
+            return
+        for widget in self._widgets.values():
+            apply = getattr(widget, "apply_font", None)
+            if apply is not None:
+                try:
+                    apply(font_size)
+                except Exception:
+                    log.exception("apply_font failed on %r", widget)
+
     # ── bar menu ────────────────────────────────────────────────
 
     def show_bar_menu(self, event) -> None:
@@ -349,6 +365,20 @@ class Bar(Gtk.Box):
             config_module.save(cfg)
             _theme()  # re-theme: CSS background alpha
 
+        def set_font(family) -> None:
+            cfg.setdefault("font", {})["family"] = str(family or "").strip()
+            config_module.save(cfg)
+            _theme()
+
+        def set_font_size(size) -> None:
+            try:
+                size = max(8, int(str(size).strip()))
+            except (TypeError, ValueError):
+                size = 16
+            cfg.setdefault("font", {})["size"] = size
+            config_module.save(cfg)
+            _theme()
+
         def apply_layout(layout: dict) -> None:
             cfg["layout"] = {
                 "left": list(layout.get("left", [])),
@@ -371,6 +401,8 @@ class Bar(Gtk.Box):
             "set_height": set_height,
             "set_position": set_position,
             "set_opacity": set_opacity,
+            "set_font": set_font,
+            "set_font_size": set_font_size,
             "apply_layout": apply_layout,
             "open_settings": open_settings,
         }

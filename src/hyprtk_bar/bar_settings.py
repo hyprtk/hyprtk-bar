@@ -74,7 +74,7 @@ class BarSettings(Gtk.Window):
 
         self.set_decorated(False)
         self.set_keep_above(True)
-        self.set_default_size(640, 700)
+        self.set_default_size(640, 780)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.connect("key-press-event", self._on_key)
         self._build()
@@ -252,6 +252,38 @@ class BarSettings(Gtk.Window):
         self._refresh_themes(select=theme.get("waybar_theme") or None)
         self._update_source_state()
 
+        # ── Font section ──────────────────────────────────────────
+        font_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        font_title = Gtk.Label(label="Font", xalign=0)
+        font_title.get_style_context().add_class("settings-heading")
+        font_group.pack_start(font_title, False, False, 0)
+
+        font_cfg = self._cfg.get("font") or {}
+        family_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        family_label = Gtk.Label(label="Family:", xalign=1)
+        family_label.set_size_request(70, -1)
+        self._font_family = Gtk.Entry()
+        self._font_family.set_text(str(font_cfg.get("family", "") or ""))
+        self._font_family.set_placeholder_text("blank = system font")
+        self._font_family.set_hexpand(True)
+        family_row.pack_start(family_label, False, False, 0)
+        family_row.pack_start(self._font_family, True, True, 0)
+
+        size_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        size_label = Gtk.Label(label="Size:", xalign=1)
+        size_label.set_size_request(70, -1)
+        self._font_size = Gtk.SpinButton.new_with_range(8, 40, 1)
+        self._font_size.set_value(int(font_cfg.get("size", 16)))
+        size_hint = Gtk.Label(label="px (icons scale to match)", xalign=0)
+        size_hint.set_opacity(0.7)
+        size_row.pack_start(size_label, False, False, 0)
+        size_row.pack_start(self._font_size, True, True, 0)
+        size_row.pack_start(size_hint, False, False, 0)
+
+        font_group.pack_start(family_row, False, False, 0)
+        font_group.pack_start(size_row, False, False, 0)
+        root.pack_start(font_group, False, False, 0)
+
         # ── Modules section ──────────────────────────────────────
         mod_title = Gtk.Label(
             label="Modules — position (left/center/right) and order within the bar.",
@@ -390,6 +422,8 @@ class BarSettings(Gtk.Window):
         self._actions["set_height"](height)
         self._actions["set_position"](self._active_position())
         self._actions["set_opacity"](str(self._active_opacity()))
+        self._actions["set_font"](self._font_family.get_text().strip())
+        self._actions["set_font_size"](str(int(self._font_size.get_value())))
 
     def _on_reset(self, *_args) -> None:
         self._actions["reset_layout"]()

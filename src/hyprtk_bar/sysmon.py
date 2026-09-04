@@ -9,6 +9,7 @@ gi.require_version("Gtk", "3.0")
 
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from .config import icon_size_for  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.sysmon")
@@ -65,6 +66,8 @@ class SysMon(HoverButton):
         self._disk_path = self._sys_cfg.get("disk_path", "/")
         self._prev = _read_cpu_sample()
         self._labels: dict[str, Gtk.Label] = {}
+        self._icons: list[Gtk.Image] = []
+        icon_size = icon_size_for((cfg.get("font") or {}).get("size", 16))
 
         for key, icon in (
             ("cpu", "utilities-system-monitor-symbolic"),
@@ -73,8 +76,9 @@ class SysMon(HoverButton):
         ):
             item = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
             img = Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.INVALID)
-            img.set_pixel_size(20)
+            img.set_pixel_size(icon_size)
             img.get_style_context().add_class("accent-icon")
+            self._icons.append(img)
             item.pack_start(img, False, False, 0)
             label = Gtk.Label(label="--%")
             label.get_style_context().add_class("sysmon-value")
@@ -84,6 +88,11 @@ class SysMon(HoverButton):
 
         self._update()
         GLib.timeout_add_seconds(self._interval, self._tick)
+
+    def apply_font(self, font_size) -> None:
+        size = icon_size_for(font_size)
+        for img in self._icons:
+            img.set_pixel_size(size)
 
     def _tick(self) -> bool:
         self._update()

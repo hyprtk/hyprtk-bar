@@ -73,6 +73,10 @@ DEFAULTS = {
         "hover": "rgba(255, 255, 255, 0.08)",
         "running": "#7aa2f7",
     },
+    "font": {
+        "family": "",                # "" = system default font
+        "size": 16,                  # base text size (px); module icons scale from it
+    },
     "layout": DEFAULT_LAYOUT,
     "center": {
         "start_button": True,
@@ -184,6 +188,17 @@ def validate(cfg: dict) -> dict:
         except (TypeError, ValueError):
             valid["notifications"]["default_timeout"] = 5000
         valid["notifications"]["enabled"] = bool(notif.get("enabled", True))
+
+    # ── font ─────────────────────────────────────────────────────
+    font = valid.get("font")
+    if not isinstance(font, dict):
+        valid["font"] = dict(DEFAULTS["font"])
+    else:
+        valid["font"]["family"] = str(font.get("family", "") or "")
+        try:
+            valid["font"]["size"] = max(8, int(font.get("size", 16)))
+        except (TypeError, ValueError):
+            valid["font"]["size"] = 16
 
     # ── theme source ─────────────────────────────────────────────
     theme = valid.get("theme") or {}
@@ -312,3 +327,11 @@ def load_pywal_colors() -> dict | None:
     out["background"] = special.get("background")
     out["foreground"] = special.get("foreground")
     return out or None
+
+
+def icon_size_for(font_size) -> int:
+    """Derive a module-icon pixel size from the bar's base font size."""
+    try:
+        return max(14, int(round(int(font_size) * 1.25)))
+    except (TypeError, ValueError):
+        return 20

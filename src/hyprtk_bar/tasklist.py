@@ -14,6 +14,7 @@ gi.require_version("Pango", "1.0")
 
 from gi.repository import Gio, GLib, Gtk, Pango  # noqa: E402
 
+from .config import icon_size_for  # noqa: E402
 from .popup import Popup  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
 
@@ -106,11 +107,12 @@ def _make_row(win: dict, on_focus, on_close):
 class TaskButton(HoverButton):
     """One taskbar icon with a running indicator and a hover preview."""
 
-    def __init__(self, app_class: str, pinned: dict, callbacks: dict):
+    def __init__(self, app_class: str, pinned: dict, callbacks: dict, icon_size: int = 20):
         super().__init__("task-button", vertical=True, spacing=2)
         self.app_class = app_class
         self.pinned = pinned
         self._cb = callbacks
+        self._icon_size = icon_size
         self._windows: list = []
         self._show_timer = None
         self._hide_timer = None
@@ -118,7 +120,7 @@ class TaskButton(HoverButton):
         self._icon = Gtk.Image.new_from_icon_name(
             resolve_icon(app_class, pinned.get("icon")), Gtk.IconSize.INVALID
         )
-        self._icon.set_pixel_size(22)
+        self._icon.set_pixel_size(self._icon_size)
         self._icon.get_style_context().add_class("task-icon")
         self.box.pack_start(self._icon, True, True, 0)
 
@@ -245,7 +247,8 @@ class TaskList(Gtk.Box):
         for cls in order:
             if cls not in self._buttons:
                 self._buttons[cls] = TaskButton(
-                    cls, self._pinned.get(cls, {}), self._callbacks(cls)
+                    cls, self._pinned.get(cls, {}), self._callbacks(cls),
+                    icon_size_for((self._cfg.get("font") or {}).get("size", 16)),
                 )
                 self.pack_start(self._buttons[cls], False, False, 0)
 
@@ -257,6 +260,12 @@ class TaskList(Gtk.Box):
     def shutdown(self) -> None:
         self._preview.hide_popup()
         self._preview.destroy()
+
+    def apply_font(self, font_size) -> None:
+        size = icon_size_for(font_size)
+        for btn in self._buttons.values():
+            btn._icon_size = size
+            btn._icon.set_pixel_size(size)
 
     # ── preview popup ─────────────────────────────────────────────
 

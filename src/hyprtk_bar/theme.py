@@ -61,7 +61,8 @@ def resolve_palette(cfg: dict) -> dict:
 
     ``theme.source`` selects the source: ``pywal`` (live wallpaper palette),
     ``waybar`` (an imported waybar theme, dynamic to its pywal import), or
-    ``manual`` (colors from the config's ``theme`` block).
+    ``manual`` (colors from the config's ``theme`` block). The configured
+    ``font`` block (family + size) is applied on top of every source.
     """
     theme = cfg.get("theme") or {}
     source = theme.get("source", "pywal" if cfg.get("use_pywal", True) else "manual")
@@ -73,27 +74,33 @@ def resolve_palette(cfg: dict) -> dict:
         "running": theme.get("running", theme.get("accent", "#7aa2f7")),
     }
 
-    if source == "manual":
-        return palette
+    if source != "manual":
+        if source == "waybar":
+            imported = import_waybar_palette(theme)
+            if imported is not None:
+                palette = imported
 
-    if source == "waybar":
-        imported = import_waybar_palette(theme)
-        if imported is not None:
-            return imported
+        if "background_alpha" not in palette:
+            # pywal (also the fallback when a waybar import fails)
+            pywal = load_pywal_colors()
+            if pywal:
+                palette["background"] = pywal.get("background") or palette["background"]
+                palette["foreground"] = pywal.get("foreground") or palette["foreground"]
+                palette["accent"] = pywal.get("color5") or pywal.get("color4") or palette["accent"]
+                palette["running"] = palette["accent"]
+                # 2px bar border drawn in the pywal accent color.
+                palette["border_width"] = 2
+                palette["border_color"] = palette["accent"]
 
-    # pywal (also the fallback when a waybar import fails)
-    pywal = load_pywal_colors()
-    if pywal:
-        palette["background"] = pywal.get("background") or palette["background"]
-        palette["foreground"] = pywal.get("foreground") or palette["foreground"]
-        palette["accent"] = pywal.get("color5") or pywal.get("color4") or palette["accent"]
-        palette["running"] = palette["accent"]
-        # 2px bar border drawn in the pywal accent color.
-        palette["border_width"] = 2
-        palette["border_color"] = palette["accent"]
-        # Match the imported themes' base font size so switching between pywal
-        # and an imported theme never changes the text size.
-        palette["font_size"] = 16
+    # The configured font (family + size) applies to every theme source.
+    font_cfg = cfg.get("font") or {}
+    family = (font_cfg.get("family") or "").strip()
+    if family:
+        palette["font"] = family
+    try:
+        palette["font_size"] = max(8, int(font_cfg.get("size", 16)))
+    except (TypeError, ValueError):
+        pass
     return palette
 
 
