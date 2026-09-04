@@ -346,7 +346,6 @@ class NotificationCenterButton(HoverButton):
         self._cfg = cfg
         self._ctrl = ctrl
         self._popup = NotificationCenter(cfg, ctrl)
-        self._popup.set_on_leave(self._hide)
 
         icon = Gtk.Image.new_from_icon_name(
             "notification-symbolic", Gtk.IconSize.INVALID
@@ -399,15 +398,15 @@ class NotificationCenterButton(HoverButton):
             self._badge.hide()
 
     def _toggle(self) -> None:
+        # Click-opened, interactive panel: it does NOT auto-hide on mouse-leave
+        # (a spurious layer-shell crossing closes it before the pointer reaches
+        # it). It stays open until the bell is clicked again.
         if self._popup.get_visible():
             self._popup.hide_popup()
         else:
             self._popup.refresh()
             self._popup.show_above(self)
             self._ctrl.mark_read()
-
-    def _hide(self) -> None:
-        self._popup.hide_popup()
 
     def shutdown(self) -> None:
         self._popup.hide_popup()
