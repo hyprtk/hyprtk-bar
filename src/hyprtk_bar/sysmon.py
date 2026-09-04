@@ -74,6 +74,7 @@ class SysMon(HoverButton):
             item = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
             img = Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.INVALID)
             img.set_pixel_size(14)
+            img.get_style_context().add_class("accent-icon")
             item.pack_start(img, False, False, 0)
             label = Gtk.Label(label="--%")
             label.get_style_context().add_class("sysmon-value")

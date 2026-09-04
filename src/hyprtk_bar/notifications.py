@@ -351,6 +351,7 @@ class NotificationCenterButton(HoverButton):
             "notification-symbolic", Gtk.IconSize.INVALID
         )
         icon.set_pixel_size(20)
+        icon.get_style_context().add_class("accent-icon")
         self.box.pack_start(icon, True, True, 0)
 
         self._badge = Gtk.Label(label="")
