@@ -15,7 +15,7 @@ from .bar import Bar  # noqa: E402
 from .config import PYWAL_PATH  # noqa: E402
 from .ipc import HyprIPC  # noqa: E402
 from .notifications import NotificationController  # noqa: E402
-from .theme import build_css, pill_margins, resolve_palette  # noqa: E402
+from .theme import build_css, gap_value, pill_margins, resolve_palette  # noqa: E402
 from .waybar_theme import find_themes_dir  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.app")
@@ -241,8 +241,8 @@ class BarWindow(Gtk.Window):
         """Layer-surface height: pill height + gap_in (windows side) + gap_out (edge side)."""
         return (
             int(self._cfg.get("height", 42) or 42)
-            + int(self._cfg.get("gap_in", 6) or 6)
-            + int(self._cfg.get("gap_out", 6) or 6)
+            + gap_value(self._cfg, "gap_in", 6)
+            + gap_value(self._cfg, "gap_out", 6)
         )
 
     def _on_bar_position(self) -> None:

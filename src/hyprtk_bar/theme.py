@@ -137,6 +137,20 @@ def _vertical_padding(nums: list) -> float:
     return nums[0] + nums[2]
 
 
+def gap_value(cfg: dict, key: str, default: int) -> int:
+    """Coerce a gap config value to ``int >= 0``; ``default`` for missing/None.
+
+    Unlike ``x or default``, a stored ``0`` is kept (0 is a valid gap).
+    """
+    value = cfg.get(key)
+    if value is None or value == "":
+        return default
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return default
+
+
 def pill_margins(cfg: dict) -> tuple[int, int, int, int]:
     """(top, right, bottom, left) CSS margins of the .taskbar pill.
 
@@ -145,8 +159,8 @@ def pill_margins(cfg: dict) -> tuple[int, int, int, int]:
     position. The left/right margins stay a small fixed inset (the pill's
     rounded ends never touch the screen edges).
     """
-    gap_in = int(cfg.get("gap_in", 6) or 6)
-    gap_out = int(cfg.get("gap_out", 6) or 6)
+    gap_in = gap_value(cfg, "gap_in", 6)
+    gap_out = gap_value(cfg, "gap_out", 6)
     h = 6
     if cfg.get("position") == "top":
         return gap_out, h, gap_in, h
