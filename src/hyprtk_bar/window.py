@@ -1,7 +1,8 @@
 """Active-window title module (waybar's `hyprland/window`).
 
-Shows the focused window's title as text; hidden while no window is focused.
-The title is truncated to ``window.max_length`` characters and ellipsized.
+Shows the focused window's title as text, hidden while no window is focused.
+The module has a FIXED width so changing titles never shift the other modules;
+the title is ellipsized within it.
 """
 from __future__ import annotations
 
@@ -22,13 +23,20 @@ class Window(HoverButton):
             self._max_length = max(4, int(self._cfg.get("max_length", 40)))
         except (TypeError, ValueError):
             self._max_length = 40
+        try:
+            self._width = max(60, int(self._cfg.get("width", 220)))
+        except (TypeError, ValueError):
+            self._width = 220
         self._app_class = ""
 
         self._label = Gtk.Label(label="")
         self._label.set_xalign(0)
         self._label.set_ellipsize(Pango.EllipsizeMode.END)
+        self._label.set_max_width_chars(self._max_length)
         self._label.set_no_show_all(True)
         self.box.pack_start(self._label, False, False, 0)
+        # Fixed width: a variable-length title must not move the other modules.
+        self.set_size_request(self._width, -1)
 
     def update(self, title: str | None, app_class: str | None = None) -> None:
         title = (title or "").strip()

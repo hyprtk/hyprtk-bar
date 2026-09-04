@@ -99,6 +99,7 @@ DEFAULTS = {
     "window": {
         "enabled": True,
         "max_length": 40,       # active-window title max chars
+        "width": 220,           # fixed module width (px) so neighbors never shift
     },
     "tray": {
         "enabled": True,

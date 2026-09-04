@@ -65,6 +65,7 @@
   },
   "window": {
     "enabled": true,
-    "max_length": 40
+    "max_length": 40,
+    "width": 220
   }
 }
