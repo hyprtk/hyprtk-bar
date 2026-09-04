@@ -26,6 +26,7 @@ from .sysmon import SysMon  # noqa: E402
 from .tasklist import TaskList  # noqa: E402
 from .tray import Tray, TrayController  # noqa: E402
 from .widgets import HoverButton  # noqa: E402
+from .window import Window  # noqa: E402
 from .workspaces import Workspaces  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.bar")
@@ -213,6 +214,8 @@ class Bar(Gtk.Box):
             return Workspaces(cfg, ipc)
         if mid == "tasklist":
             return TaskList(cfg, ipc)
+        if mid == "window":
+            return Window(cfg, ipc)
         if mid == "sysmon":
             return SysMon(cfg, ipc)
         if mid == "clock":
@@ -388,13 +391,16 @@ class Bar(Gtk.Box):
         if self._tray_ctrl is not None:
             self._tray_ctrl.start()
 
-    def update(self, clients: list, workspaces: list, active_id: int, focus_address: str | None) -> None:
+    def update(self, clients: list, workspaces: list, active_id: int, focus_address: str | None, active_title: str | None = None, active_class: str | None = None) -> None:
         tasklist = self._widgets.get("tasklist")
         if tasklist is not None:
             tasklist.update(clients, focus_address, active_id)
         workspaces_widget = self._widgets.get("workspaces")
         if workspaces_widget is not None:
             workspaces_widget.update(workspaces, active_id)
+        window_widget = self._widgets.get("window")
+        if window_widget is not None:
+            window_widget.update(active_title, active_class)
 
     def shutdown(self) -> None:
         tasklist = self._widgets.get("tasklist")

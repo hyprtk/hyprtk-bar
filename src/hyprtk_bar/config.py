@@ -22,6 +22,7 @@ MODULE_IDS = [
     "start_button",
     "workspaces",
     "tasklist",
+    "window",
     "sysmon",
     "clock",
     "notifications",
@@ -33,6 +34,7 @@ MODULE_LABELS = {
     "start_button": "Start button",
     "workspaces": "Workspaces",
     "tasklist": "Task list",
+    "window": "Active window",
     "sysmon": "System monitor",
     "clock": "Clock",
     "notifications": "Notification center",
@@ -42,7 +44,7 @@ MODULE_LABELS = {
 
 DEFAULT_LAYOUT = {
     "left": ["start_button", "workspaces", "tasklist"],
-    "center": [],
+    "center": ["window"],
     "right": ["sysmon", "clock", "notifications", "tray", "quicksettings"],
 }
 
@@ -93,6 +95,10 @@ DEFAULTS = {
         "enabled": True,
         "interval": 2,          # seconds between reads
         "disk_path": "/",       # mount point to monitor
+    },
+    "window": {
+        "enabled": True,
+        "max_length": 40,       # active-window title max chars
     },
     "tray": {
         "enabled": True,
@@ -252,12 +258,15 @@ def _normalize_layout(raw: dict, valid: dict) -> dict:
     tray = valid.get("tray") or {}
     qs = valid.get("quicksettings") or {}
     notif = valid.get("notifications") or {}
+    win = valid.get("window") or {}
 
     if center.get("start_button", True):
         layout["center"].append("start_button")
     if workspaces.get("enabled", True):
         layout["center"].append("workspaces")
     layout["center"].append("tasklist")
+    if win.get("enabled", True):
+        layout["center"].append("window")
     if sysmon.get("enabled", True):
         layout["right"].append("sysmon")
     if clock.get("enabled", True):

@@ -242,6 +242,9 @@ def build_css(palette: dict, cfg: dict) -> str:
 .clock.hover {{ background-color: {hover}; }}
 .clock-label {{ font-weight: bold; }}
 .clock-date {{ font-size: 10px; opacity: 0.85; }}
+.window {{ padding: 2px 10px; border-radius: {max(radius - 6, 4)}px; }}
+.window.hover {{ background-color: {hover}; }}
+.window label {{ font-size: 12px; }}
 .sysmon {{ padding: 2px 8px; border-radius: {max(radius - 6, 4)}px; }}
 .sysmon.hover {{ background-color: {hover}; }}
 .sysmon-value {{ font-size: 11px; }}

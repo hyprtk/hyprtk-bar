@@ -1,0 +1,45 @@
+"""Active-window title module (waybar's `hyprland/window`).
+
+Shows the focused window's title as text; hidden while no window is focused.
+The title is truncated to ``window.max_length`` characters and ellipsized.
+"""
+from __future__ import annotations
+
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("Pango", "1.0")
+
+from gi.repository import Gtk, Pango  # noqa: E402
+
+from .widgets import HoverButton  # noqa: E402
+
+
+class Window(HoverButton):
+    def __init__(self, cfg: dict, ipc):
+        super().__init__("window", vertical=False, spacing=0)
+        self._cfg = cfg.get("window") or {}
+        try:
+            self._max_length = max(4, int(self._cfg.get("max_length", 40)))
+        except (TypeError, ValueError):
+            self._max_length = 40
+        self._app_class = ""
+
+        self._label = Gtk.Label(label="")
+        self._label.set_xalign(0)
+        self._label.set_ellipsize(Pango.EllipsizeMode.END)
+        self._label.set_no_show_all(True)
+        self.box.pack_start(self._label, False, False, 0)
+
+    def update(self, title: str | None, app_class: str | None = None) -> None:
+        title = (title or "").strip()
+        self._app_class = app_class or ""
+        if not title:
+            self._label.hide()
+            self.set_tooltip_text("")
+            return
+        if len(title) > self._max_length:
+            title = title[: self._max_length].rstrip() + "…"
+        self._label.set_text(title)
+        self._label.show()
+        tip = f"{self._app_class} — {title}" if self._app_class else title
+        self.set_tooltip_text(tip)

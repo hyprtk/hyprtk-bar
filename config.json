@@ -62,5 +62,9 @@
     "enabled": true,
     "max_stored": 50,
     "default_timeout": 5000
+  },
+  "window": {
+    "enabled": true,
+    "max_length": 40
   }
 }

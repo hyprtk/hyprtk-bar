@@ -338,7 +338,10 @@ class BarWindow(Gtk.Window):
         focus = self._ipc.query("activewindow") or {}
         global_id = active.get("id") if isinstance(active.get("id"), int) else 1
         a_id = self._active_workspace_on_this_monitor(global_id)
-        self._bar.update(clients, workspaces, a_id, focus.get("address"))
+        self._bar.update(
+            clients, workspaces, a_id,
+            focus.get("address"), focus.get("title"), focus.get("class"),
+        )
         return GLib.SOURCE_REMOVE
 
     def _active_workspace_on_this_monitor(self, fallback: int) -> int:
