@@ -318,9 +318,22 @@ class Bar(Gtk.Box):
             self.rebuild_layout()
 
         def reload_config() -> None:
-            self._cfg = config_module.load()
+            # Reload into the SHARED cfg dict in place — the window's _cfg is
+            # the same object, so a fresh dict assignment would be invisible to
+            # the theme/layer callbacks.
+            fresh = config_module.load()
+            cfg.clear()
+            cfg.update(fresh)
+            self._width = str(cfg.get("width", "100%"))
+            self._align = cfg.get("align", "center")
+            self._last_width = -1
             self.rebuild_layout()
             _theme()
+            self._apply_width()
+            if self._height_cb is not None:
+                self._height_cb()
+            if self._position_cb is not None:
+                self._position_cb()
 
         def set_width(value: str) -> None:
             self._width = str(value)
