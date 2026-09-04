@@ -154,7 +154,7 @@ class BarWindow(Gtk.Window):
             and is_primary
             and (cfg.get("notifications") or {}).get("enabled", True)
         ):
-            self._notif_ctrl = NotificationController(cfg, monitor=monitor)
+            self._notif_ctrl = NotificationController(cfg, monitor=monitor, bar_win=self)
             self._notif_ctrl.start()
         self._bar = Bar(cfg, self._ipc, is_primary=is_primary, notif_ctrl=self._notif_ctrl)
         self._bar.set_theme_callback(self._apply_theme)

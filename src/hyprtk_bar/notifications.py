@@ -184,9 +184,10 @@ class NotificationService(ServiceInterface):
 class NotificationController:
     """Owns the notifications bus name, the store, toasts and the center UI."""
 
-    def __init__(self, cfg: dict, monitor=None):
+    def __init__(self, cfg: dict, monitor=None, bar_win=None):
         self._cfg = cfg
         self._monitor = monitor
+        self._bar_win = bar_win
         self._notif_cfg = cfg.get("notifications") or {}
         self._store = NotificationStore(self._notif_cfg.get("max_stored", 50))
         self._default_timeout = self._notif_cfg.get("default_timeout", 5000)
@@ -323,7 +324,7 @@ class NotificationController:
 
     def show_toast(self, notif: Notification) -> None:
         self._dismiss_toast()
-        self._toast = Toast(self._cfg, self, notif, self._monitor)
+        self._toast = Toast(self._cfg, self, notif, self._monitor, self._bar_win)
         self._toast.show()
 
     def _dismiss_toast(self) -> None:
@@ -519,11 +520,12 @@ class Toast(Popup):
 
     WIDTH = 340
 
-    def __init__(self, cfg: dict, ctrl: NotificationController, notif: Notification, monitor):
+    def __init__(self, cfg: dict, ctrl: NotificationController, notif: Notification, monitor, bar_win=None):
         super().__init__(cfg, cfg.get("position", "bottom"))
         self._ctrl = ctrl
         self._notif = notif
         self._monitor = monitor
+        self._bar_win = bar_win if bar_win is not None else getattr(ctrl, "_bar_win", None)
         self._timer = None
         self._build()
         self.set_on_enter(self._cancel_hide)
@@ -591,7 +593,9 @@ class Toast(Popup):
             screen_w = geo.width
         else:
             screen_w = Gdk.Screen.get_default().get_width()
-        x = max(margin, screen_w - w - margin)
+        # Right-align to the pill's right edge so toasts stay inside the bar.
+        _pill_left, pill_right = self._pill_bounds(self._bar_win, screen_w)
+        x = max(margin, min(pill_right - w - margin, screen_w - w - margin))
 
         edge = (
             GtkLayerShell.Edge.TOP

@@ -93,6 +93,21 @@ class Popup(Gtk.Window):
         screen = Gdk.Screen.get_default()
         return alloc.x, alloc.y, screen.get_width(), screen.get_height()
 
+    def _pill_bounds(self, bar_win, screen_w):
+        """Monitor-local (left, right) horizontal bounds of the visible pill.
+
+        The pill is narrower than the monitor (e.g. ``width: 75%``), so popups
+        must stay inside it — otherwise they spill past the bar's right edge.
+        The pill allocation is relative to the bar window, which spans its
+        monitor (origin x=0), so it is already monitor-local.
+        """
+        pill = getattr(getattr(bar_win, "_bar", None), "pill", None)
+        if pill is not None:
+            alloc = pill.get_allocation()
+            if alloc.width > 0:
+                return alloc.x, alloc.x + alloc.width
+        return 0, screen_w
+
     def show_above(self, widget) -> None:
         """Size to content and float it just above the given bar widget."""
         nat = self.content.get_preferred_size().natural_size
@@ -106,7 +121,10 @@ class Popup(Gtk.Window):
         _bx, _by, screen_w, _screen_h = self._monitor_geometry(bar_win)
         cx = w_alloc.x + w_alloc.width // 2
         margin = self._cfg.get("margin", 6)
-        x = max(margin, min(cx - width // 2, screen_w - width - margin))
+        pill_left, pill_right = self._pill_bounds(bar_win, screen_w)
+        left_bound = max(margin, pill_left + margin)
+        right_bound = min(screen_w - margin, pill_right - margin)
+        x = max(left_bound, min(cx - width // 2, right_bound - width))
 
         edge = (
             GtkLayerShell.Edge.TOP
