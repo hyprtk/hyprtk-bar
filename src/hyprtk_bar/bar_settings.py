@@ -74,7 +74,7 @@ class BarSettings(Gtk.Window):
 
         self.set_decorated(False)
         self.set_keep_above(True)
-        self.set_default_size(620, 500)
+        self.set_default_size(640, 700)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.connect("key-press-event", self._on_key)
         self._build()
@@ -190,10 +190,24 @@ class BarSettings(Gtk.Window):
         position_row.pack_start(position_label, False, False, 0)
         position_row.pack_start(position_box, True, True, 0)
 
+        opacity_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        opacity_label = Gtk.Label(label="Opacity:", xalign=1)
+        opacity_label.set_size_request(70, -1)
+        self._opacity = Gtk.Entry()
+        self._opacity.set_text(str(int(round(self._cfg.get("opacity", 0.95) * 100))))
+        self._opacity.set_width_chars(4)
+        self._opacity.set_input_purpose(Gtk.InputPurpose.NUMBER)
+        opacity_hint = Gtk.Label(label="% (0–100)", xalign=0)
+        opacity_hint.set_opacity(0.7)
+        opacity_row.pack_start(opacity_label, False, False, 0)
+        opacity_row.pack_start(self._opacity, True, True, 0)
+        opacity_row.pack_start(opacity_hint, False, False, 0)
+
         bar_group.pack_start(height_row, False, False, 0)
         bar_group.pack_start(width_row, False, False, 0)
         bar_group.pack_start(align_row, False, False, 0)
         bar_group.pack_start(position_row, False, False, 0)
+        bar_group.pack_start(opacity_row, False, False, 0)
         root.pack_start(bar_group, False, False, 0)
 
         # ── Theme section ────────────────────────────────────────
@@ -368,13 +382,14 @@ class BarSettings(Gtk.Window):
         }
         self._actions["apply_layout"](layout)
 
-        # width / align / height / position
+        # width / align / height / position / opacity
         width = self._width.get_text().strip() or "100%"
         self._actions["set_width"](width)
         self._actions["set_align"](self._active_align())
         height = str(int(self._height.get_value()))
         self._actions["set_height"](height)
         self._actions["set_position"](self._active_position())
+        self._actions["set_opacity"](str(self._active_opacity()))
 
     def _on_reset(self, *_args) -> None:
         self._actions["reset_layout"]()
@@ -408,6 +423,13 @@ class BarSettings(Gtk.Window):
             if btn.get_active():
                 return key
         return "bottom"
+
+    def _active_opacity(self) -> float:
+        text = self._opacity.get_text().strip().rstrip("%")
+        try:
+            return max(0.0, min(1.0, float(text) / 100.0))
+        except (TypeError, ValueError):
+            return 0.95
 
     def _get_imported_theme(self) -> str:
         for name, btn in self._theme_buttons.items():

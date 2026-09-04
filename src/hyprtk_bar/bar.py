@@ -336,6 +336,15 @@ class Bar(Gtk.Box):
             if self._position_cb is not None:
                 self._position_cb()
 
+        def set_opacity(value) -> None:
+            try:
+                opacity = max(0.0, min(1.0, float(str(value).strip())))
+            except (TypeError, ValueError):
+                opacity = 0.95
+            cfg["opacity"] = opacity
+            config_module.save(cfg)
+            _theme()  # re-theme: CSS background alpha
+
         def apply_layout(layout: dict) -> None:
             cfg["layout"] = {
                 "left": list(layout.get("left", [])),
@@ -357,6 +366,7 @@ class Bar(Gtk.Box):
             "set_align": set_align,
             "set_height": set_height,
             "set_position": set_position,
+            "set_opacity": set_opacity,
             "apply_layout": apply_layout,
             "open_settings": open_settings,
         }
