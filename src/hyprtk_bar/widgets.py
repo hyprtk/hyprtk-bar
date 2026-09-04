@@ -1,10 +1,48 @@
 """Shared widgets for hyprtk-bar."""
 from __future__ import annotations
 
+import logging
+import os
+import shlex
+import shutil
+
 import gi
 gi.require_version("Gtk", "3.0")
 
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import GLib, Gtk  # noqa: E402
+
+log = logging.getLogger("hyprtk_bar.widgets")
+
+
+def spawn(command: str) -> bool:
+    """Spawn a command line, resolving ``~`` and the binary with ~/.local/bin on PATH.
+
+    The bar process is launched with a minimal PATH that does not include
+    ``~/.local/bin``, so bare names of user-installed launchers (hyprtk-menu,
+    hyprtk-arc-menu, theme-gui, ...) fail to resolve. Resolve the leading
+    executable against an augmented PATH before spawning.
+    """
+    command = os.path.expanduser(command).strip()
+    if not command:
+        return False
+    path = os.environ.get("PATH", "")
+    home_bin = os.path.expanduser("~/.local/bin")
+    if home_bin not in path.split(":"):
+        path = home_bin + ":" + path
+    parts = shlex.split(command)
+    if parts:
+        resolved = shutil.which(parts[0], path=path)
+        if resolved:
+            if command.startswith(parts[0]):
+                command = resolved + command[len(parts[0]):]
+            else:
+                command = " ".join([resolved] + parts[1:])
+    try:
+        GLib.spawn_command_line_async(command)
+    except GLib.Error as exc:
+        log.warning("Failed to spawn %r: %s", command, exc)
+        return False
+    return True
 
 
 class HoverButton(Gtk.EventBox):

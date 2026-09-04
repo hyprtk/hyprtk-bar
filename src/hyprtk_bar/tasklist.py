@@ -17,7 +17,7 @@ from gi.repository import Gio, GLib, Gtk, Pango  # noqa: E402
 from . import config as config_module  # noqa: E402
 from .config import icon_size_for  # noqa: E402
 from .popup import Popup  # noqa: E402
-from .widgets import HoverButton  # noqa: E402
+from .widgets import HoverButton, spawn  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.tasklist")
 
@@ -441,10 +441,8 @@ class TaskList(Gtk.Box):
         command = (self._pinned.get(cls) or {}).get("command")
         if not command:
             return
-        try:
-            GLib.spawn_command_line_async(command)
-        except GLib.Error as exc:
-            log.warning("Failed to launch %r: %s", command, exc)
+        if not spawn(command):
+            log.warning("Failed to launch %r", command)
 
     def _focus_win(self, win: dict) -> None:
         addr = win.get("address")

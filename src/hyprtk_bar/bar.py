@@ -25,7 +25,7 @@ from .quicksettings import QuickSettingsButton  # noqa: E402
 from .sysmon import SysMon  # noqa: E402
 from .tasklist import TaskList  # noqa: E402
 from .tray import Tray, TrayController  # noqa: E402
-from .widgets import HoverButton  # noqa: E402
+from .widgets import HoverButton, spawn  # noqa: E402
 from .window import Window  # noqa: E402
 from .workspaces import Workspaces  # noqa: E402
 
@@ -57,10 +57,8 @@ class StartButton(HoverButton):
 
     def _on_button_press(self, _widget, event):
         if event.button == 1:
-            try:
-                GLib.spawn_command_line_async(self._command)
-            except GLib.Error as exc:
-                log.warning("Failed to launch start menu %r: %s", self._command, exc)
+            if not spawn(self._command):
+                log.warning("Failed to launch start menu %r", self._command)
         return True
 
 
