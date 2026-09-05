@@ -90,6 +90,9 @@ class Bar(Gtk.Box):
         self.pack_start(self._spacer, False, False, 0)
 
         self.pill = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        # Equal-width cells: see the section loop below — this is what keeps the
+        # center cluster truly centered regardless of the side content widths.
+        self.pill.set_homogeneous(True)
         self.pill.get_style_context().add_class("taskbar")
         self.pill.set_hexpand(True)
         self.pill.set_halign(Gtk.Align.FILL)
@@ -98,16 +101,19 @@ class Bar(Gtk.Box):
         for section_id in SECTION_ORDER:
             section = SectionBox(section_id, self)
             self._sections[section_id] = section
-            expand = section_id in ("left", "right")
-            section.set_hexpand(expand)
-            if section_id == "right":
-                # Hug the right edge; the empty space stays between the center
-                # cluster and the right cluster (Win11 style).
-                section.box.set_hexpand(False)
+            # Homogeneous pill cells: every section gets the same width, so the
+            # center cell's midpoint is the pill's midpoint and its content
+            # (workspaces) is dead-centered no matter how wide the left/right
+            # content is. Each section's inner box aligns its content within
+            # its cell (left hugs the left edge, right hugs the right edge).
+            section.set_hexpand(True)
+            if section_id == "center":
+                section.box.set_halign(Gtk.Align.CENTER)
+            elif section_id == "right":
                 section.box.set_halign(Gtk.Align.END)
             else:
-                section.box.set_hexpand(expand)
-            self.pill.pack_start(section, expand, True, 0)
+                section.box.set_halign(Gtk.Align.START)
+            self.pill.pack_start(section, True, True, 0)
 
         self.connect("size-allocate", self._on_bar_size_allocate)
         self._apply_width()
