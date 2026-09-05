@@ -456,6 +456,13 @@ class TrayButton(HoverButton):
         item = self._item
         pixbuf = item.best_pixbuf()
         if pixbuf is not None:
+            # This GTK3 build ignores `pixel_size` for pixbuf-backed images
+            # (the natural size wins), so scale the applet's pixmap to the
+            # tray icon size explicitly — some items (e.g. Whatsie) hand over
+            # very large pixmaps that would otherwise blow up the bar.
+            pixbuf = pixbuf.scale_simple(
+                self._icon_size, self._icon_size, GdkPixbuf.InterpType.BILINEAR
+            )
             self._image.set_from_pixbuf(pixbuf)
         else:
             self._image.set_from_icon_name(item.icon_name or GENERIC_ICON, Gtk.IconSize.INVALID)
@@ -512,11 +519,13 @@ class TrayButton(HoverButton):
         if menu is None:
             return
         menu.show_all()
-        if event is not None:
-            menu.popup_at_pointer(event)
-        else:
-            x, y = self._screen_xy()
-            menu.popup(None, None, lambda *_a: (x, y), None, 0, Gdk.CURRENT_TIME)
+        # Don't use ``popup_at_pointer(event)``: the menu is popped up from the
+        # async dbus GetLayout callback, and by then the press event's GdkWindow
+        # can already be freed (segfault in gdk_window_get_screen on this build,
+        # seen with Whatsie). ``popup()`` with a NULL position func places the
+        # menu at the current pointer instead, which is exactly where the
+        # right-click happened.
+        menu.popup(None, None, None, None, 0, Gdk.CURRENT_TIME)
 
 
 class Tray(Gtk.Box):
