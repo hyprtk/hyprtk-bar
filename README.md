@@ -275,8 +275,8 @@ right-aligned to the bar's edge.
 - Closing notifications emits `NotificationClosed` to the sending app.
 
 Because the bar provides the daemon, do **not** run another notification
-daemon (e.g. dunst, mako, swaync) at the same time — only one process can own
-the bus name. In the hyprtk dotfiles the bar's daemon replaces dunst entirely.
+daemon (e.g. mako, swaync, xfce4-notifyd) at the same time — only one process
+can own the bus name.
 
 Send a test notification with:
 
@@ -325,8 +325,8 @@ single SNI watcher and a single notifications bus owner.
 - **"another hyprtk-bar is already running"** — a second instance exits by
   design. Restart the running one:
   `pkill -f "python3 -m hyprtk_bar" && hyprtk-bar &`
-- **Notifications don't show** — another daemon (dunst/mako/swaync) may hold
-  `org.freedesktop.Notifications`. Stop it and restart the bar.
+- **Notifications don't show** — another daemon (mako/swaync/xfce4-notifyd) may
+  hold `org.freedesktop.Notifications`. Stop it and restart the bar.
 - **Tray icons missing** — some applets only register after a host announces
   itself. `tray.reset_nm_applet` restarts `nm-applet` on startup; restart other
   applets the same way if needed.

@@ -3,7 +3,7 @@
 The primary bar owns the ``org.freedesktop.Notifications`` bus name and renders
 desktop notifications as Win11-style toasts above the bar; the bell button in
 the bar opens a notification center that lists the history with action buttons.
-No other notification daemon (dunst/mako/swaync) may hold the bus name for this
+No other notification daemon (mako/swaync/xfce4-notifyd) may hold the bus name for this
 to receive notifications.
 """
 from __future__ import annotations
@@ -212,7 +212,7 @@ class NotificationController:
             self._bus = None
             return
         # The bar is the intended daemon. If another notification daemon
-        # (dunst/mako/swaync/xfce4-notifyd) was D-Bus auto-activated while the
+        # (mako/swaync/xfce4-notifyd) was D-Bus auto-activated while the
         # name was briefly free (e.g. during a bar restart), it would keep the
         # name forever and the built-in center would go inactive. Kill the known
         # competitors before requesting the name so the bar always owns it.
@@ -223,7 +223,7 @@ class NotificationController:
 
     @staticmethod
     def _kill_competing_daemons() -> None:
-        for binary in ("dunst", "mako", "swaync", "xfce4-notifyd"):
+        for binary in ("mako", "swaync", "xfce4-notifyd"):
             path = shutil.which(binary)
             if path:
                 try:
