@@ -12,6 +12,7 @@ from pathlib import Path
 CONFIG_DIR = Path.home() / ".config" / "hyprtk-bar"
 CONFIG_PATH = CONFIG_DIR / "config.json"
 PYWAL_PATH = Path.home() / ".cache" / "wal" / "colors.json"
+ROFI_SYNC_SH = Path.home() / ".config" / "rofi" / "scripts" / "sync-rofi-theme.sh"
 
 log = logging.getLogger("hyprtk_bar.config")
 

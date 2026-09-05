@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import cairo
 import logging
+import subprocess
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -12,7 +13,7 @@ gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, Gio, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .bar import Bar  # noqa: E402
-from .config import PYWAL_PATH  # noqa: E402
+from .config import PYWAL_PATH, ROFI_SYNC_SH  # noqa: E402
 from .ipc import HyprIPC  # noqa: E402
 from .notifications import NotificationController  # noqa: E402
 from .theme import build_css, gap_value, pill_margins, resolve_palette  # noqa: E402
@@ -193,6 +194,22 @@ class BarWindow(Gtk.Window):
         # size immediately (not only on the next pointer event).
         self._bar.queue_resize()
         self._bar.queue_draw()
+        self._sync_rofi_variant()
+
+    def _sync_rofi_variant(self) -> None:
+        """Keep the rofi variant.rasi in lock-step with the bar's theme.
+
+        sync-rofi-theme.sh derives the variant from ``theme.waybar_theme`` in
+        this bar's config, so running it here makes rofi menus match whatever
+        imported theme the bar is showing (and, on wallpaper changes, keeps the
+        link in sync while the variant's ``@colorN`` refs track pywal live).
+        """
+        if not ROFI_SYNC_SH.is_file():
+            return
+        try:
+            subprocess.Popen(["bash", str(ROFI_SYNC_SH)], start_new_session=True)
+        except OSError:
+            log.warning("could not spawn rofi theme sync", exc_info=True)
 
     def _setup_theme_monitors(self) -> None:
         """Watch the sources a live re-theme depends on.
