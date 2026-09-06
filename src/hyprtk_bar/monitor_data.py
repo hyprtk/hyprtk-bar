@@ -22,6 +22,17 @@ HWMON = Path("/sys/class/hwmon")
 DRM = Path("/sys/class/drm")
 DIMM_CACHE = Path.home() / ".cache" / "hyprtk-bar" / "dimm.json"
 DIMM_TTL = 24 * 3600
+GPU_CACHE = Path.home() / ".cache" / "hyprtk-bar" / "gpu.json"
+GPU_TTL = 24 * 3600
+
+_GPU_VENDORS = {"1002": "AMD", "10de": "NVIDIA", "8086": "Intel"}
+
+
+def _cache_fresh(path: Path, ttl: float) -> bool:
+    try:
+        return time.time() - path.stat().st_mtime < ttl
+    except OSError:
+        return False
 
 _PHYS_DEVICE = re.compile(r"^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|mmcblk\d+)$")
 
@@ -372,12 +383,26 @@ def _iface_ip(iface: str) -> str:
         return ""
 
 
+def iface_kind(name: str) -> tuple[str, str, str]:
+    """(type_key, label, Nerd Font glyph) for a network interface."""
+    if Path("/sys/class/net", name, "wireless").exists():
+        return "wifi", "Wi-Fi", "\uf1eb"          # fa-wifi
+    try:
+        devtype = int(_read_text(f"/sys/class/net/{name}/type"))
+    except (TypeError, ValueError):
+        devtype = 0
+    if name == "lo" or devtype == 772:           # ARPHRD_LOOPBACK
+        return "lo", "Loopback", "\uf0c1"        # fa-network-wired
+    # Virtual devices (bridges like virbr0/docker0) have no device symlink.
+    if not Path("/sys/class/net", name, "device").exists():
+        return "virt", "Virtual", "\uf233"       # fa-server
+    if devtype == 1:                             # ARPHRD_ETHER
+        return "eth", "Ethernet", "\uf0c1"       # fa-network-wired
+    return "virt", "Virtual", "\uf233"           # fa-server
+
+
 def _iface_type(iface: str) -> str:
-    if Path("/sys/class/net", iface, "wireless").exists():
-        return "Wi-Fi"
-    if _read_text(f"/sys/class/net/{iface}/type") == "1":
-        return "Ethernet"
-    return ""
+    return iface_kind(iface)[1]
 
 
 class NetSampler:
@@ -414,16 +439,37 @@ class NetSampler:
         if iface == "auto" or iface not in rates:
             iface = self._pick(rates)
         down, up = rates.get(iface, (0, 0))
+
+        all_ifaces = []
+        for name, (d, u) in rates.items():
+            if name == "lo":
+                continue
+            kind = iface_kind(name)
+            all_ifaces.append(
+                {
+                    "name": name,
+                    "type_key": kind[0],
+                    "type": kind[1],
+                    "glyph": kind[2],
+                    "ip": _iface_ip(name),
+                    "down_bps": d,
+                    "up_bps": u,
+                }
+            )
+        all_ifaces.sort(
+            key=lambda i: (
+                {"eth": 0, "wifi": 1, "virt": 2}.get(i["type_key"], 9),
+                i["name"],
+            )
+        )
+
         return {
             "iface": iface,
             "down_bps": down,
             "up_bps": up,
             "ip": _iface_ip(iface),
             "type": _iface_type(iface),
-            "all": [
-                {"name": n, "down_bps": r[0], "up_bps": r[1]}
-                for n, r in rates.items()
-            ],
+            "all": all_ifaces,
         }
 
 
@@ -454,8 +500,25 @@ def _amdgpu_hwmon() -> Path | None:
     return None
 
 
+def _read_pp_dpm(dev: Path, attr: str) -> tuple[int | None, int | None]:
+    """(current_mhz, max_mhz) from a ``pp_dpm_*`` clock list (the ``*`` is current)."""
+    try:
+        lines = (dev / attr).read_text().splitlines()
+    except OSError:
+        return None, None
+    cur = mx = None
+    for line in lines:
+        m = re.match(r"\s*\d+:\s*(\d+)Mhz(\s*\*)?", line.strip())
+        if not m:
+            continue
+        mx = int(m.group(1))  # list is ascending, so the last entry is max
+        if m.group(2):
+            cur = mx
+    return cur, mx
+
+
 def gpu() -> dict | None:
-    """AMD GPU utilization/VRAM/temps/power, or None when not available."""
+    """AMD GPU utilization/VRAM/temps/power/clocks, or None when unavailable."""
     dev = _find_gpu_dir()
     if dev is None:
         return None
@@ -469,6 +532,8 @@ def gpu() -> dict | None:
     util = read(dev / "gpu_busy_percent") or 0
     vram_used = read(dev / "mem_info_vram_used")
     vram_total = read(dev / "mem_info_vram_total")
+    core_mhz, core_max_mhz = _read_pp_dpm(dev, "pp_dpm_sclk")
+    mem_mhz, mem_max_mhz = _read_pp_dpm(dev, "pp_dpm_mclk")
 
     hw = _amdgpu_hwmon()
     power_w = fan_rpm = fan_max = None
@@ -507,8 +572,117 @@ def gpu() -> dict | None:
         "fan_rpm": fan_rpm,
         "fan_max": fan_max,
         "temps": temps,
+        "core_mhz": core_mhz,
+        "core_max_mhz": core_max_mhz,
+        "mem_mhz": mem_mhz,
+        "mem_max_mhz": mem_max_mhz,
         "name": _read_text(dev / "product_number") or "",
     }
+
+
+# ── GPU static info (model / manufacturer / compute units / clocks) ──
+
+def _rocminfo_gpu() -> dict | None:
+    """Static GPU info from `rocminfo` (marketing name, vendor, CUs, max clock)."""
+    try:
+        out = subprocess.run(
+            ["rocminfo"], capture_output=True, text=True, timeout=20
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if out.returncode != 0:
+        return None
+    for block in re.split(r"(?m)^Agent \d+", out.stdout):
+        dtype = re.search(r"Device Type:\s*(\S+)", block)
+        if not dtype or dtype.group(1) != "GPU":
+            continue
+        info: dict = {}
+        for key, field in (
+            ("model", "Marketing Name:"),
+            ("manufacturer", "Vendor Name:"),
+            ("units", "Compute Unit:"),
+            ("max_clock", "Max Clock Freq. (MHz):"),
+        ):
+            m = re.search(rf"^\s*{re.escape(field)}\s+(.+?)\s*$", block, re.M)
+            if m and m.group(1).strip():
+                info[key] = m.group(1).strip()
+        return info or None
+    return None
+
+
+def _lspci_gpu() -> dict | None:
+    """Fallback: manufacturer + model from ``lspci -nn`` (no rocminfo needed)."""
+    try:
+        out = subprocess.run(
+            ["lspci", "-nn"], capture_output=True, text=True, timeout=5
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    for line in out.stdout.splitlines():
+        if not re.search(r"(?i)(vga compatible|3d controller|display controller)", line):
+            continue
+        m = re.search(r"\[([0-9A-Fa-f]{4}):([0-9A-Fa-f]{4})\]", line)
+        vid = (m.group(1) if m else "").lower()
+        desc = line.split(": ", 1)[1] if ": " in line else line
+        desc = re.sub(r"\s*\[[0-9A-Fa-f]{4}:[0-9A-Fa-f]{4}\].*$", "", desc).strip()
+        vendor = re.match(r"([^\[\]]+)\[", desc)
+        brand = vendor.group(1).strip() if vendor else ""
+        model = desc[vendor.end():].strip() if vendor else desc
+        return {
+            "manufacturer": _GPU_VENDORS.get(vid, brand or "GPU"),
+            "model": model or brand or line.strip(),
+        }
+    return None
+
+
+def _gpu_fetch_static() -> dict | None:
+    """Static GPU identity; prefers rocminfo, falls back to lspci + sysfs."""
+    info = _rocminfo_gpu() or _lspci_gpu()
+    if info is None:
+        return None
+    dev = _find_gpu_dir()
+    if dev is not None:
+        vendor_id = _read_text(dev / "vendor").lower()
+        if vendor_id.startswith("0x") and vendor_id[2:] in _GPU_VENDORS:
+            info.setdefault("manufacturer", _GPU_VENDORS[vendor_id[2:]])
+        core_mhz, core_max_mhz = _read_pp_dpm(dev, "pp_dpm_sclk")
+        if core_max_mhz is not None:
+            info.setdefault("max_clock", core_max_mhz)
+    try:
+        info["units"] = int(info.get("units"))
+    except (TypeError, ValueError):
+        info["units"] = None
+    try:
+        info["max_clock"] = int(info.get("max_clock"))
+    except (TypeError, ValueError):
+        info["max_clock"] = None
+    info["manufacturer"] = str(info.get("manufacturer") or "").strip() or "GPU"
+    info["model"] = str(info.get("model") or "").strip()
+    return info
+
+
+def gpu_static(use_cache: bool = True) -> dict | None:
+    """Static GPU info (model/manufacturer/units/max clock), cached.
+
+    Fetched via rocminfo / lspci which need no root here; the result is cached
+    in ~/.cache/hyprtk-bar/gpu.json. Call the fetch off the UI thread.
+    """
+    if use_cache:
+        if _cache_fresh(GPU_CACHE, GPU_TTL):
+            try:
+                data = json.loads(GPU_CACHE.read_text())
+                return data if isinstance(data, dict) else None
+            except (OSError, json.JSONDecodeError):
+                return None
+        return None
+    info = _gpu_fetch_static()
+    if info:
+        try:
+            GPU_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            GPU_CACHE.write_text(json.dumps(info, indent=2))
+        except OSError:
+            pass
+    return info
 
 
 # ── processes ─────────────────────────────────────────────────────

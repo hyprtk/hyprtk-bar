@@ -406,6 +406,83 @@ class DriveGrid(Gtk.Box):
         )
 
 
+class InterfaceList(Gtk.Box):
+    """One row per network interface: type glyph, name/type, IP, down/up rates."""
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        title = Gtk.Label(label="Interfaces", xalign=0)
+        title.get_style_context().add_class("mc-graph-title")
+        head.pack_start(title, True, True, 0)
+        self._count = Gtk.Label(label="", xalign=1)
+        self._count.get_style_context().add_class("mc-stat-value")
+        head.pack_start(self._count, False, False, 0)
+        self.pack_start(head, False, False, 0)
+
+        self._rows: dict[str, dict] = {}
+        self._order: list[str] = []
+        self._box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.pack_start(self._box, False, False, 0)
+
+    def update(self, ifaces: list[dict]) -> None:
+        names = [i["name"] for i in ifaces]
+        if names != self._order:
+            for child in list(self._box.get_children()):
+                self._box.remove(child)
+            self._rows.clear()
+            self._order = names
+            for iface in ifaces:
+                row = self._make_row(iface)
+                self._rows[iface["name"]] = row
+                self._box.pack_start(row["box"], False, False, 0)
+            self._box.show_all()
+        for iface in ifaces:
+            self._set_row(self._rows.get(iface["name"]), iface)
+        self._count.set_text(f"{len(ifaces)} interfaces")
+
+    def _make_row(self, iface: dict) -> dict:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        row.get_style_context().add_class("iface-row")
+        glyph = Glyph(iface["glyph"], f"iface-{iface['type_key']}")
+        glyph.set_pixel_size(13)
+        row.pack_start(glyph, False, False, 0)
+        name_lbl = Gtk.Label(label=iface["name"], xalign=0)
+        name_lbl.get_style_context().add_class("iface-name")
+        name_lbl.set_width_chars(9)
+        row.pack_start(name_lbl, False, False, 0)
+        type_lbl = Gtk.Label(label=iface["type"], xalign=0)
+        type_lbl.get_style_context().add_class("iface-type")
+        type_lbl.set_width_chars(9)
+        row.pack_start(type_lbl, False, False, 0)
+        ip_lbl = Gtk.Label(label="", xalign=0)
+        ip_lbl.get_style_context().add_class("iface-ip")
+        ip_lbl.set_width_chars(15)
+        row.pack_start(ip_lbl, True, True, 0)
+
+        down = Glyph("\uf063", "iface-down")  # fa-arrow-down
+        down.set_pixel_size(10)
+        down_lbl = Gtk.Label(label="", xalign=1)
+        down_lbl.get_style_context().add_class("iface-rate")
+        row.pack_start(down, False, False, 0)
+        row.pack_start(down_lbl, False, False, 0)
+        up = Glyph("\uf062", "iface-up")  # fa-arrow-up
+        up.set_pixel_size(10)
+        up_lbl = Gtk.Label(label="", xalign=1)
+        up_lbl.get_style_context().add_class("iface-rate")
+        row.pack_start(up, False, False, 0)
+        row.pack_start(up_lbl, False, False, 0)
+        return {"box": row, "ip": ip_lbl, "down": down_lbl, "up": up_lbl}
+
+    @staticmethod
+    def _set_row(row: dict | None, iface: dict) -> None:
+        if row is None:
+            return
+        row["ip"].set_text(iface["ip"] or "\u2014")
+        row["down"].set_text(monitor_data.fmt_rate(iface["down_bps"]))
+        row["up"].set_text(monitor_data.fmt_rate(iface["up_bps"]))
+
+
 class Readouts(Gtk.Grid):
     """A two-column grid of (icon, label, value) rows."""
 
@@ -446,6 +523,11 @@ class SysMonitorDialog(Popup):
         self._gpu_unavailable = None
         self._apps_store = None
         self._selected_drive = None
+        self._gpu_static_loaded = False
+        self._gpu_fetching = False
+        self._gpu_model = None
+        self._gpu_detail = None
+        self._gpu_clocks = None
 
         self._samplers = {
             "cpu": monitor_data.CpuSampler(),
@@ -639,11 +721,11 @@ class SysMonitorDialog(Popup):
 
     def _build_network_page(self, page: Gtk.Box) -> None:
         self._cards["net_down"] = GraphCard(
-            self._cfg, "Download", "network", scale=None
+            self._cfg, "Download", "network", height=40, scale=None
         )
         page.pack_start(self._cards["net_down"], False, False, 0)
         self._cards["net_up"] = GraphCard(
-            self._cfg, "Upload", "network", height=40, scale=None
+            self._cfg, "Upload", "network", height=32, scale=None
         )
         page.pack_start(self._cards["net_up"], False, False, 0)
 
@@ -656,15 +738,30 @@ class SysMonitorDialog(Popup):
         page.pack_start(stats, False, False, 0)
         self._stat_vals.update(stats.vals)
 
+        self._iface_list = InterfaceList()
+        page.pack_start(self._iface_list, False, False, 0)
+
     def _build_gpu_page(self, page: Gtk.Box) -> None:
         self._cards["gpu_util"] = GraphCard(
-            self._cfg, "GPU usage", "gpu", scale=100.0
+            self._cfg, "GPU usage", "gpu", height=48, scale=100.0
         )
         page.pack_start(self._cards["gpu_util"], False, False, 0)
         self._cards["gpu_vram"] = GraphCard(
-            self._cfg, "VRAM", "gpu", height=40, scale=100.0
+            self._cfg, "VRAM", "gpu", height=32, scale=100.0
         )
         page.pack_start(self._cards["gpu_vram"], False, False, 0)
+
+        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        self._gpu_model = Gtk.Label(label="", xalign=0)
+        self._gpu_model.get_style_context().add_class("gpu-model")
+        info_box.pack_start(self._gpu_model, False, False, 0)
+        self._gpu_detail = Gtk.Label(label="", xalign=0)
+        self._gpu_detail.get_style_context().add_class("mc-stat-label")
+        info_box.pack_start(self._gpu_detail, False, False, 0)
+        self._gpu_clocks = Gtk.Label(label="", xalign=0)
+        self._gpu_clocks.get_style_context().add_class("mc-stat-label")
+        info_box.pack_start(self._gpu_clocks, False, False, 0)
+        page.pack_start(info_box, False, False, 0)
 
         unavailable = Gtk.Label(label="GPU monitoring unavailable", xalign=0)
         unavailable.get_style_context().add_class("mc-unavailable")
@@ -794,13 +891,6 @@ class SysMonitorDialog(Popup):
         self._stat_vals["swap_total"].set_text(f"{data['swap_total_gb']:.2f} GB")
 
     def _update_disks(self, data: dict) -> None:
-        self._cards["disk_read"].graph.push(data["read_bps"])
-        self._cards["disk_read"].value.set_text(monitor_data.fmt_rate(data["read_bps"]))
-        self._cards["disk_write"].graph.push(data["write_bps"])
-        self._cards["disk_write"].value.set_text(monitor_data.fmt_rate(data["write_bps"]))
-        total_io = sum(d["read_bps"] + d["write_bps"] for d in data["devices"])
-        self._stat_vals["disk_rate"].set_text(monitor_data.fmt_rate(total_io))
-
         grid = getattr(self, "_drive_grid", None)
         drives = monitor_data.drives()
         if grid is not None:
@@ -809,8 +899,30 @@ class SysMonitorDialog(Popup):
         target, changed = self._resolve_selected(drives)
         if grid is not None:
             grid.set_selected(self._selected_drive)
-        if changed and "disk_usage" in self._cards:
-            self._cards["disk_usage"].graph.clear()
+
+        # I/O rates for the SELECTED drive (0 when the device isn't active).
+        dev_rate = None
+        if target is not None:
+            dev_rate = next(
+                (d for d in data["devices"] if d["name"] == target["name"]), None
+            )
+        read_bps = dev_rate["read_bps"] if dev_rate else 0.0
+        write_bps = dev_rate["write_bps"] if dev_rate else 0.0
+
+        if changed:
+            for key in ("disk_usage", "disk_read", "disk_write"):
+                if key in self._cards:
+                    self._cards[key].graph.clear()
+
+        if "disk_read" in self._cards:
+            self._cards["disk_read"].graph.push(read_bps)
+            self._cards["disk_read"].value.set_text(monitor_data.fmt_rate(read_bps))
+            self._cards["disk_write"].graph.push(write_bps)
+            self._cards["disk_write"].value.set_text(monitor_data.fmt_rate(write_bps))
+            self._stat_vals["disk_rate"].set_text(
+                monitor_data.fmt_rate(read_bps + write_bps)
+            )
+
         if target is not None and "disk_usage" in self._cards:
             denom = target["used_b"] + target["free_b"]
             pct = 100.0 * target["used_b"] / denom if denom > 0 else 0.0
@@ -860,6 +972,10 @@ class SysMonitorDialog(Popup):
         self._stat_vals["down"].set_text(monitor_data.fmt_rate(data["down_bps"]))
         self._stat_vals["up"].set_text(monitor_data.fmt_rate(data["up_bps"]))
 
+        iface_list = getattr(self, "_iface_list", None)
+        if iface_list is not None:
+            iface_list.update(data["all"])
+
     def _update_gpu(self, data: dict | None) -> None:
         if data is None:
             if self._gpu_unavailable is not None:
@@ -892,6 +1008,53 @@ class SysMonitorDialog(Popup):
         )
         fan = data.get("fan_rpm")
         self._stat_vals["fan"].set_text(f"{fan} RPM" if fan is not None else "--")
+
+        if self._gpu_clocks is not None:
+            clocks = []
+            if data.get("core_mhz"):
+                clocks.append(f"Core {data['core_mhz']:,} MHz")
+            if data.get("mem_mhz"):
+                clocks.append(f"Mem {data['mem_mhz']:,} MHz")
+            if data.get("core_max_mhz"):
+                clocks.append(f"Max {data['core_max_mhz']:,} MHz")
+            self._gpu_clocks.set_text(" \u00b7 ".join(clocks))
+
+    # ── GPU static info (model / manufacturer / units / max clock) ──
+
+    def _ensure_gpu_info(self, force: bool = False) -> None:
+        if self._gpu_static_loaded and not force:
+            return
+        if self._gpu_fetching:
+            return
+        if not force:
+            info = monitor_data.gpu_static(use_cache=True)
+            if info:
+                self._apply_gpu_static(info)
+                return
+        self._gpu_fetching = True
+        threading.Thread(target=self._gpu_static_worker, daemon=True).start()
+
+    def _gpu_static_worker(self) -> None:
+        info = monitor_data.gpu_static(use_cache=False)
+        GLib.idle_add(self._on_gpu_static, info)
+
+    def _on_gpu_static(self, info) -> bool:
+        self._gpu_fetching = False
+        if info:
+            self._apply_gpu_static(info)
+        return GLib.SOURCE_REMOVE
+
+    def _apply_gpu_static(self, info: dict) -> None:
+        self._gpu_static_loaded = True
+        if self._gpu_model is not None:
+            self._gpu_model.set_text(info.get("model") or "")
+        if self._gpu_detail is not None:
+            parts = [info.get("manufacturer") or ""]
+            if info.get("units"):
+                parts.append(f"{info['units']} compute units")
+            if info.get("max_clock"):
+                parts.append(f"{info['max_clock']:,} MHz max")
+            self._gpu_detail.set_text(" \u00b7 ".join(p for p in parts if p))
 
     def _update_apps(self) -> None:
         if self._apps_store is None:
@@ -930,6 +1093,8 @@ class SysMonitorDialog(Popup):
         dimm = getattr(self, "_dimm", None)
         if dimm is not None:
             dimm.ensure_loaded()
+        # First open: fetch static GPU identity (rocminfo) in the background.
+        self._ensure_gpu_info()
 
     def hide_popup(self) -> None:
         self._stop_poll()

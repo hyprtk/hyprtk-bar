@@ -458,6 +458,17 @@ menu separator {{
 .drive-card.ssd .mc-icon {{ color: #34d399; }}
 .drive-card.usb .mc-icon {{ color: #22d3ee; }}
 .drive-card.reader .mc-icon {{ opacity: 0.45; }}
+.iface-row {{ padding: 3px 6px; border-radius: 6px; }}
+.iface-name {{ font-weight: bold; font-size: 11px; }}
+.iface-type {{ font-size: 10px; opacity: 0.8; }}
+.iface-ip {{ font-size: 11px; }}
+.iface-rate {{ font-size: 11px; font-weight: bold; }}
+.iface-eth {{ color: {accent}; }}
+.iface-wifi {{ color: #22d3ee; }}
+.iface-virt {{ color: {_rgba(palette["foreground"], 0.55)}; }}
+.iface-down {{ color: #22d3ee; }}
+.iface-up {{ color: #34d399; }}
+.gpu-model {{ font-weight: bold; font-size: 13px; }}
 .mc-unavailable {{ font-size: 12px; opacity: 0.7; }}
 .mc-tree {{ background-color: transparent; }}
 .mc-tree header button {{ background-color: transparent; color: {fg}; border: none; }}
