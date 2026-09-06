@@ -447,6 +447,15 @@ menu separator {{
 .dimm-slot.populated .dimm-size {{ color: {accent}; }}
 .dimm-slot.empty .dimm-size {{ opacity: 0.45; font-size: 11px; }}
 .dimm-loc {{ font-size: 10px; opacity: 0.75; }}
+.drive-card {{ border-radius: 8px; padding: 4px 8px; border: 1px solid {_rgba(palette["foreground"], 0.15)}; background-color: {_rgba(palette["foreground"], 0.04)}; }}
+.drive-type {{ font-size: 10px; font-weight: bold; opacity: 0.9; }}
+.drive-size {{ font-size: 11px; font-weight: bold; }}
+.drive-free {{ font-size: 10px; opacity: 0.75; }}
+.drive-card.nvme .mc-icon {{ color: {accent}; }}
+.drive-card.hdd .mc-icon {{ color: #facc15; }}
+.drive-card.ssd .mc-icon {{ color: #34d399; }}
+.drive-card.usb .mc-icon {{ color: #22d3ee; }}
+.drive-card.reader .mc-icon {{ opacity: 0.45; }}
 .mc-unavailable {{ font-size: 12px; opacity: 0.7; }}
 .mc-tree {{ background-color: transparent; }}
 .mc-tree header button {{ background-color: transparent; color: {fg}; border: none; }}

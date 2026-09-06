@@ -702,3 +702,89 @@ def dimm_slots(use_cache: bool = True) -> list[dict] | None:
     except OSError:
         pass
     return slots
+
+
+# ── physical drives ──────────────────────────────────────────────
+
+def drives() -> list[dict]:
+    """Per-physical-disk info (size, available, type) via ``lsblk -J``.
+
+    Each entry carries ``name``, ``model``, a ``type_key``/``type_label`` and
+    a Nerd Font ``glyph`` for NVMe / HDD / SSD / USB / card readers, plus the
+    raw ``size_b``/``used_b``/``free_b`` summed over the disk's mounted
+    partitions (``mounted``). Empty USB readers report 0 bytes and ``mounted``
+    False. Ordered by drive class (NVMe first, readers last).
+    """
+    try:
+        out = subprocess.run(
+            ["lsblk", "-J", "-b", "-o",
+             "NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT,MODEL,ROTA,TRAN"],
+            capture_output=True, text=True, timeout=5,
+        )
+        data = json.loads(out.stdout)
+    except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
+        return []
+
+    def _collect(node, used, free, mounts) -> None:
+        for child in node.get("children") or []:
+            mp = child.get("mountpoint")
+            if mp:
+                try:
+                    usage = shutil.disk_usage(mp)
+                    used.append(usage.used)
+                    free.append(usage.free)
+                    mounts.append(mp)
+                except OSError:
+                    pass
+            _collect(child, used, free, mounts)
+
+    result = []
+    for block in data.get("blockdevices") or []:
+        if block.get("type") != "disk":
+            continue
+        name = block.get("name") or ""
+        try:
+            size_b = int(block.get("size") or 0)
+        except (TypeError, ValueError):
+            size_b = 0
+        rotational = str(block.get("rota")) in ("1", "True", "true")
+        transport = str(block.get("tran") or "")
+        model = str(block.get("model") or "").strip()
+
+        used, free, mounts = [], [], []
+        _collect(block, used, free, mounts)
+        used_b = sum(used)
+        free_b = sum(free)
+        mounted = bool(mounts)
+
+        if transport == "nvme":
+            type_key, type_label, glyph = "nvme", "NVMe SSD", "\uf2db"
+        elif transport == "usb":
+            if size_b == 0:
+                type_key, type_label, glyph = "reader", "Card reader", "\uf287"
+            elif rotational:
+                type_key, type_label, glyph = "usb", "USB HDD", "\uf287"
+            else:
+                type_key, type_label, glyph = "usb", "USB SSD", "\uf287"
+        elif rotational:
+            type_key, type_label, glyph = "hdd", "HDD", "\uf0a0"
+        else:
+            type_key, type_label, glyph = "ssd", "SSD", "\uf0e7"
+
+        result.append(
+            {
+                "name": name,
+                "model": model or name,
+                "type_key": type_key,
+                "type_label": type_label,
+                "glyph": glyph,
+                "size_b": size_b,
+                "used_b": used_b,
+                "free_b": free_b,
+                "mounted": mounted,
+            }
+        )
+
+    order = {"nvme": 0, "hdd": 1, "ssd": 2, "usb": 3, "reader": 4}
+    result.sort(key=lambda d: (order.get(d["type_key"], 9), d["name"]))
+    return result

@@ -234,18 +234,144 @@ class DimmSection(Gtk.Box):
         ctx = card.get_style_context()
         ctx.add_class("dimm-slot")
         ctx.add_class("populated" if slot["populated"] else "empty")
+
+        line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        line.set_halign(Gtk.Align.CENTER)
+        glyph = Glyph("\uf1c0", "mc-icon")  # fa-database (RAM)
+        glyph.set_pixel_size(13)
+        if not slot["populated"]:
+            glyph.get_style_context().add_class("dimmed")
+        line.pack_start(glyph, False, False, 0)
         size_label = Gtk.Label(label="", xalign=0.5)
         size_label.get_style_context().add_class("dimm-size")
+        line.pack_start(size_label, False, False, 0)
+        card.pack_start(line, True, True, 0)
+
         loc_label = Gtk.Label(label="", xalign=0.5)
         loc_label.get_style_context().add_class("dimm-loc")
-        card.pack_start(size_label, True, True, 0)
         card.pack_start(loc_label, False, False, 0)
+
         if slot["populated"]:
             size_label.set_text(f"{slot['size_gb']:.0f} GB")
         else:
             size_label.set_text("Empty")
         loc_label.set_text(slot["locator"])
         return card
+
+
+class DriveGrid(Gtk.Box):
+    """Compact per-drive cards: type glyph + size + available, in 3 columns.
+
+    Cards are compact (two short rows: type/size, then a usage bar + free) so
+    every attached drive is visible without scrolling. Cards persist and only
+    update labels each tick; the grid rebuilds only on hotplug. The full model
+    is available as a hover tooltip.
+    """
+
+    COLUMNS = 3
+    ROW_HEIGHT = 44
+    MAX_HEIGHT = 360
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        title = Gtk.Label(label="Drives", xalign=0)
+        title.get_style_context().add_class("mc-graph-title")
+        head.pack_start(title, True, True, 0)
+        self._count = Gtk.Label(label="", xalign=1)
+        self._count.get_style_context().add_class("mc-stat-value")
+        head.pack_start(self._count, False, False, 0)
+        self.pack_start(head, False, False, 0)
+
+        self._cards: dict[str, dict] = {}
+        self._order: list[str] = []
+        self._grid = Gtk.Grid(row_spacing=6, column_spacing=10)
+        self._scroller = Gtk.ScrolledWindow()
+        self._scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self._scroller.add(self._grid)
+        self.pack_start(self._scroller, True, True, 0)
+
+    def update(self, drives: list[dict]) -> None:
+        names = [d["name"] for d in drives]
+        if names != self._order:
+            for child in list(self._grid.get_children()):
+                self._grid.remove(child)
+            self._cards.clear()
+            self._order = names
+            for i, d in enumerate(drives):
+                self._cards[d["name"]] = self._make_card(d)
+                self._grid.attach(
+                    self._cards[d["name"]]["box"],
+                    i % self.COLUMNS, i // self.COLUMNS, 1, 1,
+                )
+            self._grid.show_all()
+
+        for d in drives:
+            self._set_card(self._cards.get(d["name"]), d)
+
+        self._count.set_text(f"{len(drives)} drives")
+        rows = (len(drives) + self.COLUMNS - 1) // self.COLUMNS
+        height = min(self.MAX_HEIGHT, 14 + rows * self.ROW_HEIGHT)
+        self._scroller.set_size_request(-1, max(60, height))
+
+    @staticmethod
+    def _make_card(drive: dict) -> dict:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        box.set_size_request(-1, DriveGrid.ROW_HEIGHT - 10)
+        ctx = box.get_style_context()
+        ctx.add_class("drive-card")
+        ctx.add_class(drive["type_key"])
+        box.set_tooltip_text(f"{drive['name']} \u2014 {drive['model']}")
+
+        top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        glyph = Glyph(drive["glyph"], "mc-icon")
+        glyph.set_pixel_size(12)
+        top.pack_start(glyph, False, False, 0)
+        type_lbl = Gtk.Label(label=drive["type_label"], xalign=0)
+        type_lbl.get_style_context().add_class("drive-type")
+        top.pack_start(type_lbl, True, True, 0)
+        size_lbl = Gtk.Label(label="", xalign=1)
+        size_lbl.get_style_context().add_class("drive-size")
+        top.pack_start(size_lbl, False, False, 0)
+        box.pack_start(top, True, True, 0)
+
+        bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        bar = Gtk.ProgressBar()
+        bar.get_style_context().add_class("mc-core-bar")
+        bar.set_hexpand(True)
+        bar.set_show_text(False)
+        bottom.pack_start(bar, True, True, 0)
+        free_lbl = Gtk.Label(label="", xalign=1)
+        free_lbl.get_style_context().add_class("drive-free")
+        bottom.pack_start(free_lbl, False, False, 0)
+        box.pack_start(bottom, False, False, 0)
+
+        return {
+            "box": box,
+            "type": type_lbl,
+            "size": size_lbl,
+            "free": free_lbl,
+            "bar": bar,
+        }
+
+    @staticmethod
+    def _set_card(card: dict | None, drive: dict) -> None:
+        if card is None:
+            return
+        card["size"].set_text(
+            monitor_data.fmt_bytes(drive["size_b"]) if drive["size_b"] > 0 else "\u2014"
+        )
+        if drive["mounted"]:
+            free_text = f"{monitor_data.fmt_bytes(drive['free_b'])} free"
+        elif drive["size_b"] == 0:
+            free_text = "No media"
+        else:
+            free_text = "not mounted"
+        card["free"].set_text(free_text)
+        denom = drive["used_b"] + drive["free_b"]
+        card["bar"].set_fraction(
+            max(0.0, min(drive["used_b"] / denom, 1.0)) if denom > 0 else 0.0
+        )
 
 
 class Readouts(Gtk.Grid):
@@ -457,24 +583,26 @@ class SysMonitorDialog(Popup):
 
     def _build_disks_page(self, page: Gtk.Box) -> None:
         self._cards["disk_usage"] = GraphCard(
-            self._cfg, "Disk usage", "disks", scale=100.0
+            self._cfg, "Disk usage", "disks", height=40, scale=100.0
         )
         page.pack_start(self._cards["disk_usage"], False, False, 0)
         self._cards["disk_read"] = GraphCard(
-            self._cfg, "Read rate", "disks", height=40, scale=None
+            self._cfg, "Read rate", "disks", height=28, scale=None
         )
         page.pack_start(self._cards["disk_read"], False, False, 0)
         self._cards["disk_write"] = GraphCard(
-            self._cfg, "Write rate", "disks", height=40, scale=None
+            self._cfg, "Write rate", "disks", height=28, scale=None
         )
         page.pack_start(self._cards["disk_write"], False, False, 0)
 
         stats = Readouts()
         stats.add("disk_used", "\uf0a0", "Used")
         stats.add("disk_rate", "\uf0ec", "Total I/O")
-        stats.add("devices", "\uf0a0", "Devices")
         page.pack_start(stats, False, False, 0)
         self._stat_vals.update(stats.vals)
+
+        self._drive_grid = DriveGrid()
+        page.pack_start(self._drive_grid, False, False, 0)
 
     def _build_network_page(self, page: Gtk.Box) -> None:
         self._cards["net_down"] = GraphCard(
@@ -645,9 +773,10 @@ class SysMonitorDialog(Popup):
         )
         total_io = sum(d["read_bps"] + d["write_bps"] for d in data["devices"])
         self._stat_vals["disk_rate"].set_text(monitor_data.fmt_rate(total_io))
-        self._stat_vals["devices"].set_text(
-            ", ".join(d["name"] for d in data["devices"]) or "--"
-        )
+
+        grid = getattr(self, "_drive_grid", None)
+        if grid is not None:
+            grid.update(monitor_data.drives())
 
     def _update_network(self, data: dict) -> None:
         self._cards["net_down"].graph.push(data["down_bps"])
