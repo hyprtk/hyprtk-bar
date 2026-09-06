@@ -41,8 +41,6 @@ CLOSED_REQUEST = 3
 
 GENERIC_ICON = "dialog-information-symbolic"
 
-TOAST_GAP = 8  # vertical gap between the bar and a toast
-
 
 def _hint(hints: dict, key: str, default=None):
     value = hints.get(key, default)
@@ -317,8 +315,26 @@ class NotificationController:
         return nid
 
     def close(self, nid: int, reason: int = CLOSED_DISMISSED) -> None:
-        if self._store.remove(nid) is not None:
+        """Dismiss a notification's toast; the history entry stays in the store.
+
+        The center is a history panel, so a toast expiring or being closed is
+        just a popup dismissal — the notification remains readable in the center
+        until the user removes it (per-row dismiss or "Clear all"). The toast
+        was shown, so the entry is marked read and the unread badge clears.
+        """
+        if self._toast is not None and self._toast._notif.id == nid:
+            self._dismiss_toast()
+        notif = self._store.get(nid)
+        if notif is not None:
+            if not notif.read:
+                notif.read = True
             self._emit_closed(nid, reason)
+            self._changed("close", nid)
+
+    def remove(self, nid: int) -> None:
+        """Remove a notification from history (the center's per-row dismiss)."""
+        if self._store.remove(nid) is not None:
+            self._emit_closed(nid, CLOSED_DISMISSED)
             self._changed("close", nid)
         if self._toast is not None and self._toast._notif.id == nid:
             self._dismiss_toast()
@@ -545,7 +561,7 @@ class NotificationCenter(Popup):
             "window-close-symbolic", Gtk.IconSize.MENU
         )
         dismiss.set_relief(Gtk.ReliefStyle.NONE)
-        dismiss.connect("clicked", lambda *_a: self._ctrl.dismiss(notif.id))
+        dismiss.connect("clicked", lambda *_a: self._ctrl.remove(notif.id))
         head.pack_start(dismiss, False, False, 0)
         return row
 
@@ -638,30 +654,23 @@ class Toast(Popup):
         h = max(nat.height, 1)
         self.set_size_request(w, h)
 
-        # Follow the bar's current edge (position may have changed since build).
-        self.set_bar_edge(self._cfg.get("position", "bottom"))
-
+        # Center the toast on the screen — it floats mid-screen, not off the
+        # bar's edge, regardless of the bar's top/bottom position.
         margin = 6
         if self._monitor is not None:
             geo = self._monitor.get_geometry()
-            screen_w = geo.width
+            screen_w, screen_h = geo.width, geo.height
         else:
-            screen_w = Gdk.Screen.get_default().get_width()
-        # Right-align to the pill's right edge so toasts stay inside the bar.
-        _pill_left, pill_right = self._pill_bounds(self._bar_win, screen_w)
-        x = max(margin, min(pill_right - w - margin, screen_w - w - margin))
+            screen = Gdk.Screen.get_default()
+            screen_w, screen_h = screen.get_width(), screen.get_height()
+        x = max(margin, (screen_w - w) // 2)
+        y = max(margin, (screen_h - h) // 2)
 
-        edge = (
-            GtkLayerShell.Edge.TOP
-            if self._bar_edge == "top"
-            else GtkLayerShell.Edge.BOTTOM
-        )
-        offset = (
-            self._cfg.get("height", 42)
-            + self._cfg.get("gap_in", 6) + self._cfg.get("gap_out", 6)
-            + TOAST_GAP
-        )
-        GtkLayerShell.set_margin(self, edge, offset)
+        # Anchor top-left and position with margins so the toast is centered.
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.BOTTOM, False)
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, y)
         GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, x)
 
         self.show_all()
