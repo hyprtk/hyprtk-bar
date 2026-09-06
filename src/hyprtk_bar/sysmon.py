@@ -10,6 +10,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from .config import icon_size_for  # noqa: E402
+from .monitor import SysMonitorDialog  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
 
@@ -92,10 +93,30 @@ class SysMon(HoverButton):
         GLib.timeout_add_seconds(self._interval, self._tick)
         bind_hover_tooltip(self, cfg, lambda: self._tip)
 
+        # Left-click opens the Mission Center-style system monitor dialog.
+        self._popup = SysMonitorDialog(cfg) if (self._sys_cfg.get("monitor", True)) else None
+
     def apply_font(self, font_size, icon_size=0) -> None:
         size = icon_size_for(font_size, icon_size)
         for img in self._icons:
             img.set_pixel_size(size)
+
+    def _toggle_monitor(self) -> None:
+        if self._popup is None:
+            return
+        if self._popup.get_visible():
+            self._popup.hide_popup()
+        else:
+            self._popup.show_above(self)
+
+    def shutdown(self) -> None:
+        if self._popup is not None and self._popup.get_visible():
+            self._popup.hide_popup()
+
+    def _on_button_press(self, _widget, event):
+        if event.button == 1:
+            self._toggle_monitor()
+        return True
 
     def _tick(self) -> bool:
         self._update()

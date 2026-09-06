@@ -153,11 +153,19 @@ class Popup(Gtk.Window):
         GtkLayerShell.set_margin(self, edge, offset)
 
     def show_above(self, widget) -> None:
-        """Size to content and float it just above the given bar widget."""
-        nat = self.content.get_preferred_size().natural_size
-        min_w, min_h = self.get_size_request()
-        width = max(nat.width, min_w if min_w > 0 else 1)
-        height = max(nat.height, min_h if min_h > 0 else 1)
+        """Size to content and float it just above the given bar widget.
+
+        A subclass can set ``self._fixed_size = (width, height)`` to pin the
+        popup to an exact size (content natural size then never resizes it).
+        """
+        fixed = getattr(self, "_fixed_size", None)
+        if fixed:
+            width, height = int(fixed[0]), int(fixed[1])
+        else:
+            nat = self.content.get_preferred_size().natural_size
+            min_w, min_h = self.get_size_request()
+            width = max(nat.width, min_w if min_w > 0 else 1)
+            height = max(nat.height, min_h if min_h > 0 else 1)
         self.set_size_request(width, height)
 
         # Follow the bar's current edge (position may have changed since build).

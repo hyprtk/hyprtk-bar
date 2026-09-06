@@ -539,5 +539,10 @@ class Bar(Gtk.Box):
         qs = self._widgets.get("quicksettings")
         if qs is not None:
             qs.shutdown()
+        sysmon = self._widgets.get("sysmon")
+        if sysmon is not None:
+            shutdown = getattr(sysmon, "shutdown", None)
+            if shutdown is not None:
+                shutdown()
         if self._tray_ctrl is not None:
             self._tray_ctrl.shutdown()

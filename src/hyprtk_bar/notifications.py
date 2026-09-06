@@ -9,7 +9,6 @@ to receive notifications.
 from __future__ import annotations
 
 import logging
-import shutil
 import subprocess
 import time
 
@@ -223,15 +222,16 @@ class NotificationController:
 
     @staticmethod
     def _kill_competing_daemons() -> None:
+        # Kill by comm name (pkill -x), not PATH lookup: daemons like
+        # xfce4-notifyd live in /usr/lib/... and are never on PATH, so `which`
+        # silently skips them and the name-owner fight never ends.
         for binary in ("mako", "swaync", "xfce4-notifyd"):
-            path = shutil.which(binary)
-            if path:
-                try:
-                    subprocess.run(
-                        ["pkill", "-x", binary], capture_output=True, check=False
-                    )
-                except Exception as exc:
-                    log.warning("could not stop competing daemon %s: %s", binary, exc)
+            try:
+                subprocess.run(
+                    ["pkill", "-x", binary], capture_output=True, check=False
+                )
+            except Exception as exc:
+                log.warning("could not stop competing daemon %s: %s", binary, exc)
 
     def shutdown(self) -> None:
         self._dismiss_toast()

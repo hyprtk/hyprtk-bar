@@ -422,4 +422,35 @@ menu separator {{
   color: {fg};
 }}
 .notif-clear {{ min-height: 22px; padding: 0 10px; border-radius: 6px; }}
+.mc-title {{ font-weight: bold; font-size: 15px; }}
+.mc-close {{ min-width: 22px; min-height: 22px; padding: 0 4px; border-radius: 6px; color: {fg}; background-color: transparent; }}
+.mc-close:hover {{ background-color: {hover}; }}
+.mc-sidebar {{ padding: 4px; border-radius: 8px; background-color: {_rgba(palette["foreground"], 0.05)}; }}
+.mc-sidebar-button {{ padding: 5px 8px; border-radius: 6px; }}
+.mc-sidebar-button.hover {{ background-color: {hover}; }}
+.mc-sidebar-button.active {{ background-color: {accent}; color: {active_fg_final}; }}
+.mc-sidebar-label {{ font-size: 13px; }}
+.mc-icon {{ color: {accent}; }}
+.mc-sidebar-button.active .mc-icon {{ color: {active_fg_final}; }}
+.mc-page-title {{ font-weight: bold; font-size: 14px; padding-bottom: 2px; }}
+.mc-graph-title {{ font-size: 11px; opacity: 0.85; }}
+.mc-graph-value {{ font-weight: bold; }}
+.mc-graph-value.warn {{ color: #facc15; }}
+.mc-graph-value.high {{ color: #f87171; }}
+.mc-stat-label {{ font-size: 12px; opacity: 0.85; }}
+.mc-stat-value {{ font-weight: bold; font-size: 12px; }}
+.mc-core-bar trough {{ min-height: 6px; border-radius: 3px; background-color: {_rgba(palette["foreground"], 0.15)}; }}
+.mc-core-bar trough progress {{ min-height: 6px; border-radius: 3px; background-color: {accent}; }}
+.dimm-slot {{ border-radius: 8px; padding: 6px; border: 1px solid {_rgba(palette["foreground"], 0.18)}; background-color: {_rgba(palette["foreground"], 0.04)}; }}
+.dimm-slot.populated {{ border: 1px solid {accent}; background-color: {_rgba(accent, 0.14)}; }}
+.dimm-size {{ font-weight: bold; font-size: 13px; }}
+.dimm-slot.populated .dimm-size {{ color: {accent}; }}
+.dimm-slot.empty .dimm-size {{ opacity: 0.45; font-size: 11px; }}
+.dimm-loc {{ font-size: 10px; opacity: 0.75; }}
+.mc-unavailable {{ font-size: 12px; opacity: 0.7; }}
+.mc-tree {{ background-color: transparent; }}
+.mc-tree header button {{ background-color: transparent; color: {fg}; border: none; }}
+.mc-tree view {{ background-color: {_rgba(palette["foreground"], 0.05)}; color: {fg}; border-radius: 8px; }}
+.mc-tree row:nth-child(even) {{ background-color: {_rgba(palette["foreground"], 0.03)}; }}
+.mc-tree row:selected {{ background-color: {accent}; color: {active_fg_final}; }}
 """

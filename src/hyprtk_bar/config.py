@@ -164,6 +164,10 @@ DEFAULTS = {
         "enabled": True,
         "interval": 2,          # seconds between reads
         "disk_path": "/",       # mount point to monitor
+        "monitor": True,        # left-click opens the Mission Center-style dialog
+        "data_points": 60,      # history points per graph in the dialog
+        "network_iface": "auto",  # auto | interface name for the Network page
+        "pages": ["cpu", "memory", "disks", "network", "gpu", "apps"],
     },
     "updates": {
         "enabled": True,
@@ -312,6 +316,31 @@ def validate(cfg: dict) -> dict:
         # run); an edited config is taken as the user's explicit choice.
         center["pinned"] = []
     valid["center"] = center
+
+    # ── sysmon ───────────────────────────────────────────────────
+    sysmon = valid.get("sysmon")
+    if not isinstance(sysmon, dict):
+        valid["sysmon"] = dict(DEFAULTS["sysmon"])
+    else:
+        sysmon["monitor"] = bool(sysmon.get("monitor", True))
+        try:
+            sysmon["data_points"] = max(10, min(600, int(sysmon.get("data_points", 60))))
+        except (TypeError, ValueError):
+            sysmon["data_points"] = 60
+        try:
+            sysmon["interval"] = max(1, int(sysmon.get("interval", 2)))
+        except (TypeError, ValueError):
+            sysmon["interval"] = 2
+        sysmon["network_iface"] = str(
+            sysmon.get("network_iface", "auto") or "auto"
+        ).strip() or "auto"
+        sysmon["disk_path"] = str(sysmon.get("disk_path", "/") or "/")
+        pages = sysmon.get("pages")
+        allowed = {"cpu", "memory", "disks", "network", "gpu", "apps"}
+        if isinstance(pages, list):
+            clean = [p for p in pages if p in allowed]
+            if clean:
+                sysmon["pages"] = clean
 
     for section in ("workspaces", "clock"):
         sub = valid.get(section)
