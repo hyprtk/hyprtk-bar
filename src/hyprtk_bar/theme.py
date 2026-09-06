@@ -448,6 +448,8 @@ menu separator {{
 .dimm-slot.empty .dimm-size {{ opacity: 0.45; font-size: 11px; }}
 .dimm-loc {{ font-size: 10px; opacity: 0.75; }}
 .drive-card {{ border-radius: 8px; padding: 4px 8px; border: 1px solid {_rgba(palette["foreground"], 0.15)}; background-color: {_rgba(palette["foreground"], 0.04)}; }}
+.drive-card.hover {{ background-color: {hover}; }}
+.drive-card.selected {{ border: 1px solid {accent}; background-color: {_rgba(accent, 0.16)}; }}
 .drive-type {{ font-size: 10px; font-weight: bold; opacity: 0.9; }}
 .drive-size {{ font-size: 11px; font-weight: bold; }}
 .drive-free {{ font-size: 10px; opacity: 0.75; }}

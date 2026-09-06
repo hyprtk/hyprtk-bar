@@ -756,6 +756,7 @@ def drives() -> list[dict]:
         used_b = sum(used)
         free_b = sum(free)
         mounted = bool(mounts)
+        is_root = "/" in mounts
 
         if transport == "nvme":
             type_key, type_label, glyph = "nvme", "NVMe SSD", "\uf2db"
@@ -782,6 +783,7 @@ def drives() -> list[dict]:
                 "used_b": used_b,
                 "free_b": free_b,
                 "mounted": mounted,
+                "is_root": is_root,
             }
         )
 

@@ -272,8 +272,9 @@ class DriveGrid(Gtk.Box):
     ROW_HEIGHT = 44
     MAX_HEIGHT = 360
 
-    def __init__(self):
+    def __init__(self, on_select=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._on_select = on_select
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         title = Gtk.Label(label="Drives", xalign=0)
         title.get_style_context().add_class("mc-graph-title")
@@ -301,7 +302,7 @@ class DriveGrid(Gtk.Box):
             for i, d in enumerate(drives):
                 self._cards[d["name"]] = self._make_card(d)
                 self._grid.attach(
-                    self._cards[d["name"]]["box"],
+                    self._cards[d["name"]]["ev"],
                     i % self.COLUMNS, i // self.COLUMNS, 1, 1,
                 )
             self._grid.show_all()
@@ -314,14 +315,44 @@ class DriveGrid(Gtk.Box):
         height = min(self.MAX_HEIGHT, 14 + rows * self.ROW_HEIGHT)
         self._scroller.set_size_request(-1, max(60, height))
 
+    def set_selected(self, name: str | None) -> None:
+        for n, card in self._cards.items():
+            ctx = card["box"].get_style_context()
+            if n == name:
+                ctx.add_class("selected")
+            else:
+                ctx.remove_class("selected")
+
+    def _on_click(self, name: str) -> bool:
+        if self._on_select is not None:
+            self._on_select(name)
+        return True
+
     @staticmethod
-    def _make_card(drive: dict) -> dict:
+    def _set_hover(box: Gtk.Box, on: bool) -> None:
+        ctx = box.get_style_context()
+        if on:
+            ctx.add_class("hover")
+        else:
+            ctx.remove_class("hover")
+
+    def _make_card(self, drive: dict) -> dict:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         box.set_size_request(-1, DriveGrid.ROW_HEIGHT - 10)
         ctx = box.get_style_context()
         ctx.add_class("drive-card")
         ctx.add_class(drive["type_key"])
-        box.set_tooltip_text(f"{drive['name']} \u2014 {drive['model']}")
+
+        ev = Gtk.EventBox()
+        ev.set_visible_window(False)
+        ev.add(box)
+        ev.set_tooltip_text(f"{drive['name']} \u2014 {drive['model']}")
+        ev.connect("button-press-event",
+                   lambda _w, _e, n=drive["name"]: self._on_click(n))
+        ev.connect("enter-notify-event",
+                   lambda _w, _e, b=box: DriveGrid._set_hover(b, True) or False)
+        ev.connect("leave-notify-event",
+                   lambda _w, _e, b=box: DriveGrid._set_hover(b, False) or False)
 
         top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         glyph = Glyph(drive["glyph"], "mc-icon")
@@ -348,6 +379,7 @@ class DriveGrid(Gtk.Box):
 
         return {
             "box": box,
+            "ev": ev,
             "type": type_lbl,
             "size": size_lbl,
             "free": free_lbl,
@@ -413,6 +445,7 @@ class SysMonitorDialog(Popup):
         self._last_wal_mtime = None
         self._gpu_unavailable = None
         self._apps_store = None
+        self._selected_drive = None
 
         self._samplers = {
             "cpu": monitor_data.CpuSampler(),
@@ -601,7 +634,7 @@ class SysMonitorDialog(Popup):
         page.pack_start(stats, False, False, 0)
         self._stat_vals.update(stats.vals)
 
-        self._drive_grid = DriveGrid()
+        self._drive_grid = DriveGrid(on_select=self._on_drive_selected)
         page.pack_start(self._drive_grid, False, False, 0)
 
     def _build_network_page(self, page: Gtk.Box) -> None:
@@ -761,22 +794,60 @@ class SysMonitorDialog(Popup):
         self._stat_vals["swap_total"].set_text(f"{data['swap_total_gb']:.2f} GB")
 
     def _update_disks(self, data: dict) -> None:
-        self._cards["disk_usage"].graph.push(data["used_pct"])
-        self._cards["disk_usage"].value.set_text(f"{data['used_pct']:.0f}%")
-        self._level_label(self._cards["disk_usage"].value, data["used_pct"])
         self._cards["disk_read"].graph.push(data["read_bps"])
         self._cards["disk_read"].value.set_text(monitor_data.fmt_rate(data["read_bps"]))
         self._cards["disk_write"].graph.push(data["write_bps"])
         self._cards["disk_write"].value.set_text(monitor_data.fmt_rate(data["write_bps"]))
-        self._stat_vals["disk_used"].set_text(
-            f"{data['used_gb']:.1f} / {data['total_gb']:.1f} GB"
-        )
         total_io = sum(d["read_bps"] + d["write_bps"] for d in data["devices"])
         self._stat_vals["disk_rate"].set_text(monitor_data.fmt_rate(total_io))
 
         grid = getattr(self, "_drive_grid", None)
+        drives = monitor_data.drives()
         if grid is not None:
-            grid.update(monitor_data.drives())
+            grid.update(drives)
+
+        target, changed = self._resolve_selected(drives)
+        if grid is not None:
+            grid.set_selected(self._selected_drive)
+        if changed and "disk_usage" in self._cards:
+            self._cards["disk_usage"].graph.clear()
+        if target is not None and "disk_usage" in self._cards:
+            denom = target["used_b"] + target["free_b"]
+            pct = 100.0 * target["used_b"] / denom if denom > 0 else 0.0
+            self._cards["disk_usage"].graph.push(pct)
+            self._cards["disk_usage"].value.set_text(f"{target['name']} {pct:.0f}%")
+            self._level_label(self._cards["disk_usage"].value, pct)
+            self._stat_vals["disk_used"].set_text(
+                f"{monitor_data.fmt_bytes(target['used_b'])} / "
+                f"{monitor_data.fmt_bytes(target['size_b'])}"
+                if target["mounted"] and denom > 0
+                else "not mounted"
+            )
+
+    def _resolve_selected(self, drives: list[dict]) -> tuple[dict | None, bool]:
+        """The drive the usage graph tracks, defaulting to the system drive."""
+        sel = self._selected_drive
+        target = next((d for d in drives if d["name"] == sel), None)
+        if target is None:
+            target = (
+                next((d for d in drives if d.get("is_root")), None)
+                or next(
+                    (d for d in drives if d["used_b"] + d["free_b"] > 0), None
+                )
+                or (drives[0] if drives else None)
+            )
+        if target is None:
+            return None, False
+        changed = target["name"] != sel
+        if changed:
+            self._selected_drive = target["name"]
+        return target, changed
+
+    def _on_drive_selected(self, name: str) -> None:
+        self._selected_drive = name
+        if "disk_usage" in self._cards:
+            self._cards["disk_usage"].graph.clear()
+        self.refresh()
 
     def _update_network(self, data: dict) -> None:
         self._cards["net_down"].graph.push(data["down_bps"])
