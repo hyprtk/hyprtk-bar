@@ -519,13 +519,18 @@ class TrayButton(HoverButton):
         if menu is None:
             return
         menu.show_all()
-        # Don't use ``popup_at_pointer(event)``: the menu is popped up from the
-        # async dbus GetLayout callback, and by then the press event's GdkWindow
-        # can already be freed (segfault in gdk_window_get_screen on this build,
-        # seen with Whatsie). ``popup()`` with a NULL position func places the
-        # menu at the current pointer instead, which is exactly where the
-        # right-click happened.
-        menu.popup(None, None, None, None, 0, Gdk.CURRENT_TIME)
+        # Anchor the menu to the tray button rather than ``popup_at_pointer``:
+        # the menu is popped up from the async dbus GetLayout callback, by which
+        # time the press event's GdkWindow can be freed (segfault in
+        # gdk_window_get_screen, seen with Whatsie). ``popup_at_widget`` uses
+        # the button's own live window, and a bare ``popup()`` lands the menu
+        # center-screen on this Wayland build. The bar-edge gravity opens the
+        # menu above a bottom bar and below a top bar.
+        if self._bar_edge == "top":
+            widget_anchor, menu_anchor = Gdk.Gravity.NORTH_WEST, Gdk.Gravity.SOUTH_WEST
+        else:
+            widget_anchor, menu_anchor = Gdk.Gravity.SOUTH_WEST, Gdk.Gravity.NORTH_WEST
+        menu.popup_at_widget(self, widget_anchor, menu_anchor, None)
 
 
 class Tray(Gtk.Box):
