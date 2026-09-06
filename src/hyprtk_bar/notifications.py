@@ -41,6 +41,8 @@ CLOSED_REQUEST = 3
 
 GENERIC_ICON = "dialog-information-symbolic"
 
+TOAST_GAP = 8  # vertical gap between the bar and a toast
+
 
 def _hint(hints: dict, key: str, default=None):
     value = hints.get(key, default)
@@ -654,23 +656,31 @@ class Toast(Popup):
         h = max(nat.height, 1)
         self.set_size_request(w, h)
 
-        # Center the toast on the screen — it floats mid-screen, not off the
-        # bar's edge, regardless of the bar's top/bottom position.
+        # Horizontally centered; vertically floated from the bar's edge — below
+        # a top bar, above a bottom bar (not dead-center vertically).
         margin = 6
         if self._monitor is not None:
             geo = self._monitor.get_geometry()
-            screen_w, screen_h = geo.width, geo.height
+            screen_w = geo.width
         else:
-            screen = Gdk.Screen.get_default()
-            screen_w, screen_h = screen.get_width(), screen.get_height()
+            screen_w = Gdk.Screen.get_default().get_width()
         x = max(margin, (screen_w - w) // 2)
-        y = max(margin, (screen_h - h) // 2)
 
-        # Anchor top-left and position with margins so the toast is centered.
+        edge = (
+            GtkLayerShell.Edge.TOP
+            if self._bar_edge == "top"
+            else GtkLayerShell.Edge.BOTTOM
+        )
+        offset = (
+            self._cfg.get("height", 42)
+            + self._cfg.get("gap_in", 6) + self._cfg.get("gap_out", 6)
+            + TOAST_GAP
+        )
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, False)
         GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.BOTTOM, False)
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
+        GtkLayerShell.set_anchor(self, edge, True)
         GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
-        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, y)
+        GtkLayerShell.set_margin(self, edge, offset)
         GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, x)
 
         self.show_all()
