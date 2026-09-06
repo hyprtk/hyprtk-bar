@@ -323,6 +323,11 @@ def build_css(palette: dict, cfg: dict) -> str:
 .sysmon-value {{ font-size: inherit; }}
 .sysmon-value.warn {{ color: #facc15; }}
 .sysmon-value.high {{ color: #f87171; }}
+.updates {{ padding: 2px 8px; border-radius: {max(radius - 6, 4)}px; }}
+.updates.hover {{ background-color: {hover}; }}
+.updates-value {{ font-size: inherit; }}
+.updates-value.warn {{ color: #facc15; }}
+.updates-value.high {{ color: #f87171; }}
 .popup-row {{ padding: 6px 8px; border-radius: 6px; }}
 .popup-row.hover {{ background-color: {hover}; }}
 .popup-title {{ font-weight: bold; padding-bottom: 4px; }}

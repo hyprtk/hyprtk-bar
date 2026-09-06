@@ -29,6 +29,7 @@ from .quicklinks import QuickLinks  # noqa: E402
 from .sysmon import SysMon  # noqa: E402
 from .tasklist import TaskList  # noqa: E402
 from .tray import Tray, TrayController  # noqa: E402
+from .updates import Updates  # noqa: E402
 from .widgets import Glyph, HoverButton, spawn  # noqa: E402
 from .window import Window  # noqa: E402
 from .workspaces import Workspaces  # noqa: E402
@@ -239,6 +240,8 @@ class Bar(Gtk.Box):
             return Window(cfg, ipc)
         if mid == "sysmon":
             return SysMon(cfg, ipc)
+        if mid == "updates":
+            return Updates(cfg, ipc)
         if mid == "kbstate":
             return KbState(cfg, ipc)
         if mid == "clock":

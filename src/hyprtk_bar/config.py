@@ -25,6 +25,7 @@ MODULE_IDS = [
     "workspaces",
     "tasklist",
     "window",
+    "updates",
     "sysmon",
     "kbstate",
     "clock",
@@ -39,6 +40,7 @@ MODULE_LABELS = {
     "workspaces": "Workspaces",
     "tasklist": "Task list",
     "window": "Active window",
+    "updates": "Package updates",
     "sysmon": "System monitor",
     "kbstate": "Keyboard state",
     "clock": "Clock",
@@ -50,7 +52,7 @@ MODULE_LABELS = {
 DEFAULT_LAYOUT = {
     "left": ["start_button", "quicklinks", "workspaces", "tasklist"],
     "center": ["window"],
-    "right": ["sysmon", "kbstate", "clock", "notifications", "tray", "quicksettings"],
+    "right": ["updates", "sysmon", "kbstate", "clock", "notifications", "tray", "quicksettings"],
 }
 
 DEFAULT_PINNED = [
@@ -162,6 +164,12 @@ DEFAULTS = {
         "enabled": True,
         "interval": 2,          # seconds between reads
         "disk_path": "/",       # mount point to monitor
+    },
+    "updates": {
+        "enabled": True,
+        "interval": 60,         # seconds between update checks
+        "script": "~/hyprtk/installer/scripts/updates.sh",
+        "install_command": "alacritty -o window.dimensions.lines=45 window.dimensions.columns=90 --class floating -e ~/hyprtk/installer/scripts/installupdates.sh",
     },
     "window": {
         "enabled": True,
