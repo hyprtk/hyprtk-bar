@@ -82,6 +82,7 @@ def _hover_color(color: str) -> str:
 # theme, manual) — the glyph accents always follow the wallpaper palette.
 MODULE_PYWAL_KEYS = {
     "start_button": "color5",    # mauve
+    "themer": "color6",          # sky / cyan
     "quicklinks": "color6",      # sky / cyan
     "workspaces": "color4",      # sapphire / blue
     "tasklist": "color2",        # green
@@ -99,6 +100,7 @@ MODULE_PYWAL_KEYS = {
 # their module's pywal colour so each icon renders distinct.
 MODULE_GLYPH_SELECTORS = {
     "start_button": ".task-button.start .accent-icon",
+    "themer": ".task-button.themer .accent-icon",
     "quicklinks": ".quicklink-glyph",
     "sysmon": ".sysmon .accent-icon",
     "updates": ".updates .accent-icon",

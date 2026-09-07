@@ -21,6 +21,7 @@ log = logging.getLogger("hyprtk_bar.config")
 # sections, and the bar menu can show/hide individual modules.
 MODULE_IDS = [
     "start_button",
+    "themer",
     "quicklinks",
     "workspaces",
     "tasklist",
@@ -36,6 +37,7 @@ MODULE_IDS = [
 
 MODULE_LABELS = {
     "start_button": "Start button",
+    "themer": "Theme manager",
     "quicklinks": "Quick links",
     "workspaces": "Workspaces",
     "tasklist": "Task list",
@@ -50,7 +52,7 @@ MODULE_LABELS = {
 }
 
 DEFAULT_LAYOUT = {
-    "left": ["start_button", "quicklinks", "workspaces", "tasklist"],
+    "left": ["start_button", "themer", "quicklinks", "workspaces", "tasklist"],
     "center": ["window"],
     "right": ["updates", "sysmon", "kbstate", "clock", "notifications", "tray", "quicksettings"],
 }
@@ -85,13 +87,6 @@ DEFAULT_LINKS = [
         "label": "Web browser",
         "icon": "\uf0ac",  # nf-fa-globe
         "command": "",
-    },
-    {
-        "id": "wallpaper",
-        "label": "Wallpaper",
-        "icon": "\uf03e",  # nf-fa-picture_o
-        "command": "~/.local/bin/theme-gui",
-        "command_right": "~/hyprtk/installer/scripts/updatewal-awww.sh",
     },
     {
         "id": "cliphist",
@@ -140,6 +135,10 @@ DEFAULTS = {
         "icon_size": 0,              # 0 = auto (scales with the font size), else px
     },
     "layout": DEFAULT_LAYOUT,
+    "themer": {
+        "enabled": True,
+        "wallpaper_dir": str(Path.home() / "Pictures" / "Wallpapers"),
+    },
     "quicklinks": {
         "enabled": True,
         "glyph_font": "Symbols Nerd Font",
@@ -359,6 +358,17 @@ def validate(cfg: dict) -> dict:
         if not isinstance(sub, dict):
             valid[section] = dict(DEFAULTS[section])
 
+    # ── themer ───────────────────────────────────────────────────
+    themer = valid.get("themer")
+    if not isinstance(themer, dict):
+        valid["themer"] = dict(DEFAULTS["themer"])
+    else:
+        themer["enabled"] = bool(themer.get("enabled", True))
+        wd = themer.get("wallpaper_dir")
+        themer["wallpaper_dir"] = str(wd) if isinstance(wd, str) and wd else str(
+            DEFAULTS["themer"]["wallpaper_dir"]
+        )
+
     return valid
 
 
@@ -417,6 +427,9 @@ def _normalize_layout(raw: dict, valid: dict) -> dict:
     ql = valid.get("quicklinks") or {}
     if ql.get("enabled", True):
         layout["left"].append("quicklinks")
+    themer = valid.get("themer") or {}
+    if themer.get("enabled", True):
+        layout["left"].append("themer")
     if workspaces.get("enabled", True):
         layout["center"].append("workspaces")
     layout["center"].append("tasklist")

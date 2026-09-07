@@ -28,6 +28,7 @@ from .quicksettings import QuickSettingsButton  # noqa: E402
 from .quicklinks import QuickLinks  # noqa: E402
 from .sysmon import SysMon  # noqa: E402
 from .tasklist import TaskList  # noqa: E402
+from .themer import ThemerButton  # noqa: E402
 from .tray import Tray, TrayController  # noqa: E402
 from .updates import Updates  # noqa: E402
 from .widgets import Glyph, HoverButton, spawn  # noqa: E402
@@ -225,6 +226,8 @@ class Bar(Gtk.Box):
         cfg, ipc = self._cfg, self._ipc
         if mid == "start_button":
             return StartButton(cfg, ipc)
+        if mid == "themer":
+            return ThemerButton(cfg, ipc, restart_cb=self.restart)
         if mid == "quicklinks":
             return QuickLinks(cfg, ipc)
         if mid == "workspaces":
@@ -555,6 +558,11 @@ class Bar(Gtk.Box):
         sysmon = self._widgets.get("sysmon")
         if sysmon is not None:
             shutdown = getattr(sysmon, "shutdown", None)
+            if shutdown is not None:
+                shutdown()
+        themer = self._widgets.get("themer")
+        if themer is not None:
+            shutdown = getattr(themer, "shutdown", None)
             if shutdown is not None:
                 shutdown()
         if self._tray_ctrl is not None:
