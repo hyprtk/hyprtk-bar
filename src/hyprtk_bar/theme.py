@@ -77,6 +77,50 @@ def _hover_color(color: str) -> str:
     return "rgba(255, 255, 255, 0.12)"
 
 
+# Per-module glyph colors, drawn from the pywal palette so each module icon has
+# a distinct colour. Applied for every theme source (pywal, imported waybar
+# theme, manual) — the glyph accents always follow the wallpaper palette.
+MODULE_PYWAL_KEYS = {
+    "start_button": "color5",    # mauve
+    "quicklinks": "color6",      # sky / cyan
+    "workspaces": "color4",      # sapphire / blue
+    "tasklist": "color2",        # green
+    "window": "color6",          # sky / cyan
+    "updates": "color3",         # yellow
+    "sysmon": "color2",          # green
+    "kbstate": "color4",         # sapphire / blue
+    "clock": "color5",           # mauve
+    "notifications": "color1",   # red
+    "tray": "color2",            # green
+    "quicksettings": "color13",  # bright mauve
+}
+
+# CSS selectors for each glyph-bearing module's icon. Rules are emitted with
+# their module's pywal colour so each icon renders distinct.
+MODULE_GLYPH_SELECTORS = {
+    "start_button": ".task-button.start .accent-icon",
+    "quicklinks": ".quicklink-glyph",
+    "sysmon": ".sysmon .accent-icon",
+    "updates": ".updates .accent-icon",
+    "kbstate": ".kbstate .kbstate-icon",
+    "notifications": ".notif-button .accent-icon",
+    "quicksettings": ".qs-button .accent-icon",
+}
+
+
+def _module_glyph_colors(pywal: dict) -> dict:
+    """Map module id -> distinct glyph hex from the pywal palette.
+
+    Falls back to the bar accent when a colour is missing, so every module still
+    gets a colour even with an incomplete palette.
+    """
+    accent = pywal.get("color5") or pywal.get("color4") or "#7aa2f7"
+    return {
+        mid: (pywal.get(key) or accent)
+        for mid, key in MODULE_PYWAL_KEYS.items()
+    }
+
+
 def resolve_palette(cfg: dict) -> dict:
     """Background/foreground/accent palette from the configured theme source.
 
@@ -112,6 +156,13 @@ def resolve_palette(cfg: dict) -> dict:
                 # 2px bar border drawn in the pywal accent color.
                 palette["border_width"] = 2
                 palette["border_color"] = palette["accent"]
+
+    # Per-module glyph colours always come from the pywal palette — every module
+    # icon gets a distinct colour, and they re-tint on wallpaper change. This is
+    # independent of the theme source (pywal / imported waybar / manual).
+    pywal = load_pywal_colors()
+    if pywal:
+        palette["module_colors"] = _module_glyph_colors(pywal)
 
     # The configured font (family + size) applies to every theme source.
     font_cfg = cfg.get("font") or {}
@@ -284,6 +335,16 @@ def build_css(palette: dict, cfg: dict) -> str:
         active_fg_final = _contrast_fg(active_bg)
     occupied_fg = palette.get("occupied_fg", accent)
 
+    # Per-module glyph colours (from pywal). Each glyph-bearing module gets its
+    # own accent so the icons read as distinct; these re-tint on wallpaper
+    # change because they come from the live pywal palette.
+    module_colors = palette.get("module_colors") or {}
+    module_rules = ""
+    for mid, selector in MODULE_GLYPH_SELECTORS.items():
+        color = module_colors.get(mid)
+        if color:
+            module_rules += f"{selector} {{ color: {color}; }}\n"
+
     return f"""
 .taskbar {{
   background-color: {bg};
@@ -296,6 +357,7 @@ def build_css(palette: dict, cfg: dict) -> str:
 .task-button.hover {{ background-color: {hover}; }}
 .quicklink-glyph {{ color: {glyph_color}; font-family: {glyph_font}; }}
 .accent-icon {{ color: {accent}; }}
+{module_rules}
 .tray-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .tray-button.hover {{ background-color: {hover}; }}
 .dimmed {{ opacity: 0.45; }}
