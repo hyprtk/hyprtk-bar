@@ -18,6 +18,7 @@ from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
 from .config import DEFAULT_LAYOUT, MODULE_IDS, MODULE_LABELS  # noqa: E402
 from .waybar_theme import import_theme, list_themes  # noqa: E402
+from .widgets import Glyph, HoverButton  # noqa: E402
 
 SECTION_ORDER = ("left", "center", "right")
 SECTION_LABELS = {"left": "Left", "center": "Center", "right": "Right"}
@@ -128,44 +129,57 @@ class BarSettings(Gtk.Window):
         root.get_style_context().add_class("popup-box")
         self.add(root)
 
-        # Draggable header (frameless window).
+        # Draggable header (frameless window) — matches the monitor's header.
         header = Gtk.EventBox()
         header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        header_title = Gtk.Label(label="hyprtk-bar settings", xalign=0)
-        header_title.get_style_context().add_class("settings-title")
-        header_box.pack_start(header_title, True, True, 0)
+        title = Gtk.Label(label="Bar Settings", xalign=0)
+        title.get_style_context().add_class("mc-title")
+        header_box.pack_start(title, True, True, 0)
+        close = Gtk.Button(label="\u00d7")
+        close.get_style_context().add_class("mc-close")
+        close.set_relief(Gtk.ReliefStyle.NONE)
+        close.connect("clicked", lambda *_a: self.close())
+        header_box.pack_start(close, False, False, 0)
         header.add(header_box)
         header.connect("button-press-event", self._on_header_press)
         self._style_header(header)
         root.pack_start(header, False, False, 0)
 
-        notebook = Gtk.Notebook()
-        notebook.set_tab_pos(Gtk.PositionType.TOP)
-        root.pack_start(notebook, True, True, 0)
+        # Body: sidebar navigation + stack (same pattern as the system monitor).
+        body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        sidebar.get_style_context().add_class("mc-sidebar")
+        sidebar.set_size_request(132, -1)
+        self._sidebar = sidebar
 
-        # ── Bar tab ──────────────────────────────────────────────
-        bar_tab = self._build_bar_tab()
-        notebook.append_page(bar_tab, Gtk.Label(label="Bar"))
+        self._stack = Gtk.Stack()
+        self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self._stack.set_transition_duration(120)
 
-        # ── Fonts tab ────────────────────────────────────────────
-        font_tab = self._build_font_tab()
-        notebook.append_page(font_tab, Gtk.Label(label="Fonts"))
+        self._page_buttons: dict[str, HoverButton] = {}
+        for key, glyph, label in (
+            ("bar", "\uf2db", "Bar"),
+            ("fonts", "\uf031", "Fonts"),
+            ("themes", "\uf1fc", "Themes"),
+            ("animations", "\uf1fe", "Animations"),
+            ("modules", "\uf009", "Modules"),
+        ):
+            sidebar.pack_start(self._build_page_button(key, glyph, label),
+                               False, False, 0)
+            page = self._build_page(key)
+            self._stack.add_named(page, key)
+            self._page_buttons[key].page = page
 
-        # ── Themes tab ───────────────────────────────────────────
-        themes_tab = self._build_themes_tab()
-        notebook.append_page(themes_tab, Gtk.Label(label="Themes"))
+        body.pack_start(sidebar, False, False, 0)
+        body.pack_start(self._stack, True, True, 0)
+        root.pack_start(body, True, True, 0)
+
+        # Populate the imported-theme list (the Themes page needs the buttons to
+        # exist before the user can select one).
         self._refresh_themes(select=(self._cfg.get("theme") or {}).get("waybar_theme") or None)
         self._update_source_state()
 
-        # ── Animations tab ───────────────────────────────────────
-        anim_tab = self._build_animations_tab()
-        notebook.append_page(anim_tab, Gtk.Label(label="Animations"))
-
-        # ── Modules tab ──────────────────────────────────────────
-        modules_tab = self._build_modules_tab()
-        notebook.append_page(modules_tab, Gtk.Label(label="Modules"))
-
-        # ── buttons ──────────────────────────────────────────────
+        # Footer buttons — accent "Apply" like the monitor's accent chrome.
         buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         buttons.set_halign(Gtk.Align.END)
         reset_btn = Gtk.Button(label="Reset layout")
@@ -173,17 +187,66 @@ class BarSettings(Gtk.Window):
         close_btn = Gtk.Button(label="Close")
         close_btn.connect("clicked", lambda *_a: self.close())
         apply_btn = Gtk.Button(label="Apply")
-        apply_btn.get_style_context().add_class("suggested-action")
+        apply_btn.get_style_context().add_class("settings-apply")
         apply_btn.connect("clicked", self._on_apply)
         buttons.pack_start(reset_btn, False, False, 0)
         buttons.pack_start(close_btn, False, False, 0)
         buttons.pack_start(apply_btn, False, False, 0)
         root.pack_start(buttons, False, False, 0)
 
-        # Apply the theme's foreground colour directly to every widget so the
-        # dialogue stays readable on light imported themes (GTK's default theme
-        # colours spinbuttons/buttons and overrides inherited .popup-box color).
+        # Apply the theme's fg/bg colours to standard widgets so the dialogue
+        # stays readable on light imported themes.
         self._apply_theme_fg_class(root)
+        self._set_active_page("bar")
+
+    def _build_page_button(self, key: str, glyph: str, label: str) -> HoverButton:
+        btn = HoverButton("mc-sidebar-button", vertical=False, spacing=8)
+        btn.set_size_request(-1, 30)
+        icon = Glyph(glyph, "mc-icon")
+        icon.set_pixel_size(14)
+        btn.box.pack_start(icon, False, False, 0)
+        lbl = Gtk.Label(label=label, xalign=0)
+        lbl.get_style_context().add_class("mc-sidebar-label")
+        btn.box.pack_start(lbl, True, True, 0)
+        btn.connect("button-press-event",
+                    lambda _w, _e, k=key: self._set_active_page(k) or False)
+        self._page_buttons[key] = btn
+        return btn
+
+    def _set_active_page(self, key: str) -> None:
+        self._active_page = key
+        for k, btn in self._page_buttons.items():
+            box = btn.box
+            if k == key:
+                box.get_style_context().add_class("active")
+            else:
+                box.get_style_context().remove_class("active")
+        self._stack.set_visible_child_name(key)
+
+    def _build_page(self, key: str) -> Gtk.Box:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        page.set_hexpand(True)
+        title = Gtk.Label(label=self._page_title(key), xalign=0)
+        title.get_style_context().add_class("mc-page-title")
+        page.pack_start(title, False, False, 0)
+        if key == "bar":
+            self._build_bar_tab(page)
+        elif key == "fonts":
+            self._build_font_tab(page)
+        elif key == "themes":
+            self._build_themes_tab(page)
+        elif key == "animations":
+            self._build_animations_tab(page)
+        elif key == "modules":
+            self._build_modules_tab(page)
+        return page
+
+    @staticmethod
+    def _page_title(key: str) -> str:
+        return {
+            "bar": "Bar", "fonts": "Fonts", "themes": "Themes",
+            "animations": "Animations", "modules": "Modules",
+        }[key]
 
     def _tab_margins(self) -> Gtk.Box:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -194,19 +257,13 @@ class BarSettings(Gtk.Window):
         return box
 
     def _apply_theme_fg_class(self, widget) -> None:
-        """Apply the theme's colours to the dialogue and every widget in it.
+        """Apply the theme to the dialogue's widgets.
 
-        GTK's default theme colours spinbuttons/buttons/notebooks directly, and
-        its rules override both inherited ``.popup-box`` colour and screen-level
-        CSS — so on light imported themes (hyprtk-light, -negative, -reverse)
-        those widgets stayed dark-theme and unreadable. The deprecated
-        ``override_*`` API sets colours at a level that beats the theme, which
-        is the reliable way to force the dialogue to follow the chosen theme.
-
-        Applies the theme foreground to all text, the theme background to the
-        window and widgets (removing the dark backdrop ring that looked like a
-        second border), and the pywal **accent** to selected/active/checked
-        states so the dialogue matches the bar's accent colours.
+        Mirrors the system monitor's approach: chrome widgets (buttons, labels,
+        check/radio) get semantic CSS classes from ``build_css`` with
+        transparent / translucent backgrounds and theme colours — no opaque
+        blocks. GTK's default theme hard-colours spinbuttons and entries, so
+        those alone use the ``override_*`` API for text + a translucent fill.
         """
         from .theme import resolve_palette
         import re
@@ -214,7 +271,6 @@ class BarSettings(Gtk.Window):
         palette = resolve_palette(self._cfg)
         fg = palette.get("foreground", "#14141e")
         bg = palette.get("background", "#ffffff")
-        accent = palette.get("accent", "#7aa2f7")
 
         def _hex(color: str) -> str:
             m = re.search(r"rgba?\((\d+),\s*(\d+),\s*(\d+)", color)
@@ -232,8 +288,6 @@ class BarSettings(Gtk.Window):
             return Gdk.RGBA(r / 255, g / 255, b / 255, 1.0)
 
         fg_rgba = _rgba(_hex(fg))
-        bg_rgba = _rgba(_hex(bg))
-        accent_rgba = _rgba(_hex(accent))
 
         states = (
             Gtk.StateFlags.NORMAL,
@@ -244,46 +298,49 @@ class BarSettings(Gtk.Window):
             Gtk.StateFlags.BACKDROP,
             Gtk.StateFlags.SELECTED | Gtk.StateFlags.FOCUSED,
         )
-        selected_states = (
-            Gtk.StateFlags.SELECTED,
-            Gtk.StateFlags.ACTIVE,
-            Gtk.StateFlags.CHECKED if hasattr(Gtk.StateFlags, "CHECKED") else Gtk.StateFlags.ACTIVE,
-        )
 
         def _apply(w):
-            if isinstance(w, (Gtk.Label, Gtk.SpinButton, Gtk.Button,
-                              Gtk.CheckButton, Gtk.RadioButton, Gtk.ToggleButton,
-                              Gtk.Notebook, Gtk.FontButton, Gtk.ScrolledWindow,
-                              Gtk.TreeView, Gtk.ComboBoxText, Gtk.Entry)):
+            ctx = w.get_style_context()
+            # Buttons / labels / check / radio: semantic classes (transparent
+            # backgrounds, theme text + accent) — no opaque override blocks.
+            if isinstance(w, Gtk.Button):
+                if w.get_relief() != Gtk.ReliefStyle.NONE:
+                    w.set_relief(Gtk.ReliefStyle.NONE)
+                # The accent Apply button keeps its .settings-apply styling.
+                if not w.get_style_context().has_class("settings-apply"):
+                    ctx.add_class("settings-btn")
+            elif isinstance(w, Gtk.Label):
+                ctx.add_class("settings-label")
+            elif isinstance(w, Gtk.CheckButton):
+                ctx.add_class("settings-check")
+            elif isinstance(w, Gtk.RadioButton):
+                ctx.add_class("settings-radio")
+            elif isinstance(w, (Gtk.SpinButton, Gtk.Entry, Gtk.FontButton)):
+                # GTK hard-colours these; override text + fill so they read as
+                # themed inputs (no dark theme block on light themes).
+                ctx.add_class("settings-input")
                 for state in states:
                     try:
                         w.override_color(state, fg_rgba)
-                        w.override_background_color(state, bg_rgba)
-                    except Exception:
-                        pass
-                # Accent on selected/active/checked states (radio + check
-                # buttons, active notebook tabs, selected rows).
-                for state in selected_states:
-                    try:
-                        w.override_color(state, accent_rgba)
+                        w.override_background_color(state, _rgba(_hex(bg)))
                     except Exception:
                         pass
             if isinstance(w, Gtk.Container):
                 for child in w.get_children():
                     _apply(child)
 
-        # Theme the toplevel window background too, so the dialogue shows one
-        # themed surface (no dark GTK backdrop ring around the light panel).
+        # Theme the toplevel window background so the dialogue shows one themed
+        # surface (no dark GTK backdrop ring around the light panel).
         try:
             for state in states:
-                self.override_background_color(state, bg_rgba)
+                self.override_background_color(state, _rgba(_hex(bg)))
         except Exception:
             pass
 
         _apply(widget)
 
-    def _build_bar_tab(self) -> Gtk.Box:
-        tab = self._tab_margins()
+    def _build_bar_tab(self, page: Gtk.Box) -> None:
+        tab = page
 
         height_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         height_label = Gtk.Label(label="Height:", xalign=1)
@@ -378,10 +435,9 @@ class BarSettings(Gtk.Window):
         tab.pack_start(gap_in_row, False, False, 0)
         tab.pack_start(gap_out_row, False, False, 0)
         tab.pack_start(opacity_row, False, False, 0)
-        return tab
 
-    def _build_font_tab(self) -> Gtk.Box:
-        tab = self._tab_margins()
+    def _build_font_tab(self, page: Gtk.Box) -> None:
+        tab = page
         font_cfg = self._cfg.get("font") or {}
         self._font_family = str(font_cfg.get("family", "") or "")
         font_size = int(font_cfg.get("size", 16))
@@ -442,7 +498,6 @@ class BarSettings(Gtk.Window):
         tab.pack_start(icon_row, False, False, 0)
         tab.pack_start(ql_icon_row, False, False, 0)
         self._font_ready = True
-        return tab
 
     def _on_font_set(self, *_args) -> None:
         """Sync the picked font's family + size into the settings state."""
@@ -471,8 +526,8 @@ class BarSettings(Gtk.Window):
     def _active_font_family(self) -> str:
         return self._font_family
 
-    def _build_themes_tab(self) -> Gtk.Box:
-        tab = self._tab_margins()
+    def _build_themes_tab(self, page: Gtk.Box) -> None:
+        tab = page
         theme = self._cfg.get("theme") or {}
 
         source_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -508,10 +563,9 @@ class BarSettings(Gtk.Window):
 
         tab.pack_start(source_row, False, False, 0)
         tab.pack_start(theme_row, True, True, 0)
-        return tab
 
-    def _build_animations_tab(self) -> Gtk.Box:
-        tab = self._tab_margins()
+    def _build_animations_tab(self, page: Gtk.Box) -> None:
+        tab = page
         anim_cfg = self._cfg.get("animations") or {}
         theme = self._cfg.get("theme") or {}
 
@@ -565,7 +619,6 @@ class BarSettings(Gtk.Window):
         tab.pack_start(speed_row, False, False, 0)
 
         self._update_anim_speed_state()
-        return tab
 
     def _on_anim_mode_toggled(self, btn: Gtk.RadioButton, key: str) -> None:
         if btn.get_active():
@@ -586,8 +639,8 @@ class BarSettings(Gtk.Window):
                 return key
         return "high"
 
-    def _build_modules_tab(self) -> Gtk.Box:
-        tab = self._tab_margins()
+    def _build_modules_tab(self, page: Gtk.Box) -> None:
+        tab = page
         hint = Gtk.Label(
             label="Position (left/center/right) and order within the bar.",
             xalign=0,
@@ -605,7 +658,6 @@ class BarSettings(Gtk.Window):
         scroller.set_vexpand(True)
         scroller.add(list_box)
         tab.pack_start(scroller, True, True, 0)
-        return tab
 
     def _width_percent(self) -> int:
         width = str(self._cfg.get("width", "100%"))

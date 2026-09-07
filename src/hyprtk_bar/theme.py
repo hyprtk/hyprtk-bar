@@ -516,6 +516,40 @@ menu separator {{
 .mc-icon {{ color: {accent}; }}
 .mc-sidebar-button.active .mc-icon {{ color: {active_fg_final}; }}
 .mc-page-title {{ font-weight: bold; font-size: 14px; padding-bottom: 2px; }}
+/* Settings dialogue — reuses the monitor's sidebar/stack chrome so the
+   dialogue matches the system monitor's look and the theme re-applies cleanly.
+   Standard GTK widgets (spinbuttons/entries/buttons) still get the theme fg/bg
+   via the settings window's override pass; these classes drive the chrome. */
+.settings-title {{ font-weight: bold; font-size: 14px; }}
+.settings-label {{ color: {fg}; font-size: 13px; }}
+.settings-value {{ font-weight: bold; }}
+.settings-section {{ background-color: {_rgba(palette["foreground"], 0.04)}; border-radius: 8px; padding: 8px; }}
+.settings-section-title {{ font-size: 11px; opacity: 0.85; font-weight: bold; }}
+.settings-apply {{
+  background-color: {accent}; color: {active_fg_final};
+  border-radius: 6px; padding: 5px 14px; font-weight: bold; border: none;
+}}
+.settings-apply:hover {{ background-color: {_rgba(accent, 0.85)}; }}
+/* Dialogue chrome buttons / rows — transparent like the monitor's, so no
+   opaque GTK button blocks appear. */
+.settings-btn {{
+  color: {fg}; background-color: transparent; border: none; border-radius: 6px;
+  padding: 4px 10px;
+}}
+.settings-btn:hover {{ background-color: {hover}; }}
+.settings-btn:active, .settings-btn:checked {{ color: {accent}; }}
+/* Inputs (spinbuttons / entries) — translucent fill so they read as inputs
+   without an opaque block; text follows the theme. */
+.settings-input {{
+  color: {fg}; background-color: {_rgba(palette["foreground"], 0.07)};
+  border: 1px solid {_rgba(palette["foreground"], 0.18)}; border-radius: 5px;
+}}
+.settings-input:focus {{ border-color: {accent}; }}
+/* Check / radio accents follow the theme accent. */
+.settings-check, .settings-radio {{
+  color: {fg}; background-color: transparent;
+}}
+.settings-check:checked, .settings-radio:checked {{ color: {accent}; }}
 .mc-graph-title {{ font-size: 11px; opacity: 0.85; }}
 .mc-graph-value {{ font-weight: bold; }}
 .mc-graph-value.warn {{ color: #facc15; }}
