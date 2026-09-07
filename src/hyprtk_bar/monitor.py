@@ -983,20 +983,33 @@ class SysMonitorDialog(Popup):
             return
         if self._gpu_unavailable is not None:
             self._gpu_unavailable.hide()
-        self._cards["gpu_util"].graph.push(data["util_pct"])
-        self._cards["gpu_util"].value.set_text(f"{data['util_pct']:.0f}%")
-        self._level_label(self._cards["gpu_util"].value, data["util_pct"])
-        vram_pct = 0.0
-        if data["vram_total_gb"]:
-            vram_pct = 100.0 * data["vram_used_gb"] / data["vram_total_gb"]
-        self._cards["gpu_vram"].graph.push(vram_pct)
-        self._cards["gpu_vram"].value.set_text(
-            f"{data['vram_used_gb']:.1f} / {data['vram_total_gb']:.1f} GB"
+
+        util = data.get("util_pct")
+        if util is not None:
+            self._cards["gpu_util"].graph.push(util)
+            self._cards["gpu_util"].value.set_text(f"{util:.0f}%")
+            self._level_label(self._cards["gpu_util"].value, util)
+        self._stat_vals["gpu_util"].set_text(
+            f"{util:.0f}%" if util is not None else "--"
         )
-        self._stat_vals["gpu_util"].set_text(f"{data['util_pct']:.0f}%")
-        self._stat_vals["gpu_vram"].set_text(
-            f"{data['vram_used_gb']:.1f} / {data['vram_total_gb']:.1f} GB"
-        )
+
+        vram_total = data.get("vram_total_gb")
+        vram_used = data.get("vram_used_gb")
+        if vram_total:
+            vram_pct = 100.0 * (vram_used or 0) / vram_total
+            self._cards["gpu_vram"].graph.push(vram_pct)
+            self._cards["gpu_vram"].value.set_text(
+                f"{vram_used:.1f} / {vram_total:.1f} GB"
+            )
+            self._stat_vals["gpu_vram"].set_text(
+                f"{vram_used:.1f} / {vram_total:.1f} GB"
+            )
+        else:
+            # Shared-memory Intel or a value the driver didn't report.
+            self._cards["gpu_vram"].graph.push(0.0)
+            self._cards["gpu_vram"].value.set_text("shared")
+            self._stat_vals["gpu_vram"].set_text("shared (system RAM)")
+
         temps = data.get("temps") or {}
         temp = temps.get("edge") or temps.get("junction") or temps.get("temp")
         self._stat_vals["gpu_temp"].set_text(
@@ -1006,8 +1019,12 @@ class SysMonitorDialog(Popup):
         self._stat_vals["power"].set_text(
             f"{power:.0f} W" if power is not None else "--"
         )
-        fan = data.get("fan_rpm")
-        self._stat_vals["fan"].set_text(f"{fan} RPM" if fan is not None else "--")
+        fan_pct = data.get("fan_pct")
+        if fan_pct is not None:
+            self._stat_vals["fan"].set_text(f"{fan_pct:.0f}%")
+        else:
+            fan = data.get("fan_rpm")
+            self._stat_vals["fan"].set_text(f"{fan} RPM" if fan is not None else "--")
 
         if self._gpu_clocks is not None:
             clocks = []

@@ -473,30 +473,143 @@ class NetSampler:
         }
 
 
-# ── GPU (AMD) ─────────────────────────────────────────────────────
+# ── GPU (AMD / NVIDIA / Intel) ───────────────────────────────────
 
-def _find_gpu_dir() -> Path | None:
-    """The first ``/sys/class/drm/card*/device`` exposing gpu_busy_percent."""
+_GPU_DRIVERS = {
+    "amdgpu": "AMD",
+    "radeon": "AMD",
+    "nvidia": "NVIDIA",
+    "nouveau": "NVIDIA",
+    "i915": "Intel",
+    "xe": "Intel",
+}
+
+# Attributes only exist on the PCI device dir (cardN/device); try the common
+# spellings across drivers (i915 per-GT layout vs xe tile layout) defensively.
+_INTEL_FREQ_CUR = [
+    "gt/gt0/rps_cur_freq_mhz",
+    "gt_cur_freq_mhz",
+    "tile0/gt0/freq0/cur_freq",
+    "freq0/cur_freq",
+]
+_INTEL_FREQ_MAX = [
+    "gt/gt0/rps_RP0_freq_mhz",
+    "gt_RP0_freq_mhz",
+    "tile0/gt0/freq0/rp0_freq",
+    "tile0/gt0/freq0/max_freq",
+    "freq0/rp0_freq",
+    "freq0/max_freq",
+]
+_INTEL_IDLE = [
+    "gt/gt0/rc6_residency_ms",
+    "power/rc6_residency_ms",
+    "tile0/gt0/gtidle/idle_residency_ms",
+    "gtidle/idle_residency_ms",
+]
+
+_NVIDIA_QUERY = (
+    "nvidia-smi",
+    "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,"
+    "power.draw,fan.speed,clocks.sm,clocks.mem",
+    "--format=csv,noheader,nounits",
+)
+
+
+def _driver_of(dev: Path) -> str:
+    """Kernel driver name bound to a GPU PCI device (amdgpu / nvidia / i915 / xe)."""
     try:
-        for card in DRM.iterdir():
-            name = card.name
-            if not name.startswith("card") or not name[4:].isdigit():
+        target = (dev / "driver").resolve()
+        return target.name
+    except OSError:
+        return ""
+
+
+def _pci_is_discrete(dev: Path) -> bool:
+    """Best-effort discrete-vs-integrated guess from the PCI bus address.
+
+    Integrated GPUs sit on the root bus (``0000:00:xx.x``); add-in / dGPU
+    devices are on a non-zero bus (``0000:01:00.0`` etc). Used only to prefer
+    a discrete GPU when several are present.
+    """
+    try:
+        addr = dev.resolve().name  # e.g. 0000:01:00.0
+    except OSError:
+        return False
+    parts = addr.split(":")
+    return len(parts) > 1 and parts[1] != "00"
+
+
+def _iter_gpu_devices():
+    """Yield (driver, pci_device_dir) for every real GPU card in /sys/class/drm.
+
+    ``cardN/device`` is a symlink to the PCI device; each physical GPU has its
+    own cardN. Drivers that expose no usable live metrics (nouveau) are still
+    yielded so a system that only has them reports identity, not nothing.
+    """
+    seen = set()
+    for card in DRM.iterdir():
+        name = card.name
+        if not name.startswith("card") or not name[4:].isdigit():
+            continue
+        dev = card / "device"
+        driver = _driver_of(dev)
+        if driver not in _GPU_DRIVERS:
+            continue
+        try:
+            key = str(dev.resolve())
+        except OSError:
+            key = str(dev)
+        if key in seen:
+            continue
+        seen.add(key)
+        yield driver, dev
+
+
+def _pick_gpu() -> tuple[str, Path] | None:
+    """Auto-select the primary GPU (prefers a discrete/performance card).
+
+    Returns ``(driver, pci_device_dir)`` or None. Ranking prefers, in order:
+    NVIDIA discrete -> AMD discrete -> Intel discrete (Arc) -> AMD integrated
+    -> Intel integrated. Within the same tier the first card wins.
+    """
+    tier = {"nvidia": 0, "amdgpu": 1, "nouveau": 2, "xe": 3, "i915": 3}
+    best = None
+    best_key = None
+    for driver, dev in _iter_gpu_devices():
+        t = tier.get(driver, 9)
+        if t == 3:  # i915 / xe: prefer discrete Arc over the iGPU
+            t = 2 if _pci_is_discrete(dev) else 4
+        key = (t, 0 if _pci_is_discrete(dev) else 1)
+        if best_key is None or key < best_key:
+            best_key = key
+            best = (driver, dev)
+    return best
+
+
+def _hwmon_for(dev: Path) -> Path | None:
+    """The hwmon dir belonging to a specific GPU PCI device (by symlink)."""
+    try:
+        want = str(dev.resolve())
+    except OSError:
+        return None
+    try:
+        for hw in HWMON.iterdir():
+            try:
+                if str((hw / "device").resolve()) == want:
+                    return hw
+            except OSError:
                 continue
-            dev = card / "device"
-            if (dev / "gpu_busy_percent").is_file():
-                return dev
     except OSError:
         pass
     return None
 
 
-def _amdgpu_hwmon() -> Path | None:
-    try:
-        for hw in HWMON.iterdir():
-            if _read_text(hw / "name") == "amdgpu":
-                return hw
-    except OSError:
-        pass
+def _find_attr(dev: Path, rel_candidates: list[str]) -> Path | None:
+    """First existing attribute under a device dir among candidate paths."""
+    for rel in rel_candidates:
+        p = dev / rel
+        if p.is_file():
+            return p
     return None
 
 
@@ -517,67 +630,226 @@ def _read_pp_dpm(dev: Path, attr: str) -> tuple[int | None, int | None]:
     return cur, mx
 
 
-def gpu() -> dict | None:
-    """AMD GPU utilization/VRAM/temps/power/clocks, or None when unavailable."""
-    dev = _find_gpu_dir()
-    if dev is None:
-        return None
-
-    def read(path) -> int | None:
-        try:
-            return int(_read_text(path))
-        except ValueError:
-            return None
-
-    util = read(dev / "gpu_busy_percent") or 0
-    vram_used = read(dev / "mem_info_vram_used")
-    vram_total = read(dev / "mem_info_vram_total")
-    core_mhz, core_max_mhz = _read_pp_dpm(dev, "pp_dpm_sclk")
-    mem_mhz, mem_max_mhz = _read_pp_dpm(dev, "pp_dpm_mclk")
-
-    hw = _amdgpu_hwmon()
-    power_w = fan_rpm = fan_max = None
+def _read_hwmon_temps(hw: Path | None) -> dict[str, float]:
+    """{edge/junction/mem/temp: celsius} from a GPU hwmon dir."""
     temps: dict[str, float] = {}
-    if hw is not None:
+    if hw is None:
+        return temps
+    try:
         for entry in hw.iterdir():
             name = entry.name
-            if name in ("power1_input", "power1_average"):
-                v = read(entry)
-                if v is not None:
-                    value = v / 1_000_000.0
-                    if name == "power1_input" or power_w is None:
-                        power_w = value
-            elif name == "fan1_input":
-                fan_rpm = read(entry)
-            elif name == "fan1_max":
-                fan_max = read(entry)
-            elif name.startswith("temp") and name.endswith("_input"):
-                v = read(entry)
-                if v is not None:
-                    key = "temp"
-                    lbl = _read_text(entry.with_name(name[:-6] + "_label")).lower()
-                    if "edge" in lbl:
-                        key = "edge"
-                    elif "junction" in lbl:
-                        key = "junction"
-                    elif "mem" in lbl:
-                        key = "mem"
-                    temps[key] = v / 1000.0
+            if not name.startswith("temp") or not name.endswith("_input"):
+                continue
+            try:
+                value = int(_read_text(entry)) / 1000.0
+            except ValueError:
+                continue
+            key = "temp"
+            lbl = _read_text(entry.with_name(name[:-6] + "_label")).lower()
+            if "edge" in lbl:
+                key = "edge"
+            elif "junction" in lbl:
+                key = "junction"
+            elif "mem" in lbl:
+                key = "mem"
+            temps[key] = value
+    except OSError:
+        pass
+    return temps
 
-    return {
-        "util_pct": float(util),
-        "vram_used_gb": (vram_used or 0) / _GB,
-        "vram_total_gb": (vram_total or 0) / _GB,
-        "power_w": power_w,
-        "fan_rpm": fan_rpm,
-        "fan_max": fan_max,
-        "temps": temps,
-        "core_mhz": core_mhz,
-        "core_max_mhz": core_max_mhz,
-        "mem_mhz": mem_mhz,
-        "mem_max_mhz": mem_max_mhz,
-        "name": _read_text(dev / "product_number") or "",
-    }
+
+def _read_hwmon_power(hw: Path | None) -> float | None:
+    """GPU power draw in watts from hwmon power1_input/average, if present."""
+    if hw is None:
+        return None
+    power_w = None
+    for name in ("power1_average", "power1_input"):
+        try:
+            power_w = int(_read_text(hw / name)) / 1_000_000.0
+            break
+        except (OSError, ValueError):
+            continue
+    return power_w
+
+
+def _read_hwmon_fan(hw: Path | None) -> tuple[int | None, int | None]:
+    """(fan_rpm, fan_max) for a GPU hwmon, if present."""
+    if hw is None:
+        return None, None
+    try:
+        rpm = int(_read_text(hw / "fan1_input")) or None
+    except ValueError:
+        rpm = None
+    try:
+        mx = int(_read_text(hw / "fan1_max")) or None
+    except ValueError:
+        mx = None
+    return rpm, mx
+
+
+class GpuSampler:
+    """Live GPU utilization/VRAM/temps/power/clocks across all three vendors.
+
+    Resolves the primary GPU once (``_pick_gpu``), then dispatches to the
+    vendor reader: AMD reads the amdgpu sysfs nodes directly; NVIDIA shells
+    out to ``nvidia-smi`` (its only utilization source); Intel derives a busy
+    percentage from the GT idle/RC6 residency delta and reads clocks from the
+    per-GT sysfs nodes.
+    """
+
+    def __init__(self):
+        self._target = _pick_gpu()
+        self._hw = None
+        self._intel_idle_path: Path | None = None
+        self._prev_idle: int | None = None
+        self._prev_t: float | None = None
+        self._vendor = ""
+        if self._target is not None:
+            driver, dev = self._target
+            self._vendor = _GPU_DRIVERS.get(driver, "")
+            self._hw = _hwmon_for(dev)
+            if driver in ("i915", "xe"):
+                self._intel_idle_path = _find_attr(dev, _INTEL_IDLE)
+
+    @property
+    def vendor(self) -> str:
+        return self._vendor
+
+    @property
+    def target(self):
+        return self._target
+
+    def _amd_sample(self, dev: Path) -> dict:
+        def read(path) -> int | None:
+            try:
+                return int(_read_text(path))
+            except ValueError:
+                return None
+
+        util = read(dev / "gpu_busy_percent") or 0
+        vram_used = read(dev / "mem_info_vram_used")
+        vram_total = read(dev / "mem_info_vram_total")
+        core_mhz, core_max_mhz = _read_pp_dpm(dev, "pp_dpm_sclk")
+        mem_mhz, mem_max_mhz = _read_pp_dpm(dev, "pp_dpm_mclk")
+        fan_rpm, fan_max = _read_hwmon_fan(self._hw)
+        return {
+            "util_pct": float(util),
+            "vram_used_gb": (vram_used or 0) / _GB,
+            "vram_total_gb": (vram_total or 0) / _GB,
+            "power_w": _read_hwmon_power(self._hw),
+            "fan_rpm": fan_rpm,
+            "fan_pct": round(100.0 * fan_rpm / fan_max) if (fan_rpm and fan_max) else None,
+            "fan_max": fan_max,
+            "temps": _read_hwmon_temps(self._hw),
+            "core_mhz": core_mhz,
+            "core_max_mhz": core_max_mhz,
+            "mem_mhz": mem_mhz,
+            "mem_max_mhz": mem_max_mhz,
+            "name": _read_text(dev / "product_number") or "",
+        }
+
+    @staticmethod
+    def _nvidia_sample() -> dict | None:
+        """Utilization/VRAM/temp/power/fan/clocks from one nvidia-smi query."""
+        try:
+            out = subprocess.run(
+                _NVIDIA_QUERY, capture_output=True, text=True, timeout=3
+            )
+        except (subprocess.SubprocessError, OSError):
+            return None
+        if out.returncode != 0:
+            return None
+        line = out.stdout.splitlines()[0] if out.stdout.splitlines() else ""
+        fields = [f.strip() for f in line.split(",")] if line else []
+        if len(fields) != 8:
+            return None
+
+        def num(field: str):
+            try:
+                return float(field)
+            except (TypeError, ValueError):
+                return None
+
+        util, mem_used, mem_total, temp = (num(f) for f in fields[:4])
+        power, fan_pct, core, mem = (num(f) for f in fields[4:])
+        return {
+            "util_pct": util,
+            "vram_used_gb": (mem_used or 0) / 1024.0,
+            "vram_total_gb": (mem_total or 0) / 1024.0,
+            "power_w": power,
+            "fan_rpm": None,          # nvidia-smi reports fan as a percent only
+            "fan_pct": int(fan_pct) if fan_pct is not None else None,
+            "fan_max": None,
+            "temps": {"temp": temp} if temp is not None else {},
+            "core_mhz": int(core) if core is not None else None,
+            "core_max_mhz": None,
+            "mem_mhz": int(mem) if mem is not None else None,
+            "mem_max_mhz": None,
+            "name": "",
+        }
+
+    def _intel_sample(self, dev: Path) -> dict:
+        def read_int(path: Path | None):
+            try:
+                return int(_read_text(path))
+            except (TypeError, ValueError):
+                return None
+
+        cur = read_int(_find_attr(dev, _INTEL_FREQ_CUR))
+        mx = read_int(_find_attr(dev, _INTEL_FREQ_MAX))
+        fan_rpm, fan_max = _read_hwmon_fan(self._hw)
+        temps = _read_hwmon_temps(self._hw)
+        util_pct = None
+        if self._intel_idle_path is not None:
+            now = time.monotonic()
+            idle = read_int(self._intel_idle_path)
+            if idle is not None:
+                if self._prev_idle is not None and self._prev_t is not None:
+                    delta = now - self._prev_t
+                    if delta > 0:
+                        idle_delta = idle - self._prev_idle
+                        if idle_delta >= 0:
+                            busy = 100.0 * (1.0 - idle_delta / 1000.0 / delta)
+                            util_pct = max(0.0, min(busy, 100.0))
+                self._prev_idle = idle
+                self._prev_t = now
+
+        return {
+            "util_pct": util_pct,
+            "vram_used_gb": None,   # Intel iGPU/Arc shares system memory
+            "vram_total_gb": None,
+            "power_w": _read_hwmon_power(self._hw),
+            "fan_rpm": fan_rpm,
+            "fan_pct": round(100.0 * fan_rpm / fan_max) if (fan_rpm and fan_max) else None,
+            "fan_max": fan_max,
+            "temps": temps,
+            "core_mhz": cur,
+            "core_max_mhz": mx,
+            "mem_mhz": None,
+            "mem_max_mhz": None,
+            "name": "",
+        }
+
+    def sample(self) -> dict | None:
+        """One normalized GPU sample across vendors, or None when unavailable."""
+        if self._target is None:
+            return None
+        driver, dev = self._target
+        if driver == "amdgpu":
+            return self._amd_sample(dev)
+        if driver == "nvidia":
+            return self._nvidia_sample()
+        if driver in ("i915", "xe"):
+            return self._intel_sample(dev)
+        return None
+
+
+_GPU_SAMPLER = GpuSampler()
+
+
+def gpu() -> dict | None:
+    """GPU utilization/VRAM/temps/power/clocks for the primary GPU (any vendor)."""
+    return _GPU_SAMPLER.sample()
 
 
 # ── GPU static info (model / manufacturer / compute units / clocks) ──
@@ -610,8 +882,16 @@ def _rocminfo_gpu() -> dict | None:
     return None
 
 
-def _lspci_gpu() -> dict | None:
-    """Fallback: manufacturer + model from ``lspci -nn`` (no rocminfo needed)."""
+def _lspci_gpu(dev: Path | None = None) -> dict | None:
+    """Fallback: manufacturer + model from ``lspci -nn`` (no rocminfo needed).
+
+    When ``dev`` is given the line matching that GPU's PCI vendor/device IDs is
+    returned so multi-GPU systems report the selected card, not the first one.
+    """
+    vid_want = did_want = None
+    if dev is not None:
+        vid_want = _read_text(dev / "vendor").replace("0x", "").lower()
+        did_want = _read_text(dev / "device").replace("0x", "").lower()
     try:
         out = subprocess.run(
             ["lspci", "-nn"], capture_output=True, text=True, timeout=5
@@ -623,6 +903,9 @@ def _lspci_gpu() -> dict | None:
             continue
         m = re.search(r"\[([0-9A-Fa-f]{4}):([0-9A-Fa-f]{4})\]", line)
         vid = (m.group(1) if m else "").lower()
+        did = (m.group(2) if m else "").lower()
+        if vid_want and (vid != vid_want or (did_want and did != did_want)):
+            continue
         desc = line.split(": ", 1)[1] if ": " in line else line
         desc = re.sub(r"\s*\[[0-9A-Fa-f]{4}:[0-9A-Fa-f]{4}\].*$", "", desc).strip()
         vendor = re.match(r"([^\[\]]+)\[", desc)
@@ -636,16 +919,25 @@ def _lspci_gpu() -> dict | None:
 
 
 def _gpu_fetch_static() -> dict | None:
-    """Static GPU identity; prefers rocminfo, falls back to lspci + sysfs."""
-    info = _rocminfo_gpu() or _lspci_gpu()
+    """Static GPU identity for the selected primary GPU (rocminfo -> lspci + sysfs)."""
+    target = _GPU_SAMPLER.target
+    dev = target[1] if target else None
+    driver = target[0] if target else ""
+    info = _rocminfo_gpu() or _lspci_gpu(dev)
     if info is None:
         return None
-    dev = _find_gpu_dir()
     if dev is not None:
         vendor_id = _read_text(dev / "vendor").lower()
         if vendor_id.startswith("0x") and vendor_id[2:] in _GPU_VENDORS:
             info.setdefault("manufacturer", _GPU_VENDORS[vendor_id[2:]])
-        core_mhz, core_max_mhz = _read_pp_dpm(dev, "pp_dpm_sclk")
+        if driver == "amdgpu":
+            _c, core_max_mhz = _read_pp_dpm(dev, "pp_dpm_sclk")
+        else:
+            mx = _find_attr(dev, _INTEL_FREQ_MAX)
+            try:
+                core_max_mhz = int(_read_text(mx))
+            except (TypeError, ValueError):
+                core_max_mhz = None
         if core_max_mhz is not None:
             info.setdefault("max_clock", core_max_mhz)
     try:
