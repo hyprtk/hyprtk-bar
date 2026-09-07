@@ -78,6 +78,10 @@ class BarSettings(Gtk.Window):
         self.set_keep_above(True)
         self.set_default_size(620, 580)
         self.set_position(Gtk.WindowPosition.CENTER)
+        # Theme the dialogue like the bar's popups via the ``.popup-box`` class
+        # on its root box (background + border), so it shares their animated
+        # border. A normal toplevel keeps its own opaque backing (no rgba
+        # visual / app_paintable — that renders black on a non-layer window).
         self.connect("key-press-event", self._on_key)
         self._build()
         self.show_all()
@@ -121,6 +125,7 @@ class BarSettings(Gtk.Window):
         root.set_margin_bottom(12)
         root.set_margin_start(12)
         root.set_margin_end(12)
+        root.get_style_context().add_class("popup-box")
         self.add(root)
 
         # Draggable header (frameless window).

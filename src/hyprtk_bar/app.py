@@ -263,8 +263,11 @@ class BarWindow(Gtk.Window):
         self._border_hue = (self._border_hue + step) % 360.0
         color = hue_rotate(self._border_base, self._border_hue)
         try:
+            # Animate the pill border plus every popup/dialogue that carries
+            # the themed ``.popup-box`` border (notification center, quick
+            # settings, toasts, tooltips, monitor dialog, settings dialogue).
             self._anim_provider.load_from_data(
-                f".taskbar {{ border-color: {color}; }}".encode()
+                f".taskbar, .popup-box {{ border-color: {color}; }}".encode()
             )
         except GLib.Error:
             log.warning("failed to load animated-border CSS", exc_info=True)
