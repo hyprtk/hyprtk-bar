@@ -601,4 +601,16 @@ menu separator {{
 .mc-tree view {{ background-color: {_rgba(palette["foreground"], 0.05)}; color: {fg}; border-radius: 8px; }}
 .mc-tree row:nth-child(even) {{ background-color: {_rgba(palette["foreground"], 0.03)}; }}
 .mc-tree row:selected {{ background-color: {accent}; color: {active_fg_final}; }}
+/* Themer dialogue: wallpaper preview thumbnail + 2-column thumb grid */
+.wallpaper-preview {{
+  border: 1px solid {_rgba(palette["foreground"], 0.25)};
+  border-radius: 8px;
+  background-color: {_rgba(palette["foreground"], 0.05)};
+}}
+.wallpaper-thumb {{
+  border: 1px solid {_rgba(palette["foreground"], 0.12)};
+  border-radius: 6px;
+  padding: 0;
+}}
+.wallpaper-thumb:hover {{ border-color: {accent}; }}
 """

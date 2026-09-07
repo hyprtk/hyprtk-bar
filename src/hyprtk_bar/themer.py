@@ -82,7 +82,7 @@ _PAGE_TITLES = {key: label for key, _glyph, label in PAGES}
 
 DIALOG_WIDTH = 940
 DIALOG_HEIGHT = 640
-_THUMB_SIZE = (150, 100)
+_THUMB_SIZE = (360, 240)
 _BATCH_SIZE = 20
 POST_ACTION_DELAY_MS = 2500
 
@@ -193,10 +193,42 @@ def _thumb_path(src: Path) -> Path:
 
 
 def _generate_thumbnail(src: Path, dest: Path):
-    buf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-        str(src), _THUMB_SIZE[0], _THUMB_SIZE[1], True
-    )
-    buf.savev(str(dest), "png", [], [])
+    pb = _cover_pixbuf(str(src), _THUMB_SIZE[0], _THUMB_SIZE[1])
+    if pb is not None:
+        pb.savev(str(dest), "png", [], [])
+
+
+def _thumb_size_ok(tp: Path) -> bool:
+    """True if the cached thumbnail is the current size (cover-cropped)."""
+    try:
+        pb = GdkPixbuf.Pixbuf.new_from_file(str(tp))
+        return (
+            pb.get_width() == _THUMB_SIZE[0] and pb.get_height() == _THUMB_SIZE[1]
+        )
+    except GLib.Error:
+        return False
+
+
+def _cover_pixbuf(src: str, width: int, height: int):
+    """Load *src* and scale+crop it to cover ``(width, height)``.
+
+    Returns a pixbuf cropped from the centre (Gtk.Image cannot cover-fit, so
+    the preview thumbnail is cropped like a photo instead of letterboxed).
+    """
+    try:
+        buf = GdkPixbuf.Pixbuf.new_from_file(src)
+    except GLib.Error:
+        return None
+    src_w, src_h = buf.get_width(), buf.get_height()
+    if src_w <= 0 or src_h <= 0:
+        return None
+    scale = max(width / src_w, height / src_h)
+    new_w = max(width, int(round(src_w * scale)))
+    new_h = max(height, int(round(src_h * scale)))
+    scaled = buf.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
+    x = (new_w - width) // 2
+    y = (new_h - height) // 2
+    return GdkPixbuf.Pixbuf.new_subpixbuf(scaled, x, y, width, height)
 
 
 def build_index(wallpaper_dir: Path, force: bool = False) -> list[dict]:
@@ -216,7 +248,8 @@ def build_index(wallpaper_dir: Path, force: bool = False) -> list[dict]:
     for img in images:
         key = str(img)
         tp = _thumb_path(img)
-        if force or not tp.exists() or tp.stat().st_mtime < img.stat().st_mtime:
+        if force or not tp.exists() or tp.stat().st_mtime < img.stat().st_mtime \
+                or not _thumb_size_ok(tp):
             try:
                 _generate_thumbnail(img, tp)
             except Exception as exc:
@@ -559,10 +592,17 @@ class ThemerDialog(Popup):
     def _build_wallpaper_page(self, box: Gtk.Box, scroller: Gtk.ScrolledWindow) -> None:
         self._wall_dir = Path(str(self._cfg.get("themer", {}).get(
             "wallpaper_dir", str(WALLPAPER_DIRS[0]))))
+        self._preview_w, self._preview_h = _THUMB_SIZE
 
+        # selected / current wallpaper preview (a cropped thumbnail, not the
+        # full-resolution image).
+        preview_wrap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        preview_wrap.set_halign(Gtk.Align.CENTER)
         self._current_img = Gtk.Image()
-        self._current_img.set_size_request(-1, 180)
-        box.pack_start(self._current_img, False, False, 0)
+        self._current_img.set_size_request(self._preview_w, self._preview_h)
+        self._current_img.get_style_context().add_class("wallpaper-preview")
+        preview_wrap.pack_start(self._current_img, False, False, 0)
+        box.pack_start(preview_wrap, False, False, 0)
 
         _add_section_title(box, "Wallpaper Directory")
         dir_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -588,11 +628,12 @@ class ThemerDialog(Popup):
         self._spinner = Gtk.Spinner()
         box.pack_start(self._spinner, False, False, 0)
 
+        # 2-column thumbnail grid under the preview.
         self._flow = Gtk.FlowBox()
         self._flow.set_selection_mode(Gtk.SelectionMode.NONE)
         self._flow.set_column_spacing(6)
         self._flow.set_row_spacing(6)
-        self._flow.set_max_children_per_line(6)
+        self._flow.set_max_children_per_line(2)
         self._flow.set_min_children_per_line(2)
         self._flow.set_vexpand(True)
         box.pack_start(self._flow, True, True, 0)
@@ -609,16 +650,21 @@ class ThemerDialog(Popup):
         if pos == Gtk.PositionType.BOTTOM and self._loaded_count < len(self._all_images):
             self._load_batch()
 
+    def _set_preview(self, path: str):
+        pb = _cover_pixbuf(path, self._preview_w, self._preview_h)
+        if pb is not None:
+            self._current_img.set_from_pixbuf(pb)
+
     def _load_current(self):
         wal_file = WAL_CACHE / "wal"
         if wal_file.exists():
             wp = wal_file.read_text().strip()
             if wp and os.path.isfile(wp):
-                self._current_img.set_from_file(wp)
+                self._set_preview(wp)
                 return
         fallback = HYPRTK / "assets" / "Wallpapers" / "default.png"
         if fallback.exists():
-            self._current_img.set_from_file(str(fallback))
+            self._set_preview(str(fallback))
 
     def _load_thumbnails(self):
         _remove_all_children(self._flow)
@@ -626,12 +672,26 @@ class ThemerDialog(Popup):
         self._all_images = []
         if not self._wall_dir.exists():
             return
-        if not is_valid(self._wall_dir):
+        index = load_index()
+        if self._index_thumbs_ok(index):
+            self._set_index(index)
+        else:
+            # Build (or rebuild) the cache — incl. when it holds thumbnails
+            # generated at an older size (theme-gui's 150px ones).
             self._spinner.set_visible(True)
             self._spinner.start()
             GLib.idle_add(self._build_cache_idle)
-        else:
-            self._set_index(load_index())
+
+    @staticmethod
+    def _index_thumbs_ok(index: list[dict]) -> bool:
+        if not index:
+            return False
+        for e in index:
+            tp = Path(e.get("thumb", ""))
+            if not tp.exists():
+                continue
+            return _thumb_size_ok(tp)
+        return False
 
     def _build_cache_idle(self):
         try:
@@ -654,14 +714,14 @@ class ThemerDialog(Popup):
         for img_path in self._all_images[start:end]:
             btn = Gtk.Button()
             btn.set_relief(Gtk.ReliefStyle.NONE)
-            btn.set_size_request(160, 110)
+            btn.get_style_context().add_class("wallpaper-thumb")
+            btn.set_size_request(self._preview_w, self._preview_h)
             img = Gtk.Image()
             thumb = self._thumb_map.get(str(img_path))
             if thumb and os.path.isfile(thumb):
                 img.set_from_file(thumb)
             else:
                 img.set_from_file(str(img_path))
-            img.set_pixel_size(96)
             btn.add(img)
             btn.connect("clicked", self._on_thumb_click, img_path)
             self._flow.add(btn)
@@ -669,13 +729,13 @@ class ThemerDialog(Popup):
 
     def _on_thumb_click(self, btn, path: Path):
         self._selected = path
-        self._current_img.set_from_file(str(path))
+        self._set_preview(str(path))
 
     def _apply_random(self, btn):
         if not self._all_images:
             return
         self._selected = random.choice(self._all_images)
-        self._current_img.set_from_file(str(self._selected))
+        self._set_preview(str(self._selected))
         self._apply_selected(btn)
 
     def _on_choose_dir(self, btn):
