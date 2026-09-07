@@ -84,17 +84,40 @@ def _parse_animations(path: Path) -> dict:
     return out
 
 
-def border_animation() -> dict | None:
-    """Border animation mirror for the bar, or None when Hyprland has none.
+def border_animation(cfg: dict | None = None) -> dict | None:
+    """Border animation mirror for the bar, or None when disabled.
 
-    Returns ``{"speed": int, "leaf": str}`` — the border color loops hue at a
-    period derived from the enabled animations file's ``borderangle`` speed
-    (falling back to ``border``). None when Hyprland's global animations are
-    disabled, neither leaf is enabled, or the hypr config is unavailable.
+    ``cfg`` selects the mode via ``animations.mode``:
+    - ``"low"`` / ``"high"`` — read the matching ``animations-<mode>.lua``
+      file's ``borderangle``/``border`` speed, so the bar animates at that
+      Hyprland preset's pace.
+    - ``"custom"`` — use ``animations.speed`` directly, independent of the
+      hypr config.
+
+    Returns ``{"speed": int, "leaf": str, "mode": str}`` or None when the
+    relevant file is unavailable, animations are disabled there, or a custom
+    speed is missing/invalid.
     """
-    name = active_animations_file()
+    mode = "high"
+    if cfg is not None:
+        mode = str((cfg.get("animations") or {}).get("mode") or "high").lower()
+        if mode == "custom":
+            try:
+                speed = max(1, int((cfg.get("animations") or {}).get("speed")))
+            except (TypeError, ValueError):
+                speed = None
+            if not speed:
+                return None
+            return {"leaf": "custom", "speed": speed, "mode": "custom"}
+    if mode in ("low", "high"):
+        return _file_border_animation(mode)
+    return None
+
+
+def _file_border_animation(name: str) -> dict | None:
+    """Border mirror config from a specific ``animations-<name>.lua`` file."""
     d = _find_hypr_dir()
-    if not name or d is None:
+    if d is None:
         return None
     path = d / f"animations-{name}.lua"
     if not path.is_file():
@@ -113,5 +136,5 @@ def border_animation() -> dict | None:
     for leaf in ("borderangle", "border"):
         info = anims.get(leaf)
         if info and info.get("enabled") and info.get("speed"):
-            return {"leaf": leaf, "speed": int(info["speed"])}
+            return {"leaf": leaf, "speed": int(info["speed"]), "mode": name}
     return None

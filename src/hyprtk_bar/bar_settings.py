@@ -152,6 +152,10 @@ class BarSettings(Gtk.Window):
         self._refresh_themes(select=(self._cfg.get("theme") or {}).get("waybar_theme") or None)
         self._update_source_state()
 
+        # ── Animations tab ───────────────────────────────────────
+        anim_tab = self._build_animations_tab()
+        notebook.append_page(anim_tab, Gtk.Label(label="Animations"))
+
         # ── Modules tab ──────────────────────────────────────────
         modules_tab = self._build_modules_tab()
         notebook.append_page(modules_tab, Gtk.Label(label="Modules"))
@@ -407,6 +411,82 @@ class BarSettings(Gtk.Window):
         tab.pack_start(theme_row, True, True, 0)
         return tab
 
+    def _build_animations_tab(self) -> Gtk.Box:
+        tab = self._tab_margins()
+        anim_cfg = self._cfg.get("animations") or {}
+        theme = self._cfg.get("theme") or {}
+
+        hint = Gtk.Label(
+            label="Animate the bar's border color. Low/High follow Hyprland's "
+            "animations files; Custom is independent of Hyprland.",
+            xalign=0,
+            wrap=True,
+        )
+        hint.set_opacity(0.8)
+        tab.pack_start(hint, False, False, 0)
+
+        enable_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        enable_label = Gtk.Label(label="Animated border:", xalign=1)
+        enable_label.set_size_request(70, -1)
+        self._border_anim_enabled = Gtk.CheckButton()
+        self._border_anim_enabled.set_active(bool(theme.get("border_animation", True)))
+        self._border_anim_enabled.set_hexpand(True)
+        enable_row.pack_start(enable_label, False, False, 0)
+        enable_row.pack_start(self._border_anim_enabled, True, True, 0)
+        tab.pack_start(enable_row, False, False, 0)
+
+        mode_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        mode_label = Gtk.Label(label="Mode:", xalign=1)
+        mode_label.set_size_request(70, -1)
+        self._anim_mode_buttons = _radio_group(
+            [("low", "Low"), ("high", "High"), ("custom", "Custom")]
+        )
+        mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for key, btn in self._anim_mode_buttons.items():
+            btn.connect("toggled", self._on_anim_mode_toggled, key)
+            mode_box.pack_start(btn, False, False, 0)
+        mode = str(anim_cfg.get("mode") or "high").lower()
+        self._anim_mode_buttons[mode if mode in self._anim_mode_buttons else "high"].set_active(True)
+        mode_box.set_hexpand(True)
+        mode_row.pack_start(mode_label, False, False, 0)
+        mode_row.pack_start(mode_box, True, True, 0)
+        tab.pack_start(mode_row, False, False, 0)
+
+        speed_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        speed_label = Gtk.Label(label="Custom speed:", xalign=1)
+        speed_label.set_size_request(70, -1)
+        self._anim_speed = Gtk.SpinButton.new_with_range(1, 200, 1)
+        self._anim_speed.set_value(int(anim_cfg.get("speed", 15) or 15))
+        self._anim_speed.set_hexpand(True)
+        speed_hint = Gtk.Label(label="Hyprland-style speed (mode=custom)", xalign=0)
+        speed_hint.set_opacity(0.7)
+        speed_row.pack_start(speed_label, False, False, 0)
+        speed_row.pack_start(self._anim_speed, True, True, 0)
+        speed_row.pack_start(speed_hint, False, False, 0)
+        tab.pack_start(speed_row, False, False, 0)
+
+        self._update_anim_speed_state()
+        return tab
+
+    def _on_anim_mode_toggled(self, btn: Gtk.RadioButton, key: str) -> None:
+        if btn.get_active():
+            self._update_anim_speed_state()
+
+    def _update_anim_speed_state(self) -> None:
+        """Only enable the custom speed field when the Custom mode is active."""
+        if not getattr(self, "_anim_speed", None):
+            return
+        custom = self._anim_mode_buttons.get("custom")
+        self._anim_speed.set_sensitive(
+            bool(custom and custom.get_active())
+        )
+
+    def _active_anim_mode(self) -> str:
+        for key, btn in self._anim_mode_buttons.items():
+            if btn.get_active():
+                return key
+        return "high"
+
     def _build_modules_tab(self) -> Gtk.Box:
         tab = self._tab_margins()
         hint = Gtk.Label(
@@ -550,6 +630,13 @@ class BarSettings(Gtk.Window):
         self._actions["set_font_size"](str(int(self._font_size.get_value())))
         self._actions["set_icon_size"](str(int(self._icon_size.get_value())))
         self._actions["set_quicklink_icon_size"](str(int(self._ql_icon_size.get_value())))
+
+        # animations
+        self._actions["set_border_animation"](
+            self._border_anim_enabled.get_active(),
+            self._active_anim_mode(),
+            int(self._anim_speed.get_value()),
+        )
 
     def _on_reset(self, *_args) -> None:
         self._actions["reset_layout"]()

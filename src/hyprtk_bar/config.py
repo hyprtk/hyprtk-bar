@@ -128,6 +128,11 @@ DEFAULTS = {
         "accent": "#7aa2f7",
         "hover": "rgba(255, 255, 255, 0.08)",
         "running": "#7aa2f7",
+        "border_animation": True,    # animate the pill border color
+    },
+    "animations": {
+        "mode": "high",              # low | high | custom
+        "speed": 15,                 # custom border-animation speed (mode=custom)
     },
     "font": {
         "family": "",                # "" = system default font

@@ -470,6 +470,18 @@ class Bar(Gtk.Box):
             config_module.save(cfg)
             _theme()
 
+        def set_border_animation(enabled: bool, mode: str, speed: int | None = None) -> None:
+            cfg.setdefault("theme", {})["border_animation"] = bool(enabled)
+            anim = cfg.setdefault("animations", {})
+            anim["mode"] = str(mode or "high").lower()
+            if speed is not None:
+                try:
+                    anim["speed"] = max(1, int(speed))
+                except (TypeError, ValueError):
+                    pass
+            config_module.save(cfg)
+            _theme()
+
         def apply_layout(layout: dict) -> None:
             cfg["layout"] = {
                 "left": list(layout.get("left", [])),
@@ -497,6 +509,7 @@ class Bar(Gtk.Box):
             "set_font_size": set_font_size,
             "set_icon_size": set_icon_size,
             "set_quicklink_icon_size": set_quicklink_icon_size,
+            "set_border_animation": set_border_animation,
             "apply_layout": apply_layout,
             "open_settings": open_settings,
         }

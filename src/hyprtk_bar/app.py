@@ -217,14 +217,17 @@ class BarWindow(Gtk.Window):
     # ── animated border (mirrors Hyprland's border/borderangle) ─────
 
     def _setup_border_animation(self) -> None:
-        """Start/stop a looping border-color animation mirroring Hyprland.
+        """Start/stop a looping border-color animation for the bar border.
 
-        The active animations file (``animations-high`` vs ``animations-low``,
-        read from ``hyprland.lua``) sets the ``borderangle``/``border`` speed;
-        the bar rotates its border hue on a period derived from that speed, so
-        the border animates at the same pace as Hyprland's windows. Disabled
-        when the hypr config is unavailable, animations are off, the theme has
-        no border, or ``theme.border_animation`` is false in config.
+        The bar config's ``animations.mode`` selects the source:
+        - ``low`` / ``high`` — the matching ``animations-<mode>.lua`` file (in
+          the Hyprland config dir) sets the ``borderangle``/``border`` speed.
+        - ``custom`` — ``animations.speed`` from the bar config, independent of
+          Hyprland.
+
+        The bar rotates its border hue on a period derived from that speed.
+        Disabled when the theme draws no border, animations are off there, or
+        ``theme.border_animation`` is false in config.
         """
         if self._border_anim_id is not None:
             GLib.source_remove(self._border_anim_id)
@@ -238,7 +241,7 @@ class BarWindow(Gtk.Window):
         ):
             self._border_anim = None
             return
-        anim = border_animation()
+        anim = border_animation(self._cfg)
         if not anim:
             self._border_anim = None
             return
