@@ -121,8 +121,8 @@ DEFAULTS = {
     "use_pywal": True,               # legacy: seed theme.source from this on first run
     "monitors": "primary",           # primary | all | [connector, ...] (e.g. ["DP-1", "HDMI-A-1"])
     "theme": {
-        "source": "pywal",           # pywal | waybar | manual
-        "waybar_theme": "",          # name of an imported theme (source=waybar)
+        "source": "pywal",           # pywal | imported | manual
+        "theme_name": "",            # name of an imported theme (source=imported)
         "background": "#1a1b26",
         "foreground": "#c0caf5",
         "accent": "#7aa2f7",
@@ -296,11 +296,18 @@ def validate(cfg: dict) -> dict:
     # ── theme source ─────────────────────────────────────────────
     theme = valid.get("theme") or {}
     source = theme.get("source")
-    if source not in ("pywal", "waybar", "manual"):
+    if source == "waybar":
+        # legacy source value → imported
+        source = "imported"
+    if source not in ("pywal", "imported", "manual"):
         # migrate the legacy use_pywal flag into an explicit source
         source = "pywal" if valid.get("use_pywal", True) else "manual"
     theme["source"] = source
-    theme["waybar_theme"] = str(theme.get("waybar_theme", "") or "")
+    # Migrate the old waybar_theme key to theme_name.
+    if "waybar_theme" in theme and not theme.get("theme_name"):
+        theme["theme_name"] = theme.pop("waybar_theme")
+    theme.pop("waybar_theme", None)
+    theme["theme_name"] = str(theme.get("theme_name", "") or "")
     valid["theme"] = theme
 
     # ── layout ───────────────────────────────────────────────────

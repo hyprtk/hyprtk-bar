@@ -1,8 +1,7 @@
-"""Waybar theme import + resolution into a hyprtk-bar palette.
+"""Import a hyprtk theme (waybar-style CSS) and resolve it into a bar palette.
 
 Themes are imported (folder with ``style.css``, usually plus ``colors.css``)
-into the bar's own themes directory: ``~/.config/hyprtk-bar/themes/``. The bar
-does NOT scan the system waybar directory.
+into the bar's own themes directory: ``~/.config/hyprtk-bar/themes/``.
 
 ``@import`` and ``@define-color`` are resolved (including pywal CSS files such
 as ``~/.cache/wal/colors-waybar*.css``), so an imported theme that pulls in
@@ -24,7 +23,7 @@ from pathlib import Path
 
 from .config import load_pywal_colors  # noqa: E402
 
-log = logging.getLogger("hyprtk_bar.waybar_theme")
+log = logging.getLogger("hyprtk_bar.theme_import")
 
 BAR_THEMES_DIR = Path.home() / ".config" / "hyprtk-bar" / "themes"
 

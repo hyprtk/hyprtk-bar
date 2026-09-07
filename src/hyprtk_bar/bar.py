@@ -358,8 +358,8 @@ class Bar(Gtk.Box):
             config_module.save(cfg)
             _theme()
 
-        def set_waybar_theme(name: str) -> None:
-            cfg.setdefault("theme", {})["waybar_theme"] = name
+        def set_theme_name(name: str) -> None:
+            cfg.setdefault("theme", {})["theme_name"] = name
             config_module.save(cfg)
             _theme()
 
@@ -496,7 +496,7 @@ class Bar(Gtk.Box):
 
         return {
             "set_source": set_source,
-            "set_waybar_theme": set_waybar_theme,
+            "set_theme_name": set_theme_name,
             "reset_layout": reset_layout,
             "reload_config": reload_config,
             "set_width": set_width,

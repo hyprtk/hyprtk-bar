@@ -1,4 +1,4 @@
-"""Theming: resolve a palette (pywal + waybar import + config) and emit GTK CSS."""
+"""Theming: resolve a palette (pywal + imported theme + config) and emit GTK CSS."""
 from __future__ import annotations
 
 import colorsys
@@ -6,7 +6,7 @@ import logging
 import re
 
 from .config import load_pywal_colors  # noqa: E402
-from .waybar_theme import parse_palette  # noqa: E402
+from .theme_import import parse_palette  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.theme")
 
@@ -67,7 +67,7 @@ def _hover_color(color: str) -> str:
     """Return a translucent hover color, preserving the source's alpha.
 
     Hex colors get a subtle default alpha; rgba()/rgb() values are kept as-is so
-    waybar-imported hover colors (already translucent) are not made opaque.
+    imported-theme hover colors (already translucent) are not made opaque.
     """
     color = color.strip()
     if color.startswith("#"):
@@ -78,7 +78,7 @@ def _hover_color(color: str) -> str:
 
 
 # Per-module glyph colors, drawn from the pywal palette so each module icon has
-# a distinct colour. Applied for every theme source (pywal, imported waybar
+# a distinct colour. Applied for every theme source (pywal, imported theme
 # theme, manual) — the glyph accents always follow the wallpaper palette.
 MODULE_PYWAL_KEYS = {
     "start_button": "color5",    # mauve
@@ -125,7 +125,7 @@ def resolve_palette(cfg: dict) -> dict:
     """Background/foreground/accent palette from the configured theme source.
 
     ``theme.source`` selects the source: ``pywal`` (live wallpaper palette),
-    ``waybar`` (an imported waybar theme, dynamic to its pywal import), or
+    ``imported`` (a hyprtk imported theme, dynamic to its pywal import), or
     ``manual`` (colors from the config's ``theme`` block). The configured
     ``font`` block (family + size) is applied on top of every source.
     """
@@ -140,13 +140,13 @@ def resolve_palette(cfg: dict) -> dict:
     }
 
     if source != "manual":
-        if source == "waybar":
-            imported = import_waybar_palette(theme)
+        if source == "imported":
+            imported = import_theme_palette(theme)
             if imported is not None:
                 palette = imported
 
         if "background_alpha" not in palette:
-            # pywal (also the fallback when a waybar import fails)
+            # pywal (also the fallback when an imported theme fails)
             pywal = load_pywal_colors()
             if pywal:
                 palette["background"] = pywal.get("background") or palette["background"]
@@ -159,7 +159,7 @@ def resolve_palette(cfg: dict) -> dict:
 
     # Per-module glyph colours always come from the pywal palette — every module
     # icon gets a distinct colour, and they re-tint on wallpaper change. This is
-    # independent of the theme source (pywal / imported waybar / manual).
+    # independent of the theme source (pywal / imported theme / manual).
     pywal = load_pywal_colors()
     if pywal:
         palette["module_colors"] = _module_glyph_colors(pywal)
@@ -180,18 +180,18 @@ def resolve_palette(cfg: dict) -> dict:
     return palette
 
 
-def import_waybar_palette(theme: dict) -> dict | None:
-    """Import the configured waybar theme into a palette."""
-    name = theme.get("waybar_theme")
+def import_theme_palette(theme: dict) -> dict | None:
+    """Import the configured hyprtk theme into a palette."""
+    name = theme.get("theme_name")
     if not name:
         return None
     try:
         palette = parse_palette(name)
     except Exception as exc:  # never let a bad theme take down the bar
-        log.warning("failed to import waybar theme %r: %s", name, exc)
+        log.warning("failed to import theme %r: %s", name, exc)
         return None
     if palette is not None:
-        palette["waybar_theme"] = name
+        palette["theme_name"] = name
     return palette
 
 

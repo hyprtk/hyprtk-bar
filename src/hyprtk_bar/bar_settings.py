@@ -17,14 +17,14 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
 from .config import DEFAULT_LAYOUT, MODULE_IDS, MODULE_LABELS  # noqa: E402
-from .waybar_theme import import_theme, list_themes  # noqa: E402
+from .theme_import import import_theme, list_themes  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
 
 SECTION_ORDER = ("left", "center", "right")
 SECTION_LABELS = {"left": "Left", "center": "Center", "right": "Right"}
 THEME_SOURCES = (
     ("pywal", "Pywal (dynamic)"),
-    ("waybar", "Imported theme"),
+    ("imported", "Imported theme"),
     ("manual", "Manual (config)"),
 )
 
@@ -178,7 +178,7 @@ class BarSettings(Gtk.Window):
 
         # Populate the imported-theme list (the Themes page needs the buttons to
         # exist before the user can select one).
-        self._refresh_themes(select=(self._cfg.get("theme") or {}).get("waybar_theme") or None)
+        self._refresh_themes(select=(self._cfg.get("theme") or {}).get("theme_name") or None)
         self._update_source_state()
 
         # Footer buttons — accent "Apply" like the monitor's accent chrome.
@@ -748,8 +748,8 @@ class BarSettings(Gtk.Window):
         # theme
         source = self._active_source()
         self._actions["set_source"](source)
-        if source == "waybar":
-            self._actions["set_waybar_theme"](self._get_imported_theme())
+        if source == "imported":
+            self._actions["set_theme_name"](self._get_imported_theme())
 
         # layout
         layout = {
@@ -838,7 +838,7 @@ class BarSettings(Gtk.Window):
     def _update_source_state(self) -> None:
         source = self._active_source()
         for btn in self._theme_buttons.values():
-            btn.set_sensitive(source == "waybar")
+            btn.set_sensitive(source == "imported")
 
     def _on_source_toggled(self, btn, *_args) -> None:
         if btn.get_active():
@@ -890,10 +890,10 @@ class BarSettings(Gtk.Window):
                     if name:
                         self._refresh_themes(select=name)
                         for key, btn in self._source_buttons.items():
-                            btn.set_active(key == "waybar")
+                            btn.set_active(key == "imported")
                         self._update_source_state()
-                        self._actions["set_source"]("waybar")
-                        self._actions["set_waybar_theme"](name)
+                        self._actions["set_source"]("imported")
+                        self._actions["set_theme_name"](name)
             dialog.destroy()
 
         chooser.connect("response", on_response)

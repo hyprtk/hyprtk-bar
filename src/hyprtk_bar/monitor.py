@@ -3,7 +3,7 @@
 Opened by left-clicking the sysmon module: a layer-shell panel floated above the
 bar with a sidebar of resource pages (CPU / Memory / Disks / Network / GPU /
 Apps) and live cairo graphs + readouts. All colours come from the bar's palette
-(pywal / imported waybar theme / manual) so the panel always matches the bar.
+(pywal / imported theme / manual) so the panel always matches the bar.
 """
 from __future__ import annotations
 

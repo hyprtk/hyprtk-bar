@@ -19,7 +19,7 @@ from .hypr_animations import active_border_colors, border_animation, lerp_color 
 from .ipc import HyprIPC  # noqa: E402
 from .notifications import NotificationController  # noqa: E402
 from .theme import build_css, gap_value, pill_margins, resolve_palette  # noqa: E402
-from .waybar_theme import find_themes_dir  # noqa: E402
+from .theme_import import find_themes_dir  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.app")
 
@@ -293,7 +293,7 @@ class BarWindow(Gtk.Window):
     def _sync_rofi_variant(self) -> None:
         """Keep the rofi variant.rasi in lock-step with the bar's theme.
 
-        sync-rofi-theme.sh derives the variant from ``theme.waybar_theme`` in
+        sync-rofi-theme.sh derives the variant from ``theme.theme_name`` in
         this bar's config, so running it here makes rofi menus match whatever
         imported theme the bar is showing (and, on wallpaper changes, keeps the
         link in sync while the variant's ``@colorN`` refs track pywal live).
@@ -311,7 +311,7 @@ class BarWindow(Gtk.Window):
         - pywal colors (``~/.cache/wal`` — colors.json + the generated
           ``colors-waybar*.css`` that waybar themes @import),
         - the hyprtk waybar theme switcher file (``~/.cache/.themestyle.sh``),
-        - the waybar themes directory itself.
+        - the hyprtk themes directory itself.
         """
         try:
             self._wal_monitor = Gio.File.new_for_path(
