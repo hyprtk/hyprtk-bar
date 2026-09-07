@@ -177,6 +177,14 @@ def resolve_palette(cfg: dict) -> dict:
     # Chips follow the configured base size too — an imported theme's
     # chip_font_size must not pin them to a stale size when the user changes it.
     palette["chip_font_size"] = size
+    # Tasklist indicator dot scales with the icon size (~30% of the icon).
+    try:
+        icon_sz = max(14, int(font_cfg.get("icon_size") or 0))
+    except (TypeError, ValueError):
+        icon_sz = 0
+    if not icon_sz:
+        icon_sz = max(14, int(round(size * 1.25)))
+    palette["dot_size"] = max(4, int(round(icon_sz * 0.30)))
     return palette
 
 
@@ -253,6 +261,7 @@ def build_css(palette: dict, cfg: dict) -> str:
     running = palette["running"]
     fg = palette["foreground"]
     active_fg = _contrast_fg(accent)
+    dot_size = palette.get("dot_size", 6)
     font = palette.get("font")
     font_rule = f"  font-family: {font};\n" if font else ""
     font_size = palette.get("font_size")
@@ -362,14 +371,14 @@ def build_css(palette: dict, cfg: dict) -> str:
 .tray-button.hover {{ background-color: {hover}; }}
 .dimmed {{ opacity: 0.45; }}
 .task-dot {{
-  min-width: 8px;
-  min-height: 8px;
-  border-radius: 4px;
+  min-width: {dot_size}px;
+  min-height: {dot_size}px;
+  border-radius: {dot_size // 2}px;
   background-color: {_rgba(palette["foreground"], 0.55)};
 }}
 .task-button.active .task-dot {{
-  min-width: 10px;
-  min-height: 10px;
+  min-width: {min(dot_size + 2, dot_size * 2)}px;
+  min-height: {min(dot_size + 2, dot_size * 2)}px;
   background-color: {accent};
 }}
 .workspace-chip {{
