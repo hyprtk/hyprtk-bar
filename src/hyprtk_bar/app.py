@@ -4,6 +4,7 @@ from __future__ import annotations
 import cairo
 import logging
 import subprocess
+import time
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -14,9 +15,10 @@ from gi.repository import Gdk, Gio, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .bar import Bar  # noqa: E402
 from .config import PYWAL_PATH, ROFI_SYNC_SH  # noqa: E402
+from .hypr_animations import border_animation  # noqa: E402
 from .ipc import HyprIPC  # noqa: E402
 from .notifications import NotificationController  # noqa: E402
-from .theme import build_css, gap_value, pill_margins, resolve_palette  # noqa: E402
+from .theme import build_css, gap_value, hue_rotate, pill_margins, resolve_palette  # noqa: E402
 from .waybar_theme import find_themes_dir  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.app")
@@ -135,7 +137,13 @@ class BarWindow(Gtk.Window):
         self._refresh_id: int | None = None
         self._wal_monitor: Gio.FileMonitor | None = None
         self._theme_dir_monitor: Gio.FileMonitor | None = None
+        self._hypr_monitor: Gio.FileMonitor | None = None
         self._wal_debounce: int | None = None
+        self._border_anim: dict | None = None
+        self._border_anim_id: int | None = None
+        self._border_hue = 0.0
+        self._border_base = ""
+        self._palette_cache: dict | None = None
 
         self.set_title("hyprtk-bar")
         self.set_decorated(False)
@@ -168,6 +176,12 @@ class BarWindow(Gtk.Window):
         Gtk.StyleContext.add_provider_for_screen(
             self.get_screen(), self._provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
         )
+        # Tiny provider that only overrides the pill's border-color each tick;
+        # loaded after the base provider so it wins the cascade for that property.
+        self._anim_provider = Gtk.CssProvider()
+        Gtk.StyleContext.add_provider_for_screen(
+            self.get_screen(), self._anim_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
+        )
         self._apply_theme()
 
         self._init_layer_shell()
@@ -178,11 +192,14 @@ class BarWindow(Gtk.Window):
         self._bar.start()
 
         self._setup_theme_monitors()
+        self._setup_hypr_monitor()
 
     # ── theming ───────────────────────────────────────────────────
 
     def _apply_theme(self) -> None:
         palette = resolve_palette(self._cfg)
+        self._palette_cache = palette
+        self._border_base = palette.get("border_color") or palette.get("accent") or ""
         css = build_css(palette, self._cfg)
         self._provider.load_from_data(css.encode())
         self._bar.apply_palette_layout(palette)
@@ -195,6 +212,61 @@ class BarWindow(Gtk.Window):
         self._bar.queue_resize()
         self._bar.queue_draw()
         self._sync_rofi_variant()
+        self._setup_border_animation()
+
+    # ── animated border (mirrors Hyprland's border/borderangle) ─────
+
+    def _setup_border_animation(self) -> None:
+        """Start/stop a looping border-color animation mirroring Hyprland.
+
+        The active animations file (``animations-high`` vs ``animations-low``,
+        read from ``hyprland.lua``) sets the ``borderangle``/``border`` speed;
+        the bar rotates its border hue on a period derived from that speed, so
+        the border animates at the same pace as Hyprland's windows. Disabled
+        when the hypr config is unavailable, animations are off, the theme has
+        no border, or ``theme.border_animation`` is false in config.
+        """
+        if self._border_anim_id is not None:
+            GLib.source_remove(self._border_anim_id)
+            self._border_anim_id = None
+        # Only animate when the theme draws a pill border at all.
+        palette = self._palette_cache or {}
+        if not (
+            self._border_base
+            and palette.get("border_width")
+            and (self._cfg.get("theme") or {}).get("border_animation", True)
+        ):
+            self._border_anim = None
+            return
+        anim = border_animation()
+        if not anim:
+            self._border_anim = None
+            return
+        # Higher Hyprland speed = faster loop. A period of 36000ms/speed keeps
+        # a full hue rotation in the ballpark of the window-border animation.
+        speed = max(1, int(anim["speed"]))
+        period_ms = max(300, int(36000 / speed))
+        self._border_anim = {"period_ms": period_ms, "leaf": anim.get("leaf")}
+        self._border_hue = 0.0
+        self._border_anim_id = GLib.timeout_add(33, self._border_anim_tick)
+
+    def _border_anim_tick(self) -> bool:
+        """Advance the border hue and re-render with the animated color."""
+        if self._border_anim is None or self._palette_cache is None:
+            return GLib.SOURCE_REMOVE
+        period = self._border_anim["period_ms"]
+        step = 360.0 * 33.0 / period
+        self._border_hue = (self._border_hue + step) % 360.0
+        color = hue_rotate(self._border_base, self._border_hue)
+        try:
+            self._anim_provider.load_from_data(
+                f".taskbar {{ border-color: {color}; }}".encode()
+            )
+        except GLib.Error:
+            log.warning("failed to load animated-border CSS", exc_info=True)
+            return GLib.SOURCE_REMOVE
+        self._bar.queue_draw()
+        return GLib.SOURCE_CONTINUE
 
     def _sync_rofi_variant(self) -> None:
         """Keep the rofi variant.rasi in lock-step with the bar's theme.
@@ -237,6 +309,31 @@ class BarWindow(Gtk.Window):
             log.warning("Could not monitor themes dir: %s", exc)
         else:
             self._theme_dir_monitor.connect("changed", self._on_theme_source_changed)
+
+    def _setup_hypr_monitor(self) -> None:
+        """Watch the Hyprland config dir for animation-file changes.
+
+        Toggling ``animations-high``/``animations-low`` in ``hyprland.lua``
+        (or editing the speed in either file) re-runs the border animation at
+        the new pace. The monitor fires on any file change in the dir, but the
+        handler is cheap (re-reads the active file and adjusts the timer).
+        """
+        from .hypr_animations import HYPR_DIRS
+
+        target = next((d for d in HYPR_DIRS if d.is_dir()), None)
+        if target is None:
+            return
+        try:
+            self._hypr_monitor = Gio.File.new_for_path(
+                str(target)
+            ).monitor_directory(Gio.FileMonitorFlags.NONE, None)
+        except GLib.Error as exc:
+            log.warning("Could not monitor hypr config dir: %s", exc)
+        else:
+            self._hypr_monitor.connect("changed", self._on_hypr_changed)
+
+    def _on_hypr_changed(self, _monitor, *_args) -> None:
+        self._setup_border_animation()
 
     def _on_theme_source_changed(self, _monitor, *_args) -> None:
         if self._wal_debounce is not None:
@@ -414,11 +511,14 @@ class BarWindow(Gtk.Window):
     # ── shutdown ──────────────────────────────────────────────────
 
     def shutdown(self) -> None:
-        for monitor in (self._wal_monitor, self._theme_dir_monitor):
+        for monitor in (self._wal_monitor, self._theme_dir_monitor, self._hypr_monitor):
             if monitor is not None:
                 monitor.cancel()
         if self._wal_debounce is not None:
             GLib.source_remove(self._wal_debounce)
+        if self._border_anim_id is not None:
+            GLib.source_remove(self._border_anim_id)
+            self._border_anim_id = None
         if self._refresh_id is not None:
             GLib.source_remove(self._refresh_id)
         self._bar.shutdown()

@@ -1,6 +1,7 @@
 """Theming: resolve a palette (pywal + waybar import + config) and emit GTK CSS."""
 from __future__ import annotations
 
+import colorsys
 import logging
 import re
 
@@ -8,6 +9,26 @@ from .config import load_pywal_colors  # noqa: E402
 from .waybar_theme import parse_palette  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.theme")
+
+
+def hue_rotate(hex_color: str, degrees: float) -> str:
+    """Rotate a ``#rrggbb`` color's hue by ``degrees`` (loop-friendly)."""
+    hex_color = (hex_color or "").strip()
+    h = hex_color.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    if len(h) != 6:
+        return hex_color
+    try:
+        r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except ValueError:
+        return hex_color
+    hue, lum, sat = colorsys.rgb_to_hls(r, g, b)
+    hue = (hue + (degrees / 360.0)) % 1.0
+    r, g, b = colorsys.hls_to_rgb(hue, lum, sat)
+    return "#{:02x}{:02x}{:02x}".format(
+        int(round(r * 255)), int(round(g * 255)), int(round(b * 255))
+    )
 
 
 def _contrast_fg(hex_color: str) -> str:
