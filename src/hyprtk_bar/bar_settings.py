@@ -180,6 +180,11 @@ class BarSettings(Gtk.Window):
         buttons.pack_start(apply_btn, False, False, 0)
         root.pack_start(buttons, False, False, 0)
 
+        # Apply the theme's foreground colour directly to every widget so the
+        # dialogue stays readable on light imported themes (GTK's default theme
+        # colours spinbuttons/buttons and overrides inherited .popup-box color).
+        self._apply_theme_fg_class(root)
+
     def _tab_margins(self) -> Gtk.Box:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.set_margin_top(8)
@@ -187,6 +192,95 @@ class BarSettings(Gtk.Window):
         box.set_margin_start(4)
         box.set_margin_end(4)
         return box
+
+    def _apply_theme_fg_class(self, widget) -> None:
+        """Apply the theme's colours to the dialogue and every widget in it.
+
+        GTK's default theme colours spinbuttons/buttons/notebooks directly, and
+        its rules override both inherited ``.popup-box`` colour and screen-level
+        CSS — so on light imported themes (hyprtk-light, -negative, -reverse)
+        those widgets stayed dark-theme and unreadable. The deprecated
+        ``override_*`` API sets colours at a level that beats the theme, which
+        is the reliable way to force the dialogue to follow the chosen theme.
+
+        Applies the theme foreground to all text, the theme background to the
+        window and widgets (removing the dark backdrop ring that looked like a
+        second border), and the pywal **accent** to selected/active/checked
+        states so the dialogue matches the bar's accent colours.
+        """
+        from .theme import resolve_palette
+        import re
+
+        palette = resolve_palette(self._cfg)
+        fg = palette.get("foreground", "#14141e")
+        bg = palette.get("background", "#ffffff")
+        accent = palette.get("accent", "#7aa2f7")
+
+        def _hex(color: str) -> str:
+            m = re.search(r"rgba?\((\d+),\s*(\d+),\s*(\d+)", color)
+            if m:
+                return "#%02x%02x%02x" % (
+                    int(m.group(1)), int(m.group(2)), int(m.group(3))
+                )
+            return color
+
+        def _rgba(hex_color: str):
+            h = hex_color.lstrip("#")
+            if len(h) == 3:
+                h = "".join(c * 2 for c in h)
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            return Gdk.RGBA(r / 255, g / 255, b / 255, 1.0)
+
+        fg_rgba = _rgba(_hex(fg))
+        bg_rgba = _rgba(_hex(bg))
+        accent_rgba = _rgba(_hex(accent))
+
+        states = (
+            Gtk.StateFlags.NORMAL,
+            Gtk.StateFlags.ACTIVE,
+            Gtk.StateFlags.SELECTED,
+            Gtk.StateFlags.INSENSITIVE,
+            Gtk.StateFlags.FOCUSED,
+            Gtk.StateFlags.BACKDROP,
+            Gtk.StateFlags.SELECTED | Gtk.StateFlags.FOCUSED,
+        )
+        selected_states = (
+            Gtk.StateFlags.SELECTED,
+            Gtk.StateFlags.ACTIVE,
+            Gtk.StateFlags.CHECKED if hasattr(Gtk.StateFlags, "CHECKED") else Gtk.StateFlags.ACTIVE,
+        )
+
+        def _apply(w):
+            if isinstance(w, (Gtk.Label, Gtk.SpinButton, Gtk.Button,
+                              Gtk.CheckButton, Gtk.RadioButton, Gtk.ToggleButton,
+                              Gtk.Notebook, Gtk.FontButton, Gtk.ScrolledWindow,
+                              Gtk.TreeView, Gtk.ComboBoxText, Gtk.Entry)):
+                for state in states:
+                    try:
+                        w.override_color(state, fg_rgba)
+                        w.override_background_color(state, bg_rgba)
+                    except Exception:
+                        pass
+                # Accent on selected/active/checked states (radio + check
+                # buttons, active notebook tabs, selected rows).
+                for state in selected_states:
+                    try:
+                        w.override_color(state, accent_rgba)
+                    except Exception:
+                        pass
+            if isinstance(w, Gtk.Container):
+                for child in w.get_children():
+                    _apply(child)
+
+        # Theme the toplevel window background too, so the dialogue shows one
+        # themed surface (no dark GTK backdrop ring around the light panel).
+        try:
+            for state in states:
+                self.override_background_color(state, bg_rgba)
+        except Exception:
+            pass
+
+        _apply(widget)
 
     def _build_bar_tab(self) -> Gtk.Box:
         tab = self._tab_margins()
@@ -642,6 +736,13 @@ class BarSettings(Gtk.Window):
             self._active_anim_mode(),
             int(self._anim_speed.get_value()),
         )
+
+        # The theme actions above mutate the shared cfg and re-theme the bar,
+        # but this window's widgets keep their build-time override colours.
+        # Re-apply them so the dialogue itself follows the newly selected theme
+        # (e.g. the light imported themes: light frame must come with light
+        # contents, not stale dark widget colours).
+        self._apply_theme_fg_class(self.get_child())
 
     def _on_reset(self, *_args) -> None:
         self._actions["reset_layout"]()
