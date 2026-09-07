@@ -79,10 +79,12 @@ class BarSettings(Gtk.Window):
         self.set_keep_above(True)
         self.set_default_size(620, 580)
         self.set_position(Gtk.WindowPosition.CENTER)
-        # Theme the dialogue like the bar's popups via the ``.popup-box`` class
-        # on its root box (background + border), so it shares their animated
-        # border. A normal toplevel keeps its own opaque backing (no rgba
-        # visual / app_paintable — that renders black on a non-layer window).
+        # Transparent toplevel so the theme's opacity (via .popup-box alpha)
+        # shows through to the desktop, like the bar's popups.
+        self.set_app_paintable(True)
+        visual = self.get_screen().get_rgba_visual()
+        if visual:
+            self.set_visual(visual)
         self.connect("key-press-event", self._on_key)
         self._build()
         self.show_all()
@@ -328,14 +330,6 @@ class BarSettings(Gtk.Window):
             if isinstance(w, Gtk.Container):
                 for child in w.get_children():
                     _apply(child)
-
-        # Theme the toplevel window background so the dialogue shows one themed
-        # surface (no dark GTK backdrop ring around the light panel).
-        try:
-            for state in states:
-                self.override_background_color(state, _rgba(_hex(bg)))
-        except Exception:
-            pass
 
         _apply(widget)
 
