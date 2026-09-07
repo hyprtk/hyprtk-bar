@@ -95,7 +95,7 @@ class BarSettings(Gtk.Window):
         provider.load_from_data(
             b"""
 .settings-title { font-weight: bold; font-size: 14px; }
-.settings-header { background-color: alpha(currentColor, 0.06);
+.settings-header { background-color: transparent;
                    border-bottom: 1px solid alpha(currentColor, 0.12);
                    border-radius: 8px 8px 0 0;
                    padding: 8px 10px; }
