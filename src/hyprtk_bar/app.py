@@ -245,10 +245,11 @@ class BarWindow(Gtk.Window):
         if not anim:
             self._border_anim = None
             return
-        # Higher Hyprland speed = faster loop. A period of 36000ms/speed keeps
-        # a full hue rotation in the ballpark of the window-border animation.
+        # Hyprland's ``speed`` is the animation duration in ds (1 ds = 100 ms),
+        # so a full borderangle rotation takes speed * 100 ms. Mirror that
+        # period exactly so the bar border moves at the same pace as Hyprland's.
         speed = max(1, int(anim["speed"]))
-        period_ms = max(300, int(36000 / speed))
+        period_ms = max(200, int(speed * 100))
         self._border_anim = {"period_ms": period_ms, "leaf": anim.get("leaf")}
         self._border_hue = 0.0
         self._border_anim_id = GLib.timeout_add(33, self._border_anim_tick)
