@@ -21,7 +21,6 @@ log = logging.getLogger("hyprtk_bar.config")
 # sections, and the bar menu can show/hide individual modules.
 MODULE_IDS = [
     "start_button",
-    "themer",
     "quicklinks",
     "workspaces",
     "tasklist",
@@ -37,7 +36,6 @@ MODULE_IDS = [
 
 MODULE_LABELS = {
     "start_button": "Start button",
-    "themer": "Theme manager",
     "quicklinks": "Quick links",
     "workspaces": "Workspaces",
     "tasklist": "Task list",
@@ -52,7 +50,7 @@ MODULE_LABELS = {
 }
 
 DEFAULT_LAYOUT = {
-    "left": ["start_button", "themer", "quicklinks", "workspaces", "tasklist"],
+    "left": ["start_button", "quicklinks", "workspaces", "tasklist"],
     "center": ["window"],
     "right": ["updates", "sysmon", "kbstate", "clock", "notifications", "tray", "quicksettings"],
 }
@@ -87,6 +85,13 @@ DEFAULT_LINKS = [
         "label": "Web browser",
         "icon": "\uf0ac",  # nf-fa-globe
         "command": "",
+    },
+    {
+        "id": "wallpaper",
+        "label": "Wallpaper",
+        "icon": "\uf03e",  # nf-fa-picture_o
+        "command": "",  # opens the in-bar Theme Manager dialogue
+        "command_right": "~/hyprtk/installer/scripts/updatewal-awww.sh",
     },
     {
         "id": "cliphist",
@@ -427,9 +432,6 @@ def _normalize_layout(raw: dict, valid: dict) -> dict:
     ql = valid.get("quicklinks") or {}
     if ql.get("enabled", True):
         layout["left"].append("quicklinks")
-    themer = valid.get("themer") or {}
-    if themer.get("enabled", True):
-        layout["left"].append("themer")
     if workspaces.get("enabled", True):
         layout["center"].append("workspaces")
     layout["center"].append("tasklist")

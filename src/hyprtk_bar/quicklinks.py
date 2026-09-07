@@ -19,6 +19,7 @@ from gi.repository import Gio, Gtk  # noqa: E402
 
 from .config import DEFAULT_LINKS, icon_size_for  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
+from .themer import ThemerDialog  # noqa: E402
 from .widgets import Glyph, HoverButton, spawn  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.quicklinks")
@@ -97,10 +98,44 @@ class QuickLinkButton(HoverButton):
         return True
 
 
-class QuickLinks(Gtk.Box):
-    """The module: a horizontal row of QuickLinkButtons."""
+class ThemerLinkButton(QuickLinkButton):
+    """The wallpaper quick link — opens the in-bar Theme Manager dialogue.
 
-    def __init__(self, cfg: dict, ipc=None):
+    Left-click toggles ThemerDialog (the theming dialogue from theme-gui);
+    right-click re-runs the wallpaper palette regeneration. The glyph lives
+    here, inside the quicklinks row.
+    """
+
+    def __init__(self, cfg: dict, link: dict, icon_size: int, restart_cb=None):
+        super().__init__(cfg, link, icon_size)
+        self._cfg = cfg
+        self._popup = ThemerDialog(cfg, restart_cb=restart_cb)
+
+    def _on_button_press(self, _widget, event):
+        if event.button == 1:
+            if self._popup.get_visible():
+                self._popup.hide_popup()
+            else:
+                self._popup.show_above(self)
+        elif event.button == 3:
+            command = self._link.get("command_right") or ""
+            if command and not _launch(command):
+                log.warning("failed to spawn wallpaper regen %r", command)
+        return True
+
+    def shutdown(self) -> None:
+        if self._popup is not None and self._popup.get_visible():
+            self._popup.hide_popup()
+
+
+class QuickLinks(Gtk.Box):
+    """The module: a horizontal row of QuickLinkButtons.
+
+    The ``wallpaper`` link is a ``ThemerLinkButton`` — it opens the in-bar
+    Theme Manager dialogue instead of spawning an external command.
+    """
+
+    def __init__(self, cfg: dict, ipc=None, restart_cb=None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         self._cfg = cfg
         self._buttons: list[QuickLinkButton] = []
@@ -108,9 +143,19 @@ class QuickLinks(Gtk.Box):
         for link in links:
             if not isinstance(link, dict) or not link.get("icon"):
                 continue
-            button = QuickLinkButton(cfg, link, self._glyph_size())
+            if link.get("id") == "wallpaper":
+                button = ThemerLinkButton(cfg, link, self._glyph_size(),
+                                          restart_cb=restart_cb)
+            else:
+                button = QuickLinkButton(cfg, link, self._glyph_size())
             self._buttons.append(button)
             self.pack_start(button, False, False, 0)
+
+    def shutdown(self) -> None:
+        for button in self._buttons:
+            shutdown = getattr(button, "shutdown", None)
+            if shutdown is not None:
+                shutdown()
 
     def _glyph_size(self, font_size=None, icon_size=0) -> int:
         ql = self._cfg.get("quicklinks") or {}

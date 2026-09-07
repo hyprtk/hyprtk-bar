@@ -1,10 +1,11 @@
-"""System theming dialogue + module for hyprtk-bar.
+"""System theming dialogue for hyprtk-bar.
 
-Opened by the ``themer`` module (the wallpaper glyph): a layer-shell panel with
-a sidebar of theming pages — Wallpaper / Pywal / Rofi / Bar themes / Matuwall /
-Swaylock / Icons / SDDM & GRUB. This is theme-gui's functionality ported into
-the bar (GTK4/Adwaita -> GTK3/layer-shell) so the bar can theme the system
-itself, matching the rest of the desktop through the shared palette.
+Opened by the wallpaper quick link (the wallpaper glyph inside the quicklinks
+module): a layer-shell panel with a sidebar of theming pages — Wallpaper /
+Pywal / Rofi / Bar themes / Matuwall / Swaylock / Icons / SDDM & GRUB. This is
+theme-gui's functionality ported into the bar (GTK4/Adwaita -> GTK3/layer-shell)
+so the bar can theme the system itself, matching the rest of the desktop through
+the shared palette.
 
 The dialogue is a ``Popup`` (layer-shell) like the system monitor, but keeps
 ``ON_DEMAND`` keyboard focus so its text entries are usable. All colours come
@@ -29,8 +30,8 @@ gi.require_version("GtkLayerShell", "0.1")
 
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell  # noqa: E402
 
-from .popup import Popup, bind_hover_tooltip  # noqa: E402
-from .widgets import Glyph, HoverButton, spawn  # noqa: E402
+from .popup import Popup  # noqa: E402
+from .widgets import Glyph, HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.themer")
 
@@ -1607,54 +1608,3 @@ def _read_wal_hex() -> list[str]:
         if line.startswith("#") and len(line) == 7:
             result.append(line[1:].upper())
     return result
-
-
-# ── the bar module (wallpaper glyph) ──────────────────────────────────────
-
-
-class ThemerButton(HoverButton):
-    """Wallpaper-glyph module that opens the theming dialogue.
-
-    Left-click opens ThemerDialog; right-click re-runs the wallpaper palette
-    regeneration (the old quicklink's ``command_right`` behaviour, now that the
-    themer module owns the wallpaper glyph).
-    """
-
-    def __init__(self, cfg: dict, ipc=None, restart_cb=None):
-        super().__init__("task-button themer", vertical=False, spacing=2)
-        self._cfg = cfg
-        self._ipc = ipc
-        self._restart_cb = restart_cb
-        font_cfg = cfg.get("font") or {}
-        self._glyph = Glyph("\uf03e", "accent-icon")  # fa-picture-o
-        self._glyph.set_pixel_size(
-            self._icon_size(font_cfg.get("size", 16), font_cfg.get("icon_size", 0))
-        )
-        self.box.pack_start(self._glyph, False, False, 0)
-        bind_hover_tooltip(self, cfg, lambda: "Theme manager")
-        self._popup = ThemerDialog(cfg, restart_cb=restart_cb)
-
-    @staticmethod
-    def _icon_size(font_size, icon_size=0) -> int:
-        from .config import icon_size_for
-        return icon_size_for(font_size, icon_size)
-
-    def apply_font(self, font_size, icon_size=0) -> None:
-        self._glyph.set_pixel_size(self._icon_size(font_size, icon_size))
-
-    def _toggle(self) -> None:
-        if self._popup.get_visible():
-            self._popup.hide_popup()
-        else:
-            self._popup.show_above(self)
-
-    def shutdown(self) -> None:
-        if self._popup is not None and self._popup.get_visible():
-            self._popup.hide_popup()
-
-    def _on_button_press(self, _widget, event):
-        if event.button == 1:
-            self._toggle()
-        elif event.button == 3:
-            spawn("~/hyprtk/installer/scripts/updatewal-awww.sh")
-        return True
