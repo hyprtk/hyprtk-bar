@@ -15,10 +15,10 @@ from gi.repository import Gdk, Gio, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .bar import Bar  # noqa: E402
 from .config import PYWAL_PATH, ROFI_SYNC_SH  # noqa: E402
-from .hypr_animations import border_animation  # noqa: E402
+from .hypr_animations import active_border_colors, border_animation, lerp_color  # noqa: E402
 from .ipc import HyprIPC  # noqa: E402
 from .notifications import NotificationController  # noqa: E402
-from .theme import build_css, gap_value, hue_rotate, pill_margins, resolve_palette  # noqa: E402
+from .theme import build_css, gap_value, pill_margins, resolve_palette  # noqa: E402
 from .waybar_theme import find_themes_dir  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.app")
@@ -225,9 +225,12 @@ class BarWindow(Gtk.Window):
         - ``custom`` — ``animations.speed`` from the bar config, independent of
           Hyprland.
 
-        The bar rotates its border hue on a period derived from that speed.
-        Disabled when the theme draws no border, animations are off there, or
-        ``theme.border_animation`` is false in config.
+        The border interpolates between Hyprland's two ``active_border``
+        colours (``color11`` + ``color4`` from ``window.lua``) on a ping-pong
+        loop, at a period derived from that speed — mirroring the borderangle
+        gradient, not a full hue wheel. Disabled when the theme draws no
+        border, animations are off there, or ``theme.border_animation`` is
+        false in config.
         """
         if self._border_anim_id is not None:
             GLib.source_remove(self._border_anim_id)
@@ -245,23 +248,35 @@ class BarWindow(Gtk.Window):
         if not anim:
             self._border_anim = None
             return
+        colors = active_border_colors()
+        if not colors:
+            self._border_anim = None
+            return
         # Hyprland's ``speed`` is the animation duration in ds (1 ds = 100 ms),
-        # so a full borderangle rotation takes speed * 100 ms. Mirror that
-        # period exactly so the bar border moves at the same pace as Hyprland's.
+        # so a full borderangle rotation takes speed * 100 ms. A ping-pong
+        # A->B->A is one round trip, so use half the period per leg.
         speed = max(1, int(anim["speed"]))
         period_ms = max(200, int(speed * 100))
-        self._border_anim = {"period_ms": period_ms, "leaf": anim.get("leaf")}
+        self._border_anim = {
+            "period_ms": period_ms,
+            "leaf": anim.get("leaf"),
+            "color_a": colors[0],
+            "color_b": colors[1],
+        }
         self._border_hue = 0.0
         self._border_anim_id = GLib.timeout_add(33, self._border_anim_tick)
 
     def _border_anim_tick(self) -> bool:
-        """Advance the border hue and re-render with the animated color."""
+        """Advance the border blend and re-render with the animated color."""
         if self._border_anim is None or self._palette_cache is None:
             return GLib.SOURCE_REMOVE
         period = self._border_anim["period_ms"]
-        step = 360.0 * 33.0 / period
-        self._border_hue = (self._border_hue + step) % 360.0
-        color = hue_rotate(self._border_base, self._border_hue)
+        # Ping-pong: 0 -> 1 -> 0 over the period (one leg = half the period).
+        self._border_hue = (self._border_hue + 33.0 / (period / 2.0)) % 2.0
+        t = self._border_hue if self._border_hue <= 1.0 else 2.0 - self._border_hue
+        color = lerp_color(
+            self._border_anim["color_a"], self._border_anim["color_b"], t
+        )
         try:
             # Animate the pill border plus every popup/dialogue that carries
             # the themed ``.popup-box`` border (notification center, quick
