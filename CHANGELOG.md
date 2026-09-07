@@ -5,6 +5,23 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-07
 
+### Changed
+
+- **Waybar theme schema renamed to hyprtk-native** — `theme.source: "waybar"`
+  is now `"imported"` and `theme.waybar_theme` is now `theme.theme_name`.
+  Old configs auto-migrate (source waybar→imported, `waybar_theme` pops into
+  `theme_name`); the `waybar_theme.py` module is now `theme_import.py`.
+  All consumers (menu, arc-menu, theme-gui, rofi sync) follow the new schema.
+- **Settings dialogue applies the theme's transparency** — the window is now a
+  transparent toplevel (`set_app_paintable` + rgba visual, same as the monitor
+  popups) and no longer forces an opaque background, so the imported theme /
+  pywal opacity shows through to the desktop.
+- **Settings header background is transparent** — removed the
+  `alpha(currentColor, 0.06)` band behind the "Bar Settings" title (was a grey
+  block on light themes).
+
+## [0.1.0] - 2026-09-07
+
 ### Added
 
 - **Animated border mirroring Hyprland** — the pill border color loops through
