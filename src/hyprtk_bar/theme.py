@@ -559,8 +559,8 @@ menu separator {{
   color: {fg}; background-color: transparent;
 }}
 .settings-check:checked, .settings-radio:checked {{ color: {accent}; }}
-/* Arc Menu settings widgets — notebook tabs, switches and colour buttons use
-   the theme fg/accent so the page matches the rest of the dialogue. */
+/* Arc Menu settings widgets — notebook tabs and colour buttons use the theme
+   fg/accent so the page matches the rest of the dialogue. */
 .settings-notebook {{ background-color: transparent; }}
 .settings-notebook header {{ background-color: transparent; }}
 .settings-notebook tab {{
@@ -570,16 +570,6 @@ menu separator {{
 .settings-notebook tab:checked {{
   background-color: {_rgba(accent, 0.18)}; color: {accent};
 }}
-.settings-switch {{
-  min-width: 34px; min-height: 18px; border-radius: 9px;
-  background-color: {_rgba(palette["foreground"], 0.22)};
-}}
-.settings-switch slider {{
-  min-width: 14px; min-height: 14px; border-radius: 7px;
-  margin: 2px; background-color: {fg};
-}}
-.settings-switch:checked {{ background-color: {accent}; }}
-.settings-switch:checked slider {{ background-color: {_contrast_fg(accent)}; }}
 .settings-color {{
   color: {fg}; background-color: transparent;
   border: 1px solid {_rgba(palette["foreground"], 0.18)}; border-radius: 5px;

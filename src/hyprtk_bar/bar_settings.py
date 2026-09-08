@@ -376,13 +376,11 @@ class BarSettings(Gtk.Window):
 
         def _apply(w):
             ctx = w.get_style_context()
-            # Arc Menu widgets — notebook tab strip, switches and colour buttons
-            # get theme classes so they follow the palette like the rest of the
-            # dialogue (ColorButton must precede Button — it subclasses it).
+            # Arc Menu widgets — notebook tab strip and colour buttons get theme
+            # classes so they follow the palette like the rest of the dialogue
+            # (ColorButton must precede Button — it subclasses it).
             if isinstance(w, Gtk.Notebook):
                 ctx.add_class("settings-notebook")
-            elif isinstance(w, Gtk.Switch):
-                ctx.add_class("settings-switch")
             elif isinstance(w, Gtk.ColorButton):
                 ctx.add_class("settings-color")
             elif isinstance(w, Gtk.Button):
@@ -765,7 +763,7 @@ class BarSettings(Gtk.Window):
         hint.set_opacity(0.8)
         tab.pack_start(hint, False, False, 0)
 
-        self._arc_enabled = self._switch_row(tab, "Enabled", bool(arc.get("enabled", True)))
+        self._arc_enabled = self._radio_bool_row(tab, "Enabled", bool(arc.get("enabled", True)))
 
         pos_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         pos_label = Gtk.Label(label="Position:", xalign=1)
@@ -817,8 +815,8 @@ class BarSettings(Gtk.Window):
         icon_row.pack_start(icon_hint, False, False, 0)
         tab.pack_start(icon_row, False, False, 0)
 
-        self._arc_unfocus = self._switch_row(tab, "Close on unfocus", bool(arc.get("close_on_unfocus", False)))
-        self._arc_click = self._switch_row(tab, "Close on item click", bool(arc.get("close_on_click", True)))
+        self._arc_unfocus = self._radio_bool_row(tab, "Close on unfocus", bool(arc.get("close_on_unfocus", False)))
+        self._arc_click = self._radio_bool_row(tab, "Close on item click", bool(arc.get("close_on_click", True)))
 
     def _build_arc_source(self, tab: Gtk.Box, arc: dict) -> None:
         hint = Gtk.Label(
@@ -828,9 +826,9 @@ class BarSettings(Gtk.Window):
         )
         hint.set_opacity(0.8)
         tab.pack_start(hint, False, False, 0)
-        self._arc_pywal = self._switch_row(tab, "Use pywal colors", bool(arc.get("use_pywal", True)))
-        self._arc_follow = self._switch_row(tab, "Follow bar theme", bool(arc.get("follow_bar", True)))
-        self._arc_transparent = self._switch_row(tab, "Transparent (icons only)", bool(arc.get("transparent", False)))
+        self._arc_pywal = self._radio_bool_row(tab, "Use pywal colors", bool(arc.get("use_pywal", True)))
+        self._arc_follow = self._radio_bool_row(tab, "Follow bar theme", bool(arc.get("follow_bar", True)))
+        self._arc_transparent = self._radio_bool_row(tab, "Transparent (icons only)", bool(arc.get("transparent", False)))
 
     def _build_arc_colors(self, tab: Gtk.Box, arc: dict) -> None:
         hint = Gtk.Label(
@@ -892,17 +890,25 @@ class BarSettings(Gtk.Window):
             btn_row.pack_start(b, False, False, 0)
         tab.pack_start(btn_row, False, False, 0)
 
-    def _switch_row(self, tab: Gtk.Box, label: str, active: bool) -> Gtk.Switch:
+    def _radio_bool_row(self, tab: Gtk.Box, label: str, active: bool) -> Gtk.RadioButton:
+        """A label + an Enable/Disable radio-button pair.
+
+        Returns the "Enable" button — ``get_active()`` is True when enabled, so
+        the existing ``_active_arc_block`` readers work unchanged.
+        """
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         lbl = Gtk.Label(label=label, xalign=1)
         lbl.set_size_request(150, -1)
-        switch = Gtk.Switch()
-        switch.set_active(active)
-        switch.set_hexpand(True)
+        buttons = _radio_group([("enable", "Enable"), ("disable", "Disable")])
+        buttons["enable" if active else "disable"].set_active(True)
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for btn in buttons.values():
+            box.pack_start(btn, False, False, 0)
+        box.set_hexpand(True)
         row.pack_start(lbl, False, False, 0)
-        row.pack_start(switch, True, True, 0)
+        row.pack_start(box, True, True, 0)
         tab.pack_start(row, False, False, 0)
-        return switch
+        return buttons["enable"]
 
     def _spin_row(self, tab: Gtk.Box, label: str, value: int, lo: int, hi: int, step: int) -> Gtk.SpinButton:
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
