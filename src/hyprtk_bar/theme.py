@@ -530,7 +530,7 @@ menu separator {{
    Standard GTK widgets (spinbuttons/entries/buttons) still get the theme fg/bg
    via the settings window's override pass; these classes drive the chrome. */
 .settings-title {{ font-weight: bold; font-size: 14px; }}
-.settings-label {{ color: {fg}; font-size: 13px; }}
+.settings-label {{ font-size: 13px; }}
 .settings-value {{ font-weight: bold; }}
 .settings-section {{ background-color: {_rgba(palette["foreground"], 0.04)}; border-radius: 8px; padding: 8px; }}
 .settings-section-title {{ font-size: 11px; opacity: 0.85; font-weight: bold; }}
