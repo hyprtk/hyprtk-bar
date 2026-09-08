@@ -718,18 +718,38 @@ class BarSettings(Gtk.Window):
     ]
 
     def _build_arcmenu_tab(self, page: Gtk.Box) -> None:
-        from .arcmenu import POSITIONS
-
         arc = self._cfg.get("arcmenu") or {}
         self._arc_items: list[dict] = [dict(i) for i in arc.get("items", [])]
 
+        notebook = Gtk.Notebook()
+        notebook.set_vexpand(True)
+        page.pack_start(notebook, True, True, 0)
+
+        general = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self._build_arc_general(general, arc)
+        notebook.append_page(self._scroll_tab(general), Gtk.Label(label="General"))
+
+        source = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self._build_arc_source(source, arc)
+        notebook.append_page(self._scroll_tab(source), Gtk.Label(label="Source"))
+
+        colors = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self._build_arc_colors(colors, arc)
+        notebook.append_page(self._scroll_tab(colors), Gtk.Label(label="Colors"))
+
+        items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self._build_arc_items_tab(items)
+        notebook.append_page(items, Gtk.Label(label="Menu Items"))
+
+    @staticmethod
+    def _scroll_tab(box: Gtk.Box) -> Gtk.ScrolledWindow:
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroller.set_vexpand(True)
-        tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        scroller.add(tab)
-        page.pack_start(scroller, True, True, 0)
+        scroller.add(box)
+        return scroller
 
+    def _build_arc_general(self, tab: Gtk.Box, arc: dict) -> None:
         hint = Gtk.Label(
             label="The arc menu is an overlay owned by the bar, toggled by the "
             "FAB or Super+Ctrl+M. It follows the bar theme and pywal.",
@@ -738,10 +758,8 @@ class BarSettings(Gtk.Window):
         hint.set_opacity(0.8)
         tab.pack_start(hint, False, False, 0)
 
-        # enabled
         self._arc_enabled = self._switch_row(tab, "Enabled", bool(arc.get("enabled", True)))
 
-        # position — 2x3 radio grid
         pos_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         pos_label = Gtk.Label(label="Position:", xalign=1)
         pos_label.set_size_request(70, -1)
@@ -760,7 +778,6 @@ class BarSettings(Gtk.Window):
         pos_row.pack_start(grid, True, True, 0)
         tab.pack_start(pos_row, False, False, 0)
 
-        # shape
         shape_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         shape_label = Gtk.Label(label="Shape:", xalign=1)
         shape_label.set_size_request(70, -1)
@@ -774,14 +791,12 @@ class BarSettings(Gtk.Window):
         shape_row.pack_start(shape_box, True, True, 0)
         tab.pack_start(shape_row, False, False, 0)
 
-        # numeric fields
         self._arc_radius = self._spin_row(tab, "Radius (px)", arc.get("radius", 140), 40, 600, 10)
         self._arc_margin = self._spin_row(tab, "Margin (px)", arc.get("margin", 24), 0, 200, 2)
         self._arc_fab = self._spin_row(tab, "Menu button size", arc.get("fab_size", 56), 24, 120, 4)
         self._arc_item = self._spin_row(tab, "Item size", arc.get("item_size", 48), 24, 120, 4)
         self._arc_anim = self._spin_row(tab, "Animation (ms)", arc.get("animation_time", 300), 50, 2000, 25)
 
-        # fab icon
         icon_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         icon_label = Gtk.Label(label="Menu icon:", xalign=1)
         icon_label.set_size_request(70, -1)
@@ -795,14 +810,28 @@ class BarSettings(Gtk.Window):
         icon_row.pack_start(icon_hint, False, False, 0)
         tab.pack_start(icon_row, False, False, 0)
 
-        # switches
-        self._arc_pywal = self._switch_row(tab, "Use pywal colors", bool(arc.get("use_pywal", True)))
-        self._arc_follow = self._switch_row(tab, "Follow bar theme", bool(arc.get("follow_bar", True)))
-        self._arc_transparent = self._switch_row(tab, "Transparent (icons only)", bool(arc.get("transparent", False)))
         self._arc_unfocus = self._switch_row(tab, "Close on unfocus", bool(arc.get("close_on_unfocus", False)))
         self._arc_click = self._switch_row(tab, "Close on item click", bool(arc.get("close_on_click", True)))
 
-        # colours
+    def _build_arc_source(self, tab: Gtk.Box, arc: dict) -> None:
+        hint = Gtk.Label(
+            label="Where the arc menu's look comes from. Follow bar theme mirrors "
+            "the bar's palette glass + text; pywal keeps color5/color6 accents.",
+            xalign=0, wrap=True,
+        )
+        hint.set_opacity(0.8)
+        tab.pack_start(hint, False, False, 0)
+        self._arc_pywal = self._switch_row(tab, "Use pywal colors", bool(arc.get("use_pywal", True)))
+        self._arc_follow = self._switch_row(tab, "Follow bar theme", bool(arc.get("follow_bar", True)))
+        self._arc_transparent = self._switch_row(tab, "Transparent (icons only)", bool(arc.get("transparent", False)))
+
+    def _build_arc_colors(self, tab: Gtk.Box, arc: dict) -> None:
+        hint = Gtk.Label(
+            label="Used when pywal / follow-bar theming is off (or as a fallback).",
+            xalign=0, wrap=True,
+        )
+        hint.set_opacity(0.8)
+        tab.pack_start(hint, False, False, 0)
         self._arc_fab_color = Gtk.ColorButton()
         self._arc_fab_color.set_rgba(_hex_to_rgba(arc.get("fab_color", "#c084fc")))
         self._arc_item_color = Gtk.ColorButton()
@@ -822,17 +851,21 @@ class BarSettings(Gtk.Window):
         item_color_row.pack_start(self._arc_item_color, True, True, 0)
         tab.pack_start(item_color_row, False, False, 0)
 
-        # items editor
-        items_label = Gtk.Label(label="Menu items:", xalign=0)
-        items_label.get_style_context().add_class("mc-page-title")
-        items_label.set_margin_top(6)
-        tab.pack_start(items_label, False, False, 0)
+    def _build_arc_items_tab(self, tab: Gtk.Box) -> None:
+        hint = Gtk.Label(
+            label="Items fan out from the menu button. Action 'settings' opens "
+            "the bar settings instead of a command.",
+            xalign=0, wrap=True,
+        )
+        hint.set_opacity(0.8)
+        tab.pack_start(hint, False, False, 0)
         self._arc_list = Gtk.ListBox()
         self._arc_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self._populate_arc_items()
         items_scroll = Gtk.ScrolledWindow()
         items_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         items_scroll.set_min_content_height(160)
+        items_scroll.set_vexpand(True)
         items_scroll.add(self._arc_list)
         tab.pack_start(items_scroll, True, True, 0)
         btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
