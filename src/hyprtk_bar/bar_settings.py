@@ -376,9 +376,16 @@ class BarSettings(Gtk.Window):
 
         def _apply(w):
             ctx = w.get_style_context()
-            # Buttons / labels / check / radio: semantic classes (transparent
-            # backgrounds, theme text + accent) — no opaque override blocks.
-            if isinstance(w, Gtk.Button):
+            # Arc Menu widgets — notebook tab strip, switches and colour buttons
+            # get theme classes so they follow the palette like the rest of the
+            # dialogue (ColorButton must precede Button — it subclasses it).
+            if isinstance(w, Gtk.Notebook):
+                ctx.add_class("settings-notebook")
+            elif isinstance(w, Gtk.Switch):
+                ctx.add_class("settings-switch")
+            elif isinstance(w, Gtk.ColorButton):
+                ctx.add_class("settings-color")
+            elif isinstance(w, Gtk.Button):
                 if w.get_relief() != Gtk.ReliefStyle.NONE:
                     w.set_relief(Gtk.ReliefStyle.NONE)
                 # The accent Apply button keeps its .settings-apply styling.
@@ -1360,6 +1367,10 @@ class _ArcItemDialog(Gtk.Dialog):
         )
         hint.set_margin_top(4)
         box.pack_start(hint, False, False, 0)
+        # Theme the dialog's widgets (content + action buttons) so it matches
+        # the bar settings dialogue's pywal/imported-theme look.
+        if hasattr(parent, "_apply_theme_fg_class"):
+            parent._apply_theme_fg_class(self)
         self.show_all()
 
     def run_dialog(self) -> dict | None:
