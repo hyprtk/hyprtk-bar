@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hyprtk-bar"
 version = "0.1.0"
-description = "Windows 11-style taskbar for Hyprland (GTK3 + layer shell)"
+description = "Hyprtk taskbar for Hyprland (GTK3 + layer shell)"
 requires-python = ">=3.10"
 dependencies = [
     "pygobject>=3.48",

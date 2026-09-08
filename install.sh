@@ -46,9 +46,3 @@ update-desktop-database "$APPS_DIR" 2>/dev/null || true
 echo ":: Installed to $BIN_DIR/$APP_NAME"
 echo ":: Config: ~/.config/hyprtk-bar/config.json"
 echo ":: Run './install.sh --uninstall' to remove"
-
-cat << 'HINT'
-
-  Hyprland autostart — add to ~/.config/hypr/hyprland.conf:
-      exec-once = $HOME/.local/bin/hyprtk-bar
-HINT
