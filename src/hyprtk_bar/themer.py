@@ -31,6 +31,7 @@ gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .popup import Popup  # noqa: E402
+from .theme_import import import_theme, list_themes  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.themer")
@@ -40,7 +41,6 @@ HOME = Path.home()
 HYPRTK = HOME / "hyprtk"
 WAL_CACHE = HOME / ".cache" / "wal"
 BAR_CONFIG = HOME / ".config" / "hyprtk-bar" / "config.json"
-BAR_THEMES = HOME / ".config" / "hyprtk-bar" / "themes"
 ROFI_CONFIG = HOME / ".config" / "rofi"
 ROFI_VARIANTS = ROFI_CONFIG / "variants"
 ROFI_VARIANT_LINK = ROFI_CONFIG / "variant.rasi"
@@ -319,6 +319,24 @@ def _set_label_css(widget: Gtk.Widget, css: str):
     widget.get_style_context().add_provider(
         provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
     )
+
+
+def _radio_group(labels: list[tuple[str, str]]) -> dict[str, Gtk.RadioButton]:
+    """Build a Gtk.RadioButton group from ``(key, label)`` pairs.
+
+    Mirrors bar_settings._radio_group: buttons are created standalone and
+    joined with ``join_group`` (new_with_label(group=...) is unreliable here).
+    """
+    buttons: dict[str, Gtk.RadioButton] = {}
+    first: Gtk.RadioButton | None = None
+    for key, label in labels:
+        btn = Gtk.RadioButton(group=None, label=label)
+        if first is not None:
+            btn.join_group(first)
+        else:
+            first = btn
+        buttons[key] = btn
+    return buttons
 
 
 class ColorButton(Gtk.Button):
@@ -1113,53 +1131,129 @@ class ThemerDialog(Popup):
     # ── bar themes ────────────────────────────────────────────────
 
     def _build_bar_page(self, box: Gtk.Box, scroller: Gtk.ScrolledWindow | None = None) -> None:
+        self._bar_ready = False
+
         self._bar_active = Gtk.Label(label="Active theme: ...", xalign=0)
         self._bar_active.get_style_context().add_class("mc-page-title")
         box.pack_start(self._bar_active, False, False, 0)
 
-        self._theme_list = Gtk.ListBox()
-        self._theme_list.set_selection_mode(Gtk.SelectionMode.NONE)
-        self._theme_list.connect("row-activated", self._on_theme_click)
-        box.pack_start(self._theme_list, True, True, 0)
+        _add_section_title(box, "Source")
+        self._bar_source_buttons = _radio_group([
+            ("pywal", "Pywal (dynamic)"),
+            ("imported", "Imported theme"),
+            ("manual", "Manual (config)"),
+        ])
+        source_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        for btn in self._bar_source_buttons.values():
+            btn.connect("toggled", self._on_bar_source_toggled)
+            source_box.pack_start(btn, False, False, 0)
+        box.pack_start(source_box, False, False, 0)
+
+        _add_section_title(box, "Imported theme")
+        self._bar_theme_buttons: dict[str, Gtk.CheckButton] = {}
+        themes_scroller = Gtk.ScrolledWindow()
+        themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        themes_scroller.set_min_content_height(120)
+        themes_scroller.set_vexpand(True)
+        self._bar_themes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        themes_scroller.add(self._bar_themes_box)
+        box.pack_start(themes_scroller, True, True, 0)
+
+        import_btn = Gtk.Button(label="Import theme…")
+        import_btn.connect("clicked", self._on_bar_import)
+        box.pack_start(import_btn, False, False, 0)
 
         restart_btn = Gtk.Button(label="Restart Bar")
         restart_btn.connect("clicked", self._on_restart_bar)
         box.pack_start(restart_btn, False, False, 0)
 
         self._refresh_bar_themes()
+        self._bar_ready = True
 
     def _refresh_bar_themes(self):
         theme = self._cfg.get("theme") or {}
         source = theme.get("source", "pywal")
+        if source not in self._bar_source_buttons:
+            source = "pywal"
         name = theme.get("theme_name") or ""
-        if source == "imported" and name:
-            self._bar_active.set_text(f"Active theme: {Path(name).name}")
+
+        for key, btn in self._bar_source_buttons.items():
+            btn.handler_block_by_func(self._on_bar_source_toggled)
+            btn.set_active(key == source)
+            btn.handler_unblock_by_func(self._on_bar_source_toggled)
+
+        for child in self._bar_themes_box.get_children():
+            self._bar_themes_box.remove(child)
+        self._bar_theme_buttons = {}
+        themes = list_themes()
+        if not themes:
+            lbl = Gtk.Label(label="No themes imported yet — use Import…", xalign=0)
+            lbl.set_opacity(0.7)
+            self._bar_themes_box.pack_start(lbl, False, False, 0)
         else:
-            self._bar_active.set_text("Active theme: (pywal / none)")
+            for tname in themes:
+                btn = Gtk.CheckButton(label=tname)
+                btn.set_active(source == "imported" and Path(name).name == tname)
+                btn.connect("toggled", self._on_bar_theme_toggled, tname)
+                self._bar_theme_buttons[tname] = btn
+                self._bar_themes_box.pack_start(btn, False, False, 0)
+        self._bar_themes_box.show_all()
+        self._update_bar_theme_state()
 
-        _remove_all_children(self._theme_list)
-        if not BAR_THEMES.exists():
+    def _update_bar_theme_state(self):
+        source = self._active_bar_source()
+        for btn in self._bar_theme_buttons.values():
+            btn.set_sensitive(source == "imported")
+        name = self._selected_bar_theme()
+        if source == "imported" and name:
+            self._bar_active.set_text(f"Active theme: {name}")
+        elif source == "pywal":
+            self._bar_active.set_text("Active theme: pywal (dynamic)")
+        elif source == "manual":
+            self._bar_active.set_text("Active theme: manual (config)")
+        else:
+            self._bar_active.set_text("Active theme: none")
+
+    def _active_bar_source(self) -> str:
+        for key, btn in self._bar_source_buttons.items():
+            if btn.get_active():
+                return key
+        return "pywal"
+
+    def _selected_bar_theme(self) -> str:
+        for name, btn in self._bar_theme_buttons.items():
+            if btn.get_active():
+                return name
+        return ""
+
+    def _on_bar_source_toggled(self, btn, *_args):
+        if not btn.get_active():
             return
-        for d in sorted(BAR_THEMES.iterdir()):
-            if not d.is_dir() or not (d / "style.css").exists():
-                continue
-            suffix = None
-            if source == "imported" and Path(name).name == d.name:
-                suffix = self._active_badge()
-            row = self._make_list_row(d.name, suffix)
-            row._theme_dir = d
-            self._theme_list.add(row)
+        self._update_bar_theme_state()
+        if self._bar_ready:
+            self._apply_bar_theme(self._active_bar_source(), self._selected_bar_theme())
 
-    def _on_theme_click(self, _listbox, row):
-        theme_dir = row._theme_dir
-        theme_name = theme_dir.name
+    def _on_bar_theme_toggled(self, btn: Gtk.CheckButton, name: str):
+        if not btn.get_active():
+            return
+        for other in self._bar_theme_buttons.values():
+            if other is not btn:
+                other.handler_block_by_func(self._on_bar_theme_toggled)
+                other.set_active(False)
+                other.handler_unblock_by_func(self._on_bar_theme_toggled)
+        self._update_bar_theme_state()
+        if self._bar_ready:
+            self._apply_bar_theme("imported", name)
+
+    def _apply_bar_theme(self, source: str, theme_name: str):
         try:
             cfg = json.loads(BAR_CONFIG.read_text())
         except (OSError, json.JSONDecodeError):
             cfg = {}
         cfg.setdefault("theme", {})
-        cfg["theme"]["source"] = "imported"
-        cfg["theme"]["theme_name"] = theme_name
+        cfg["theme"]["source"] = source
+        if source == "imported" and theme_name:
+            cfg["theme"]["theme_name"] = theme_name
         try:
             BAR_CONFIG.parent.mkdir(parents=True, exist_ok=True)
             BAR_CONFIG.write_text(json.dumps(cfg, indent=2) + "\n")
@@ -1167,8 +1261,43 @@ class ThemerDialog(Popup):
             log.warning("Failed to write bar config: %s", exc)
             self._toast("Failed to write bar config")
             return
-        self._toast(f"Bar restarted with {theme_name}")
+        msg = f"Bar theme: {source}"
+        if source == "imported" and theme_name:
+            msg += f" / {theme_name}"
+        self._toast(msg)
         self._restart_bar()
+
+    def _on_bar_import(self, *_args):
+        parent = self.get_toplevel()
+        chooser = Gtk.FileChooserNative.new(
+            "Import theme folder",
+            parent if isinstance(parent, Gtk.Window) else None,
+            Gtk.FileChooserAction.SELECT_FOLDER,
+            "Import",
+            "Cancel",
+        )
+        chooser.set_current_folder(str(Path.home()))
+
+        def on_response(dialog: Gtk.FileChooserNative, response) -> None:
+            if response == Gtk.ResponseType.ACCEPT:
+                folder = dialog.get_file()
+                if folder is not None:
+                    name = import_theme(folder.get_path())
+                    if name:
+                        self._bar_ready = True
+                        for key, btn in self._bar_source_buttons.items():
+                            btn.handler_block_by_func(self._on_bar_source_toggled)
+                            btn.set_active(key == "imported")
+                            btn.handler_unblock_by_func(self._on_bar_source_toggled)
+                        self._refresh_bar_themes()
+                        self._update_bar_theme_state()
+                        self._apply_bar_theme("imported", name)
+                    else:
+                        self._toast("Not a valid theme folder")
+            dialog.destroy()
+
+        chooser.connect("response", on_response)
+        chooser.show()
 
     def _on_restart_bar(self, btn=None):
         self._restart_bar()

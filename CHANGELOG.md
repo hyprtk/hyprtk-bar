@@ -5,6 +5,18 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-08
 
+### Changed
+
+- **Theme Manager → Bar Themes page now matches the bar settings Themes tab** —
+  it gained a theme **Source** selector (Pywal (dynamic) / Imported theme /
+  Manual (config)), a check-list of the imported themes (enabled only when the
+  source is "imported"), and an **Import theme…** button that copies a theme
+  folder into the bar's themes dir and applies it. Selecting a source or an
+  imported theme writes the bar config and restarts the bar, so both the bar
+  settings dialogue and the Theme Manager expose the same options and behaviour.
+
+## [0.1.0] - 2026-09-08
+
 ### Fixed
 
 - **Pywal palette grid went blank** (Theme Manager → Pywal) — re-rendering the
