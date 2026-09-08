@@ -376,13 +376,15 @@ class BarSettings(Gtk.Window):
 
         def _apply(w):
             ctx = w.get_style_context()
-            # Arc Menu widgets — notebook tab strip and colour buttons get theme
-            # classes so they follow the palette like the rest of the dialogue
-            # (ColorButton must precede Button — it subclasses it).
+            # Arc Menu widgets — notebook tab strip, colour buttons and lists get
+            # theme classes so they follow the palette like the rest of the
+            # dialogue (ColorButton must precede Button — it subclasses it).
             if isinstance(w, Gtk.Notebook):
                 ctx.add_class("settings-notebook")
             elif isinstance(w, Gtk.ColorButton):
                 ctx.add_class("settings-color")
+            elif isinstance(w, Gtk.ListBox):
+                ctx.add_class("settings-list")
             elif isinstance(w, Gtk.Button):
                 if w.get_relief() != Gtk.ReliefStyle.NONE:
                     w.set_relief(Gtk.ReliefStyle.NONE)

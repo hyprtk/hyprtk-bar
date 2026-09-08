@@ -575,6 +575,9 @@ menu separator {{
   border: 1px solid {_rgba(palette["foreground"], 0.18)}; border-radius: 5px;
 }}
 .settings-color:hover {{ border-color: {accent}; }}
+/* ListBox (arc menu item list, item-dialog app list) paints the GTK theme's
+   opaque bg by default — make it transparent so the popup-box theme shows. */
+.settings-list, .settings-list row {{ background-color: transparent; }}
 .mc-graph-title {{ font-size: 11px; opacity: 0.85; }}
 .mc-graph-value {{ font-weight: bold; }}
 .mc-graph-value.warn {{ color: #facc15; }}
