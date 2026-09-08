@@ -5,6 +5,17 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-08
 
+### Fixed
+
+- **Pywal palette grid went blank** (Theme Manager → Pywal) — re-rendering the
+  colour grid while the dialogue was open (Refresh, or after applying a scheme
+  / wallpaper) left every swatch hidden, because GTK3 keeps children added
+  after a container is shown invisible. The grid now calls `show_all()` after
+  building, and the palette is refreshed each time the Pywal page is opened so
+  it always shows the current pywal colours.
+
+## [0.1.0] - 2026-09-08
+
 ### Added
 
 - **Wallpaper preview cache build** (Theme Manager → Wallpaper) — a new

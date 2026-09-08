@@ -618,6 +618,8 @@ class ThemerDialog(Popup):
             else:
                 box.get_style_context().remove_class("active")
         self._stack.set_visible_child_name(key)
+        if key == "pywal":
+            self._refresh_pywal()
 
     # ── pages ─────────────────────────────────────────────────────
 
@@ -992,6 +994,9 @@ class ThemerDialog(Popup):
             )
             btn.connect("clicked", lambda b, n=i, k=key: self._on_color_click(n, k))
             self._pywal_grid.attach(btn, i % 8, i // 8, 1, 1)
+        # Children added after the page was shown stay hidden until shown —
+        # without this a refresh while the dialog is open blanks the palette.
+        self._pywal_grid.show_all()
 
     def _on_color_click(self, index: int, key: str):
         colors = _parse_wal_colors()
