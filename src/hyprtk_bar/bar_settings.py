@@ -799,7 +799,7 @@ class BarSettings(Gtk.Window):
         tab.pack_start(shape_row, False, False, 0)
 
         self._arc_radius = self._spin_row(tab, "Radius (px)", arc.get("radius", 140), 40, 600, 10)
-        self._arc_margin = self._spin_row(tab, "Margin (px)", arc.get("margin", 24), 0, 200, 2)
+        self._arc_margin = self._spin_row(tab, "Edge padding", arc.get("margin", 24), 0, 200, 2)
         self._arc_fab = self._spin_row(tab, "Menu button size", arc.get("fab_size", 56), 24, 120, 4)
         self._arc_item = self._spin_row(tab, "Item size", arc.get("item_size", 48), 24, 120, 4)
         self._arc_anim = self._spin_row(tab, "Animation (ms)", arc.get("animation_time", 300), 50, 2000, 25)
