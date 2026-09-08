@@ -315,6 +315,17 @@ class ArcMenu(Gtk.Fixed):
         self._palette = palette
         self._apply_css()
         self.refresh_icons()
+        # Refresh the animated border colours too — pywal's color11/color4
+        # change on wallpaper change, and they were captured at construction.
+        self._refresh_border_colors()
+
+    def _refresh_border_colors(self) -> None:
+        """Re-read the active-border colours so the animation tracks pywal."""
+        if self._border_timer is None:
+            return
+        colors = active_border_colors()
+        if colors:
+            self._border_colors = colors
 
     def refresh_icons(self) -> None:
         arc = self.cfg.get("arcmenu") or {}

@@ -663,6 +663,8 @@ class ThemerDialog(Popup):
         self._stack.set_visible_child_name(key)
         if key == "pywal":
             self._refresh_pywal()
+        elif key == "sddm":
+            self._refresh_sddm_preview()
 
     # ── pages ─────────────────────────────────────────────────────
 
@@ -1764,17 +1766,10 @@ class ThemerDialog(Popup):
         box.pack_start(info, False, False, 0)
 
         self._sddm_wallpaper_path = HOME / ".cache" / "current-wallpaper.png"
-        if self._sddm_wallpaper_path.exists():
-            pb = _fit_pixbuf(
-                str(self._sddm_wallpaper_path),
-                _SDDM_PREVIEW[0], _SDDM_PREVIEW[1],
-            )
-            if pb is not None:
-                img = Gtk.Image()
-                img.set_from_pixbuf(pb)
-                img.set_size_request(pb.get_width(), pb.get_height())
-                img.set_halign(Gtk.Align.CENTER)
-                box.pack_start(img, False, False, 0)
+        self._sddm_preview_img = Gtk.Image()
+        self._sddm_preview_img.set_halign(Gtk.Align.CENTER)
+        box.pack_start(self._sddm_preview_img, False, False, 0)
+        self._refresh_sddm_preview()
 
         update_btn = Gtk.Button(label="Update SDDM & GRUB Wallpaper")
         update_btn.get_style_context().add_class("settings-apply")
@@ -1784,10 +1779,41 @@ class ThemerDialog(Popup):
         self._sddm_status = Gtk.Label(label="", xalign=0)
         box.pack_start(self._sddm_status, False, False, 0)
 
+    def _refresh_sddm_preview(self) -> None:
+        """Sync current-wallpaper.png with the live wallpaper and re-render.
+
+        The preview (and the SDDM/GRUB update) reads ~/.cache/current-wallpaper.png,
+        which is only refreshed by the wal scripts — when the wallpaper changed
+        through another path it can be stale. Derive the source from pywal's
+        cache (~/.cache/wal/wal) and re-render the thumbnail.
+        """
+        import shutil
+
+        current = WAL_CACHE / "wal"
+        if current.exists():
+            src = current.read_text().strip()
+            if src and os.path.isfile(src):
+                try:
+                    shutil.copy2(src, self._sddm_wallpaper_path)
+                except OSError:
+                    pass
+        if not self._sddm_wallpaper_path.exists():
+            self._sddm_preview_img.set_from_pixbuf(None)
+            return
+        pb = _fit_pixbuf(
+            str(self._sddm_wallpaper_path),
+            _SDDM_PREVIEW[0], _SDDM_PREVIEW[1],
+        )
+        if pb is not None:
+            self._sddm_preview_img.set_from_pixbuf(pb)
+            self._sddm_preview_img.set_size_request(pb.get_width(), pb.get_height())
+
     def _on_sddm_update(self, btn):
         if not SDDM_UPDATE_SH.is_file():
             self._toast("update.sh not found")
             return
+        # Ensure the file reflects the current wallpaper before copying it.
+        self._refresh_sddm_preview()
         if not self._sddm_wallpaper_path.exists():
             self._toast("No current wallpaper found")
             return

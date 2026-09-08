@@ -437,8 +437,8 @@ menu {{
   padding: 4px;
   color: {fg};
 }}
-menu menuitem {{ padding: 6px 14px; border-radius: 4px; }}
-menu menuitem:hover {{ background-color: {hover}; }}
+menu menuitem {{ padding: 6px 14px; border-radius: 4px; color: {fg}; }}
+menu menuitem:hover {{ background-color: {hover}; color: {fg}; }}
 menu separator {{
   background-color: {_rgba(palette["foreground"], 0.15)};
   min-height: 1px;
