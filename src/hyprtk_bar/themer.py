@@ -83,6 +83,7 @@ _PAGE_TITLES = {key: label for key, _glyph, label in PAGES}
 DIALOG_WIDTH = 940
 DIALOG_HEIGHT = 640
 _THUMB_SIZE = (360, 240)
+_SDDM_PREVIEW = (620, 220)
 _BATCH_SIZE = 20
 POST_ACTION_DELAY_MS = 2500
 
@@ -229,6 +230,29 @@ def _cover_pixbuf(src: str, width: int, height: int):
     x = (new_w - width) // 2
     y = (new_h - height) // 2
     return GdkPixbuf.Pixbuf.new_subpixbuf(scaled, x, y, width, height)
+
+
+def _fit_pixbuf(src: str, max_w: int, max_h: int):
+    """Load *src* and scale it down to fit within ``(max_w, max_h)``.
+
+    Preserves the aspect ratio and never upscales a small image (``contain``
+    fit). Returns None if the file cannot be decoded.
+    """
+    try:
+        buf = GdkPixbuf.Pixbuf.new_from_file(src)
+    except GLib.Error:
+        return None
+    src_w, src_h = buf.get_width(), buf.get_height()
+    if src_w <= 0 or src_h <= 0:
+        return None
+    scale = min(max_w / src_w, max_h / src_h, 1.0)
+    if scale >= 1.0:
+        return buf
+    return buf.scale_simple(
+        max(1, int(round(src_w * scale))),
+        max(1, int(round(src_h * scale))),
+        GdkPixbuf.InterpType.BILINEAR,
+    )
 
 
 def scan_wallpapers(wallpaper_dir: Path) -> list[Path]:
@@ -1741,10 +1765,16 @@ class ThemerDialog(Popup):
 
         self._sddm_wallpaper_path = HOME / ".cache" / "current-wallpaper.png"
         if self._sddm_wallpaper_path.exists():
-            img = Gtk.Image()
-            img.set_from_file(str(self._sddm_wallpaper_path))
-            img.set_size_request(-1, 200)
-            box.pack_start(img, False, False, 0)
+            pb = _fit_pixbuf(
+                str(self._sddm_wallpaper_path),
+                _SDDM_PREVIEW[0], _SDDM_PREVIEW[1],
+            )
+            if pb is not None:
+                img = Gtk.Image()
+                img.set_from_pixbuf(pb)
+                img.set_size_request(pb.get_width(), pb.get_height())
+                img.set_halign(Gtk.Align.CENTER)
+                box.pack_start(img, False, False, 0)
 
         update_btn = Gtk.Button(label="Update SDDM & GRUB Wallpaper")
         update_btn.get_style_context().add_class("settings-apply")

@@ -5,6 +5,15 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-08
 
+### Fixed
+
+- **Theme Manager → SDDM & GRUB background preview** — the wallpaper preview is
+  now scaled down (contain fit) to fit within the dialogue instead of being
+  shown at full image size and overflowing the panel. Aspect ratio is preserved
+  and small images are not upscaled.
+
+## [0.1.0] - 2026-09-08
+
 ### Changed
 
 - **Theme Manager → Bar Themes applies themes without restarting** — selecting
