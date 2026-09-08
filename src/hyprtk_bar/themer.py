@@ -231,37 +231,51 @@ def _cover_pixbuf(src: str, width: int, height: int):
     return GdkPixbuf.Pixbuf.new_subpixbuf(scaled, x, y, width, height)
 
 
-def build_index(wallpaper_dir: Path, force: bool = False) -> list[dict]:
-    """Scan *wallpaper_dir*, (re)generate thumbnails, return index entries."""
-    THUMB_DIR.mkdir(parents=True, exist_ok=True)
-    existing: dict[str, dict] = {}
-    if INDEX_FILE.exists():
-        try:
-            for e in json.loads(INDEX_FILE.read_text()):
-                existing[e["path"]] = e
-        except (json.JSONDecodeError, OSError):
-            pass
-    images = sorted(
+def scan_wallpapers(wallpaper_dir: Path) -> list[Path]:
+    """Sorted image files (top level only) under *wallpaper_dir*."""
+    if not wallpaper_dir.is_dir():
+        return []
+    return sorted(
         p for p in wallpaper_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS
     )
-    index: list[dict] = []
-    for img in images:
-        key = str(img)
+
+
+def _thumb_needs_rebuild(img: Path, tp: Path, force: bool) -> bool:
+    """True when the cached thumbnail for *img* is missing or stale."""
+    if force or not tp.exists():
+        return True
+    try:
+        if tp.stat().st_mtime < img.stat().st_mtime:
+            return True
+    except OSError:
+        return True
+    return not _thumb_size_ok(tp)
+
+
+def cache_steps(wallpaper_dir: Path, force: bool = False):
+    """Generate preview thumbnails for *wallpaper_dir*, yielding (done, total).
+
+    Handles one image per step so a large directory never blocks the UI — callers
+    drive it with ``GLib.idle_add`` and update a progress bar between steps.
+    Thumbnails are written individually, so an interrupted run simply resumes on
+    the next run; the index file is only written once every image is handled.
+    """
+    THUMB_DIR.mkdir(parents=True, exist_ok=True)
+    images = scan_wallpapers(wallpaper_dir)
+    total = len(images)
+    for done, img in enumerate(images, 1):
         tp = _thumb_path(img)
-        if force or not tp.exists() or tp.stat().st_mtime < img.stat().st_mtime \
-                or not _thumb_size_ok(tp):
+        if _thumb_needs_rebuild(img, tp, force):
             try:
                 _generate_thumbnail(img, tp)
             except Exception as exc:
                 log.warning("thumb fail %s: %s", img.name, exc)
-                continue
-        entry = existing.get(key, {})
-        entry["path"] = key
-        entry["thumb"] = str(tp)
-        entry["name"] = img.name
-        index.append(entry)
+        yield done, total
+    index = [
+        {"path": str(img), "thumb": str(_thumb_path(img)), "name": img.name}
+        for img in images
+    ]
     _atomic_write(INDEX_FILE, json.dumps(index, indent=1))
-    return index
 
 
 def load_index() -> list[dict]:
@@ -271,6 +285,14 @@ def load_index() -> list[dict]:
         return json.loads(INDEX_FILE.read_text())
     except (json.JSONDecodeError, OSError):
         return []
+
+
+def index_matches_dir(index: list[dict], wallpaper_dir: Path) -> bool:
+    """True when *index* was built for *wallpaper_dir* (not another folder)."""
+    for entry in index[:8]:
+        if Path(entry.get("path", "")).parent == wallpaper_dir:
+            return True
+    return False
 
 
 def is_valid(wallpaper_dir: Path) -> bool:
@@ -411,6 +433,18 @@ class ThemerDialog(Popup):
         self._cfg = cfg
         self._restart_cb = restart_cb
         self._status = None
+        self._closed = False
+        self._cache_running = False
+        self._cache_gen = None
+        self._cache_step_id = None
+        self._progress = None
+        self._vadj = None
+        self._flow = None
+        self._all_images = []
+        self._thumb_map = {}
+        self._loaded_count = 0
+        self._fill_id = None
+        self.connect("destroy", self._on_themer_destroy)
         self._status_id = None
         self._side_buttons: dict[str, HoverButton] = {}
         self._active = ""
@@ -486,6 +520,15 @@ class ThemerDialog(Popup):
         self._status_id = None
         self._status.set_text("")
         return GLib.SOURCE_REMOVE
+
+    def _on_themer_destroy(self, *_args) -> None:
+        """Stop any in-flight cache build when the dialogue is destroyed."""
+        self._closed = True
+        if self._cache_step_id is not None:
+            GLib.source_remove(self._cache_step_id)
+            self._cache_step_id = None
+        self._cache_running = False
+        self._cache_gen = None
 
     def _apply_theme_fg_class(self, widget) -> None:
         """Theme standard GTK widgets like the settings dialogue does."""
@@ -623,10 +666,16 @@ class ThemerDialog(Popup):
         random_btn = Gtk.Button(label="Random")
         random_btn.connect("clicked", self._apply_random)
         btn_row.pack_start(random_btn, False, False, 0)
+        build_btn = Gtk.Button(label="Build Cache")
+        build_btn.connect("clicked", self._on_build_cache)
+        btn_row.pack_start(build_btn, False, False, 0)
         box.pack_start(btn_row, False, False, 0)
 
-        self._spinner = Gtk.Spinner()
-        box.pack_start(self._spinner, False, False, 0)
+        # Cache-build progress (automatic on open + manual "Build Cache").
+        self._progress = Gtk.ProgressBar()
+        self._progress.set_show_text(True)
+        self._progress.set_no_show_all(True)
+        box.pack_start(self._progress, False, False, 0)
 
         # 2-column thumbnail grid under the preview.
         self._flow = Gtk.FlowBox()
@@ -637,18 +686,55 @@ class ThemerDialog(Popup):
         self._flow.set_min_children_per_line(2)
         self._flow.set_vexpand(True)
         box.pack_start(self._flow, True, True, 0)
+        self._vadj = scroller.get_vadjustment()
         scroller.connect("edge-reached", self._on_flow_edge)
+        if self._vadj is not None:
+            self._vadj.connect("value-changed", self._on_vadj_changed)
 
         self._all_images: list[Path] = []
         self._thumb_map: dict[str, str] = {}
         self._loaded_count = 0
         self._selected: Path | None = None
+        self._fill_id = None
         self._load_current()
         self._load_thumbnails()
 
-    def _on_flow_edge(self, scroll, pos):
-        if pos == Gtk.PositionType.BOTTOM and self._loaded_count < len(self._all_images):
-            self._load_batch()
+    def _on_flow_edge(self, _scroll, pos):
+        if pos == Gtk.PositionType.BOTTOM:
+            self._fill_batches()
+
+    def _on_vadj_changed(self, _adj):
+        self._fill_batches()
+
+    def _fill_batches(self) -> None:
+        """Append batches until content extends ~2 viewports below the scroll.
+
+        ``edge-reached`` alone is unreliable on this GTK3/Wayland build, so the
+        scrollbar adjustment drives loading too: whenever the viewport sits near
+        the bottom, one batch is added and another pass is queued for after the
+        flow reflows, so the buffer check stays accurate between adds.
+        """
+        if self._fill_id is not None or self._cache_running:
+            return
+        if not self._all_images or self._loaded_count >= len(self._all_images):
+            return
+        v = self._vadj
+        if v is None:
+            return
+        page = v.get_page_size()
+        upper = v.get_upper()
+        if page <= 0 or upper <= 0:  # not laid out yet — keep just the first batch
+            return
+        page = max(page, 1)
+        if v.get_value() + page < upper - page * 2:
+            return
+        self._load_batch()
+        self._fill_id = GLib.idle_add(self._fill_idle)
+
+    def _fill_idle(self) -> bool:
+        self._fill_id = None
+        self._fill_batches()
+        return GLib.SOURCE_REMOVE
 
     def _set_preview(self, path: str):
         pb = _cover_pixbuf(path, self._preview_w, self._preview_h)
@@ -667,20 +753,20 @@ class ThemerDialog(Popup):
             self._set_preview(str(fallback))
 
     def _load_thumbnails(self):
+        self._stop_cache_build()
         _remove_all_children(self._flow)
         self._loaded_count = 0
         self._all_images = []
-        if not self._wall_dir.exists():
+        self._thumb_map = {}
+        if not self._wall_dir.is_dir():
             return
         index = load_index()
-        if self._index_thumbs_ok(index):
+        if index_matches_dir(index, self._wall_dir) and self._index_thumbs_ok(index):
             self._set_index(index)
         else:
-            # Build (or rebuild) the cache — incl. when it holds thumbnails
-            # generated at an older size (theme-gui's 150px ones).
-            self._spinner.set_visible(True)
-            self._spinner.start()
-            GLib.idle_add(self._build_cache_idle)
+            # Build (or rebuild) the cache — including when the index belongs to
+            # a different folder, or holds thumbnails at an older size.
+            self._start_cache_build(force=False)
 
     @staticmethod
     def _index_thumbs_ok(index: list[dict]) -> bool:
@@ -693,25 +779,73 @@ class ThemerDialog(Popup):
             return _thumb_size_ok(tp)
         return False
 
-    def _build_cache_idle(self):
+    def _on_build_cache(self, _btn):
+        if not self._cache_running:
+            self._start_cache_build(force=True)
+
+    def _start_cache_build(self, force: bool) -> None:
+        if self._cache_running or not self._wall_dir.is_dir():
+            return
+        _remove_all_children(self._flow)
+        self._loaded_count = 0
+        self._all_images = []
+        self._thumb_map = {}
+        self._cache_gen = cache_steps(self._wall_dir, force)
+        self._cache_running = True
+        self._progress.set_no_show_all(False)
+        self._progress.set_visible(True)
+        self._progress.set_fraction(0.0)
+        self._progress.set_text("Building preview cache...")
+        self._cache_step_id = GLib.idle_add(self._step_cache_build)
+
+    def _step_cache_build(self) -> bool:
+        if self._closed or not self._cache_running or self._cache_gen is None:
+            self._cache_running = False
+            self._cache_gen = None
+            return GLib.SOURCE_REMOVE
         try:
-            self._set_index(build_index(self._wall_dir))
-        except Exception as exc:
-            log.warning("cache build failed: %s", exc)
-        finally:
-            self._spinner.stop()
-            self._spinner.set_visible(False)
+            done, total = next(self._cache_gen)
+        except StopIteration:
+            self._finish_cache_build()
+            return GLib.SOURCE_REMOVE
+        if total:
+            self._progress.set_fraction(done / total)
+            self._progress.set_text(f"Building preview cache... {done}/{total}")
+        self._cache_step_id = GLib.idle_add(self._step_cache_build)
         return GLib.SOURCE_REMOVE
+
+    def _finish_cache_build(self) -> None:
+        self._cache_running = False
+        self._cache_gen = None
+        self._cache_step_id = None
+        self._progress.set_visible(False)
+        self._progress.set_no_show_all(True)
+        # cache_steps wrote the index — now show every wallpaper from it.
+        self._set_index(load_index())
+        self._toast("Preview cache built")
+
+    def _stop_cache_build(self) -> None:
+        self._cache_running = False
+        self._cache_gen = None
+        if self._cache_step_id is not None:
+            GLib.source_remove(self._cache_step_id)
+            self._cache_step_id = None
+        if self._progress is not None:
+            self._progress.set_visible(False)
+            self._progress.set_no_show_all(True)
 
     def _set_index(self, index: list[dict]):
         self._all_images = [Path(e["path"]) for e in index]
         self._thumb_map = {e["path"]: e["thumb"] for e in index}
         self._load_batch()
+        self._fill_batches()
 
     def _load_batch(self):
         start = self._loaded_count
         end = min(start + _BATCH_SIZE, len(self._all_images))
         for img_path in self._all_images[start:end]:
+            if not img_path.is_file():  # image deleted since the index was built
+                continue
             btn = Gtk.Button()
             btn.set_relief(Gtk.ReliefStyle.NONE)
             btn.get_style_context().add_class("wallpaper-thumb")
@@ -725,6 +859,9 @@ class ThemerDialog(Popup):
             btn.add(img)
             btn.connect("clicked", self._on_thumb_click, img_path)
             self._flow.add(btn)
+            # Children added after the page was shown stay hidden until shown —
+            # without this only the first batch ever appeared.
+            btn.show_all()
         self._loaded_count = end
 
     def _on_thumb_click(self, btn, path: Path):
@@ -758,11 +895,9 @@ class ThemerDialog(Popup):
                 self._wall_dir = folder
                 self._dir_label.set_text(str(folder))
                 self._dir_label.set_tooltip_text(str(folder))
-                cfg = self._cfg
-                cfg.setdefault("themer", {})["wallpaper_dir"] = str(folder)
+                self._cfg.setdefault("themer", {})["wallpaper_dir"] = str(folder)
                 from . import config as config_module
-                config_module.save(cfg)
-                GLib.idle_add(self._build_cache_idle)
+                config_module.save(self._cfg)
                 self._load_thumbnails()
         dialog.destroy()
 

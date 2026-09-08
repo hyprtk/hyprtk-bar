@@ -3,6 +3,31 @@
 All notable changes to hyprtk-bar are documented in this file.
 Dates are in YYYY-MM-DD format.
 
+## [0.1.0] - 2026-09-08
+
+### Added
+
+- **Wallpaper preview cache build** (Theme Manager → Wallpaper) — a new
+  **Build Cache** button regenerates a cover-cropped thumbnail for every image
+  in the wallpaper directory, with a live `N/total` progress bar. The cache is
+  built incrementally (one image per idle step, so a large directory never
+  blocks the UI) and resumes after an interruption, so thumbnails appear on
+  first scroll instead of only after a full blocking pass.
+- **Directory-aware cache validity** — the cached index is only trusted when it
+  belongs to the currently selected wallpaper directory, so switching folders
+  no longer briefly shows another folder's thumbnails.
+
+### Fixed
+
+- **Not all wallpapers displayed when scrolling** — the thumbnail grid is now
+  driven by the scrollbar adjustment (value-changed near the bottom) in
+  addition to the unreliable `edge-reached` signal, and every newly-added
+  thumbnail is shown (`show_all`). Previously GTK3 kept every batch after the
+  first one hidden, so scrolling stopped partway through a large directory.
+- **Cleaner directory switch** — choosing a new wallpaper directory now cancels
+  any in-flight cache build and rebuilds for the new folder without double
+  triggering.
+
 ## [0.1.0] - 2026-09-07
 
 ### Changed
