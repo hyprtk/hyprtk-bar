@@ -75,6 +75,7 @@ class Bar(Gtk.Box):
         self._theme_cb = None
         self._height_cb = None
         self._position_cb = None
+        self._arcmenu_cb = None
         self._widgets: dict[str, Gtk.Widget] = {}
         self._sections: dict[str, SectionBox] = {}
         self._tray_ctrl: TrayController | None = None
@@ -337,13 +338,19 @@ class Bar(Gtk.Box):
         menu.show_all()
         menu.popup_at_pointer(event)
 
-    def open_settings(self) -> None:
+    def open_settings(self, initial_page: str | None = None) -> None:
         from .bar_settings import BarSettings
         if self._settings_win is None or not self._settings_win.get_visible():
-            self._settings_win = BarSettings(self._cfg, self._menu_actions())
+            self._settings_win = BarSettings(
+                self._cfg, self._menu_actions(), initial_page=initial_page
+            )
             toplevel = self.get_toplevel()
             if toplevel is not None and toplevel is not self:
                 self._settings_win.set_transient_for(toplevel)
+        elif initial_page:
+            page = getattr(self._settings_win, "_page_buttons", {}).get(initial_page)
+            if page is not None:
+                self._settings_win._set_active_page(initial_page)
         self._settings_win.present()
 
     def _menu_actions(self) -> dict:
@@ -491,6 +498,12 @@ class Bar(Gtk.Box):
             config_module.save(cfg)
             self.rebuild_layout()
 
+        def set_arcmenu(block: dict) -> None:
+            cfg["arcmenu"] = block
+            config_module.save(cfg)
+            if self._arcmenu_cb is not None:
+                self._arcmenu_cb(block)
+
         def open_settings() -> None:
             self.open_settings()
 
@@ -511,6 +524,7 @@ class Bar(Gtk.Box):
             "set_quicklink_icon_size": set_quicklink_icon_size,
             "set_border_animation": set_border_animation,
             "apply_layout": apply_layout,
+            "set_arcmenu": set_arcmenu,
             "open_settings": open_settings,
         }
 
@@ -532,6 +546,9 @@ class Bar(Gtk.Box):
 
     def set_theme_callback(self, callback) -> None:
         self._theme_cb = callback
+
+    def set_arcmenu_callback(self, callback) -> None:
+        self._arcmenu_cb = callback
 
     def set_height_callback(self, callback) -> None:
         self._height_cb = callback

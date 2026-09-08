@@ -5,6 +5,19 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-08
 
+### Added
+
+- **Arc menu overlay merged into the bar** — the standalone hyprtk-arc-menu app
+  is gone; the bar now owns the arc menu (a FAB in a screen corner that fans its
+  items out on click). New `arcmenu` config block in the bar config (legacy
+  `~/.config/hyprtk-arc-menu/config.json` is auto-imported on first run), a
+  **Arc Menu** tab in the bar settings dialogue (position/shape/sizes/colours/
+  toggles + item editor with installed-app search), toggling via `Super+Ctrl+M`
+  (SIGUSR2 from `installer/scripts/hyprtk-bar-arc-toggle.sh`) or the FAB, and
+  live theming from the bar's palette + pywal.
+
+## [0.1.0] - 2026-09-08
+
 ### Fixed
 
 - **Theme Manager → SDDM & GRUB background preview** — the wallpaper preview is

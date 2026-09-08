@@ -203,7 +203,35 @@ DEFAULTS = {
         "max_stored": 50,           # notifications kept in the center at once
         "default_timeout": 5000,    # ms a toast stays before auto-dismiss (0 = persist)
     },
+    "arcmenu": {
+        "enabled": True,            # the arc menu overlay is owned by the bar
+        "position": "bottom-right", # top-left|top-center|top-right|bottom-left|bottom-center|bottom-right
+        "shape": "circle",          # circle | square (square fans items on a square perimeter)
+        "transparent": False,       # transparent button/item backgrounds (icons only)
+        "follow_bar": True,         # mirror the bar's palette glass + text colours
+        "use_pywal": True,          # theme FAB/items from pywal color5/color6
+        "margin": 24,
+        "radius": 140,
+        "fab_size": 56,
+        "item_size": 48,
+        "animation_time": 300,      # ms
+        "fab_icon": "view-grid-symbolic",
+        "fab_color": "#c084fc",     # mauve / color5 accent
+        "item_color": "#22d3ee",    # sky / color6 accent
+        "close_on_unfocus": False,
+        "close_on_click": True,
+        "items": [
+            {"icon": "firefox", "command": "firefox", "tooltip": "Firefox"},
+            {"icon": "utilities-terminal", "command": "alacritty", "tooltip": "Terminal"},
+            {"icon": "system-file-manager", "command": "thunar", "tooltip": "Files"},
+            {"icon": "accessories-calculator", "command": "qalculate-gtk", "tooltip": "Calculator"},
+            {"icon": "preferences-system", "action": "settings", "tooltip": "Settings"},
+        ],
+    },
 }
+
+# Path of the legacy standalone app's config, imported once into ``arcmenu``.
+LEGACY_ARC_CONFIG = Path.home() / ".config" / "hyprtk-arc-menu" / "config.json"
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -374,6 +402,48 @@ def validate(cfg: dict) -> dict:
             DEFAULTS["themer"]["wallpaper_dir"]
         )
 
+    # ── arcmenu ──────────────────────────────────────────────────
+    # First-run migration from the removed standalone hyprtk-arc-menu app.
+    if not cfg.get("arcmenu") and LEGACY_ARC_CONFIG.is_file():
+        try:
+            legacy = json.loads(LEGACY_ARC_CONFIG.read_text())
+        except (json.JSONDecodeError, OSError):
+            legacy = {}
+        if isinstance(legacy, dict) and legacy:
+            legacy.pop("corner", None)
+            valid["arcmenu"] = _validate_arcmenu(_deep_merge(DEFAULTS["arcmenu"], legacy))
+
+    arcmenu = valid.get("arcmenu")
+    if not isinstance(arcmenu, dict):
+        valid["arcmenu"] = dict(DEFAULTS["arcmenu"])
+    else:
+        valid["arcmenu"] = _validate_arcmenu(arcmenu)
+
+    return valid
+
+
+def _validate_arcmenu(arc: dict) -> dict:
+    """Coerce/correct the ``arcmenu`` config block, falling back to defaults."""
+    from .arcmenu import POSITIONS
+
+    valid = _deep_merge(DEFAULTS["arcmenu"], arc)
+    position = valid.get("position", "bottom-right")
+    if position not in POSITIONS:
+        log.warning("Unknown arcmenu position %r, using bottom-right", position)
+        valid["position"] = "bottom-right"
+    if valid.get("shape") not in ("circle", "square"):
+        valid["shape"] = "circle"
+    for key in ("transparent", "follow_bar", "use_pywal", "close_on_unfocus", "close_on_click"):
+        valid[key] = bool(valid.get(key, False))
+    valid["enabled"] = bool(valid.get("enabled", True))
+    for key in ("margin", "radius", "fab_size", "item_size", "animation_time"):
+        try:
+            valid[key] = max(0, int(valid.get(key, DEFAULTS["arcmenu"][key])))
+        except (TypeError, ValueError):
+            valid[key] = DEFAULTS["arcmenu"][key]
+    if not isinstance(valid.get("items"), list):
+        valid["items"] = list(DEFAULTS["arcmenu"]["items"])
+    valid["fab_icon"] = str(valid.get("fab_icon", "view-grid-symbolic") or "view-grid-symbolic")
     return valid
 
 

@@ -45,7 +45,7 @@ def spawn(command: str) -> bool:
 
     The bar process is launched with a minimal PATH that does not include
     ``~/.local/bin``, so bare names of user-installed launchers (hyprtk-menu,
-    hyprtk-arc-menu, theme-gui, ...) fail to resolve. Resolve the leading
+    ...) fail to resolve. Resolve the leading
     executable against an augmented PATH before spawning.
     """
     command = os.path.expanduser(command).strip()

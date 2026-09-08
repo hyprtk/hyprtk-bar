@@ -23,6 +23,7 @@ gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import GLib, GLibUnix, Gtk
 
 from .app import BarWindow, select_monitors
+from .arcmenu import ArcMenuWindow  # noqa: E402
 from .config import load as load_config
 from .ipc import HyprIPC
 
@@ -75,18 +76,47 @@ def _run_window() -> int:
         windows.append(win)
     logging.info("started %d bar(s) on %d monitor(s)", len(windows), len(monitors))
 
+    # The arc menu overlay is owned by the bar process: created when the
+    # ``arcmenu`` module is enabled, themed with the bar's palette, and toggled
+    # by SIGUSR2 (a Hyprland keybinding signals the running bar).
+    arc_win = None
+    if (cfg.get("arcmenu") or {}).get("enabled", True):
+        arc_win = ArcMenuWindow(
+            cfg,
+            on_settings=lambda: _open_arc_settings(windows),
+        )
+        arc_win.show_all()
+        primary = next((w for w in windows if w.is_primary), windows[0])
+        primary.set_theme_extra_callback(arc_win.apply_bar_palette)
+        primary._bar.set_arcmenu_callback(lambda _block: arc_win.reload_from_cfg())
+        logging.info("started arc menu overlay")
+
     def on_sigterm(*_args):
         Gtk.main_quit()
         return GLib.SOURCE_REMOVE
 
+    def on_sigusr2(*_args):
+        if arc_win is not None:
+            arc_win.toggle()
+        return GLib.SOURCE_CONTINUE
+
     GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, on_sigterm, None)
+    GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR2, on_sigusr2, None)
 
     try:
         Gtk.main()
     finally:
+        if arc_win is not None:
+            arc_win.destroy()
         for win in windows:
             win.shutdown()
     return 0
+
+
+def _open_arc_settings(windows) -> None:
+    """Open the bar settings dialogue on the Arc Menu tab."""
+    primary = next((w for w in windows if w.is_primary), windows[0])
+    primary._bar.open_settings("arcmenu")
 
 
 def main(argv=None) -> int:

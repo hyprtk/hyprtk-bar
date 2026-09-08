@@ -29,6 +29,75 @@ THEME_SOURCES = (
 )
 
 
+def _hex_to_rgba(hex_color: str) -> Gdk.RGBA:
+    rgba = Gdk.RGBA()
+    if not rgba.parse(hex_color or "#000000"):
+        rgba.parse("#000000")
+    return rgba
+
+
+def _rgba_to_hex(rgba: Gdk.RGBA) -> str:
+    return "#{:02X}{:02X}{:02X}".format(
+        int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255)
+    )
+
+
+_APP_DIRS = [
+    Path.home() / ".local/share/applications",
+    Path("/usr/local/share/applications"),
+    Path("/usr/share/applications"),
+    Path("/var/lib/flatpak/exports/share/applications"),
+]
+
+
+def _parse_desktop(path: Path) -> dict | None:
+    name = exec_ = icon = comment = None
+    in_section = False
+    for line in path.read_text(errors="ignore").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("["):
+            in_section = line == "[Desktop Entry]"
+            continue
+        if not in_section or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if key == "Name":
+            name = value
+        elif key == "Exec":
+            exec_ = value
+        elif key == "Icon":
+            icon = value
+        elif key == "Comment":
+            comment = value
+        elif key in ("NoDisplay", "Hidden") and value.lower() in ("true", "1"):
+            return None
+    if not name or not exec_:
+        return None
+    clean = " ".join(tok for tok in exec_.split() if not tok.startswith("%"))
+    return {
+        "name": name,
+        "exec": clean,
+        "icon": icon or "application-x-executable",
+        "comment": comment or name,
+    }
+
+
+def _load_installed_apps() -> list[dict]:
+    apps: dict[str, dict] = {}
+    for directory in _APP_DIRS:
+        if not directory.is_dir():
+            continue
+        for f in sorted(directory.glob("*.desktop")):
+            app = _parse_desktop(f)
+            if app and app["exec"] not in apps:
+                apps[app["exec"]] = app
+    return sorted(apps.values(), key=lambda a: a["name"].lower())
+
+
 def _radio_group(labels: list[tuple[str, str]]) -> dict[str, Gtk.RadioButton]:
     """Build a Gtk.RadioButton group from ``(key, label)`` pairs.
 
@@ -49,10 +118,11 @@ def _radio_group(labels: list[tuple[str, str]]) -> dict[str, Gtk.RadioButton]:
 
 
 class BarSettings(Gtk.Window):
-    def __init__(self, cfg: dict, actions: dict):
+    def __init__(self, cfg: dict, actions: dict, initial_page: str | None = None):
         super().__init__(title="hyprtk-bar settings")
         self._cfg = cfg
         self._actions = actions
+        self._initial_page = initial_page or "bar"
         self._hidden: set[str] = set()
         self._rows: dict[str, dict] = {}
         self._theme_buttons: dict[str, Gtk.CheckButton] = {}
@@ -164,6 +234,7 @@ class BarSettings(Gtk.Window):
             ("fonts", "\uf031", "Fonts"),
             ("themes", "\uf1fc", "Themes"),
             ("animations", "\uf1fe", "Animations"),
+            ("arcmenu", "\uf0e7", "Arc Menu"),
             ("modules", "\uf009", "Modules"),
         ):
             sidebar.pack_start(self._build_page_button(key, glyph, label),
@@ -199,7 +270,7 @@ class BarSettings(Gtk.Window):
         # Apply the theme's fg/bg colours to standard widgets so the dialogue
         # stays readable on light imported themes.
         self._apply_theme_fg_class(root)
-        self._set_active_page("bar")
+        self._set_active_page(self._initial_page if self._initial_page in self._page_buttons else "bar")
 
     def _build_page_button(self, key: str, glyph: str, label: str) -> HoverButton:
         btn = HoverButton("mc-sidebar-button", vertical=False, spacing=8)
@@ -239,6 +310,8 @@ class BarSettings(Gtk.Window):
             self._build_themes_tab(page)
         elif key == "animations":
             self._build_animations_tab(page)
+        elif key == "arcmenu":
+            self._build_arcmenu_tab(page)
         elif key == "modules":
             self._build_modules_tab(page)
         return page
@@ -247,7 +320,7 @@ class BarSettings(Gtk.Window):
     def _page_title(key: str) -> str:
         return {
             "bar": "Bar", "fonts": "Fonts", "themes": "Themes",
-            "animations": "Animations", "modules": "Modules",
+            "animations": "Animations", "arcmenu": "Arc Menu", "modules": "Modules",
         }[key]
 
     def _tab_margins(self) -> Gtk.Box:
@@ -633,6 +706,283 @@ class BarSettings(Gtk.Window):
                 return key
         return "high"
 
+    # ── arc menu tab ─────────────────────────────────────────────
+
+    _ARC_POSITIONS = [
+        ("top-left", "Top Left"),
+        ("top-center", "Top Center"),
+        ("top-right", "Top Right"),
+        ("bottom-left", "Bottom Left"),
+        ("bottom-center", "Bottom Center"),
+        ("bottom-right", "Bottom Right"),
+    ]
+
+    def _build_arcmenu_tab(self, page: Gtk.Box) -> None:
+        from .arcmenu import POSITIONS
+
+        arc = self._cfg.get("arcmenu") or {}
+        self._arc_items: list[dict] = [dict(i) for i in arc.get("items", [])]
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_vexpand(True)
+        tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        scroller.add(tab)
+        page.pack_start(scroller, True, True, 0)
+
+        hint = Gtk.Label(
+            label="The arc menu is an overlay owned by the bar, toggled by the "
+            "FAB or Super+Ctrl+M. It follows the bar theme and pywal.",
+            xalign=0, wrap=True,
+        )
+        hint.set_opacity(0.8)
+        tab.pack_start(hint, False, False, 0)
+
+        # enabled
+        self._arc_enabled = self._switch_row(tab, "Enabled", bool(arc.get("enabled", True)))
+
+        # position — 2x3 radio grid
+        pos_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        pos_label = Gtk.Label(label="Position:", xalign=1)
+        pos_label.set_size_request(70, -1)
+        self._arc_position = _radio_group(
+            [(key, key.replace("-", " ").title()) for key, _lbl in self._ARC_POSITIONS]
+        )
+        grid = Gtk.Grid(row_spacing=2, column_spacing=4)
+        for i, (key, _lbl) in enumerate(self._ARC_POSITIONS):
+            grid.attach(self._arc_position[key], i % 2, i // 2, 1, 1)
+        current = arc.get("position", "bottom-right")
+        if current not in self._arc_position:
+            current = "bottom-right"
+        self._arc_position[current].set_active(True)
+        grid.set_hexpand(True)
+        pos_row.pack_start(pos_label, False, False, 0)
+        pos_row.pack_start(grid, True, True, 0)
+        tab.pack_start(pos_row, False, False, 0)
+
+        # shape
+        shape_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        shape_label = Gtk.Label(label="Shape:", xalign=1)
+        shape_label.set_size_request(70, -1)
+        self._arc_shape = _radio_group([("circle", "Circle"), ("square", "Square")])
+        shape_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for btn in self._arc_shape.values():
+            shape_box.pack_start(btn, False, False, 0)
+        self._arc_shape[arc.get("shape", "circle")].set_active(True)
+        shape_box.set_hexpand(True)
+        shape_row.pack_start(shape_label, False, False, 0)
+        shape_row.pack_start(shape_box, True, True, 0)
+        tab.pack_start(shape_row, False, False, 0)
+
+        # numeric fields
+        self._arc_radius = self._spin_row(tab, "Radius (px)", arc.get("radius", 140), 40, 600, 10)
+        self._arc_margin = self._spin_row(tab, "Margin (px)", arc.get("margin", 24), 0, 200, 2)
+        self._arc_fab = self._spin_row(tab, "Menu button size", arc.get("fab_size", 56), 24, 120, 4)
+        self._arc_item = self._spin_row(tab, "Item size", arc.get("item_size", 48), 24, 120, 4)
+        self._arc_anim = self._spin_row(tab, "Animation (ms)", arc.get("animation_time", 300), 50, 2000, 25)
+
+        # fab icon
+        icon_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        icon_label = Gtk.Label(label="Menu icon:", xalign=1)
+        icon_label.set_size_request(70, -1)
+        self._arc_fab_icon = Gtk.Entry()
+        self._arc_fab_icon.set_text(str(arc.get("fab_icon", "view-grid-symbolic")))
+        self._arc_fab_icon.set_hexpand(True)
+        icon_hint = Gtk.Label(label="icon theme name", xalign=0)
+        icon_hint.set_opacity(0.7)
+        icon_row.pack_start(icon_label, False, False, 0)
+        icon_row.pack_start(self._arc_fab_icon, True, True, 0)
+        icon_row.pack_start(icon_hint, False, False, 0)
+        tab.pack_start(icon_row, False, False, 0)
+
+        # switches
+        self._arc_pywal = self._switch_row(tab, "Use pywal colors", bool(arc.get("use_pywal", True)))
+        self._arc_follow = self._switch_row(tab, "Follow bar theme", bool(arc.get("follow_bar", True)))
+        self._arc_transparent = self._switch_row(tab, "Transparent (icons only)", bool(arc.get("transparent", False)))
+        self._arc_unfocus = self._switch_row(tab, "Close on unfocus", bool(arc.get("close_on_unfocus", False)))
+        self._arc_click = self._switch_row(tab, "Close on item click", bool(arc.get("close_on_click", True)))
+
+        # colours
+        self._arc_fab_color = Gtk.ColorButton()
+        self._arc_fab_color.set_rgba(_hex_to_rgba(arc.get("fab_color", "#c084fc")))
+        self._arc_item_color = Gtk.ColorButton()
+        self._arc_item_color.set_rgba(_hex_to_rgba(arc.get("item_color", "#22d3ee")))
+        fab_color_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        fab_color_label = Gtk.Label(label="Menu color:", xalign=1)
+        fab_color_label.set_size_request(70, -1)
+        self._arc_fab_color.set_hexpand(True)
+        fab_color_row.pack_start(fab_color_label, False, False, 0)
+        fab_color_row.pack_start(self._arc_fab_color, True, True, 0)
+        tab.pack_start(fab_color_row, False, False, 0)
+        item_color_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        item_color_label = Gtk.Label(label="Item color:", xalign=1)
+        item_color_label.set_size_request(70, -1)
+        self._arc_item_color.set_hexpand(True)
+        item_color_row.pack_start(item_color_label, False, False, 0)
+        item_color_row.pack_start(self._arc_item_color, True, True, 0)
+        tab.pack_start(item_color_row, False, False, 0)
+
+        # items editor
+        items_label = Gtk.Label(label="Menu items:", xalign=0)
+        items_label.get_style_context().add_class("mc-page-title")
+        items_label.set_margin_top(6)
+        tab.pack_start(items_label, False, False, 0)
+        self._arc_list = Gtk.ListBox()
+        self._arc_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self._populate_arc_items()
+        items_scroll = Gtk.ScrolledWindow()
+        items_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        items_scroll.set_min_content_height(160)
+        items_scroll.add(self._arc_list)
+        tab.pack_start(items_scroll, True, True, 0)
+        btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        up_btn = Gtk.Button.new_from_icon_name("go-up-symbolic", Gtk.IconSize.BUTTON)
+        down_btn = Gtk.Button.new_from_icon_name("go-down-symbolic", Gtk.IconSize.BUTTON)
+        add_btn = Gtk.Button(label="Add")
+        edit_btn = Gtk.Button(label="Edit")
+        remove_btn = Gtk.Button(label="Remove")
+        up_btn.set_tooltip_text("Move item up")
+        down_btn.set_tooltip_text("Move item down")
+        up_btn.connect("clicked", self._on_arc_move, -1)
+        down_btn.connect("clicked", self._on_arc_move, 1)
+        add_btn.connect("clicked", self._on_arc_add)
+        edit_btn.connect("clicked", self._on_arc_edit)
+        remove_btn.connect("clicked", self._on_arc_remove)
+        for b in (up_btn, down_btn, add_btn, edit_btn, remove_btn):
+            btn_row.pack_start(b, False, False, 0)
+        tab.pack_start(btn_row, False, False, 0)
+
+    def _switch_row(self, tab: Gtk.Box, label: str, active: bool) -> Gtk.Switch:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        lbl = Gtk.Label(label=label, xalign=1)
+        lbl.set_size_request(150, -1)
+        switch = Gtk.Switch()
+        switch.set_active(active)
+        switch.set_hexpand(True)
+        row.pack_start(lbl, False, False, 0)
+        row.pack_start(switch, True, True, 0)
+        tab.pack_start(row, False, False, 0)
+        return switch
+
+    def _spin_row(self, tab: Gtk.Box, label: str, value: int, lo: int, hi: int, step: int) -> Gtk.SpinButton:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        lbl = Gtk.Label(label=label, xalign=1)
+        lbl.set_size_request(150, -1)
+        spin = Gtk.SpinButton.new_with_range(lo, hi, step)
+        spin.set_value(int(value))
+        spin.set_hexpand(True)
+        row.pack_start(lbl, False, False, 0)
+        row.pack_start(spin, True, True, 0)
+        tab.pack_start(row, False, False, 0)
+        return spin
+
+    # ── arc menu items ───────────────────────────────────────────
+
+    def _populate_arc_items(self) -> None:
+        from .arcmenu import load_icon_image
+
+        for child in self._arc_list.get_children():
+            self._arc_list.remove(child)
+        for item in self._arc_items:
+            row = Gtk.ListBoxRow()
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            hbox.set_margin_top(4)
+            hbox.set_margin_bottom(4)
+            hbox.set_margin_start(6)
+            hbox.set_margin_end(6)
+            icon = load_icon_image(item.get("icon", "application-x-executable"), 24, "#000000")
+            hbox.pack_start(icon, False, False, 0)
+            labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            title = Gtk.Label(
+                label=item.get("tooltip") or item.get("command") or item.get("action", ""),
+                xalign=0,
+            )
+            sub = Gtk.Label(
+                label=(item.get("command") or item.get("action", "no command")),
+                xalign=0, width_chars=46, ellipsize=True,
+            )
+            sub.set_opacity(0.7)
+            labels.pack_start(title, False, False, 0)
+            labels.pack_start(sub, False, False, 0)
+            hbox.pack_start(labels, True, True, 0)
+            row.add(hbox)
+            self._arc_list.add(row)
+        self._arc_list.show_all()
+
+    def _arc_selected_index(self) -> int | None:
+        row = self._arc_list.get_selected_row()
+        if row is None:
+            return None
+        return row.get_index()
+
+    def _on_arc_move(self, _btn, delta: int) -> None:
+        idx = self._arc_selected_index()
+        if idx is None:
+            return
+        new = idx + delta
+        if new < 0 or new >= len(self._arc_items):
+            return
+        self._arc_items[idx], self._arc_items[new] = self._arc_items[new], self._arc_items[idx]
+        self._populate_arc_items()
+        row = self._arc_list.get_row_at_index(new)
+        if row is not None:
+            self._arc_list.select_row(row)
+
+    def _on_arc_add(self, _btn) -> None:
+        item = _ArcItemDialog(self).run_dialog()
+        if item is not None:
+            self._arc_items.append(item)
+            self._populate_arc_items()
+
+    def _on_arc_edit(self, _btn) -> None:
+        idx = self._arc_selected_index()
+        if idx is None:
+            return
+        item = _ArcItemDialog(self, self._arc_items[idx]).run_dialog()
+        if item is not None:
+            self._arc_items[idx] = item
+            self._populate_arc_items()
+
+    def _on_arc_remove(self, _btn) -> None:
+        idx = self._arc_selected_index()
+        if idx is None:
+            return
+        del self._arc_items[idx]
+        self._populate_arc_items()
+
+    def _active_arc_position(self) -> str:
+        for key, btn in self._arc_position.items():
+            if btn.get_active():
+                return key
+        return "bottom-right"
+
+    def _active_arc_shape(self) -> str:
+        for key, btn in self._arc_shape.items():
+            if btn.get_active():
+                return key
+        return "circle"
+
+    def _active_arc_block(self) -> dict:
+        return {
+            "enabled": self._arc_enabled.get_active(),
+            "position": self._active_arc_position(),
+            "shape": self._active_arc_shape(),
+            "radius": int(self._arc_radius.get_value()),
+            "margin": int(self._arc_margin.get_value()),
+            "fab_size": int(self._arc_fab.get_value()),
+            "item_size": int(self._arc_item.get_value()),
+            "animation_time": int(self._arc_anim.get_value()),
+            "fab_icon": self._arc_fab_icon.get_text().strip() or "view-grid-symbolic",
+            "fab_color": _rgba_to_hex(self._arc_fab_color.get_rgba()),
+            "item_color": _rgba_to_hex(self._arc_item_color.get_rgba()),
+            "use_pywal": self._arc_pywal.get_active(),
+            "follow_bar": self._arc_follow.get_active(),
+            "transparent": self._arc_transparent.get_active(),
+            "close_on_unfocus": self._arc_unfocus.get_active(),
+            "close_on_click": self._arc_click.get_active(),
+            "items": self._arc_items,
+        }
+
     def _build_modules_tab(self, page: Gtk.Box) -> None:
         tab = page
         hint = Gtk.Label(
@@ -783,6 +1133,9 @@ class BarSettings(Gtk.Window):
             int(self._anim_speed.get_value()),
         )
 
+        # arc menu
+        self._actions["set_arcmenu"](self._active_arc_block())
+
         # The theme actions above mutate the shared cfg and re-theme the bar,
         # but this window's widgets keep their build-time override colours.
         # Re-apply them so the dialogue itself follows the newly selected theme
@@ -898,3 +1251,157 @@ class BarSettings(Gtk.Window):
 
         chooser.connect("response", on_response)
         chooser.show()
+
+class _ArcItemDialog(Gtk.Dialog):
+    """Add/edit a single arc menu item (icon, command, tooltip), with an
+    embedded application search panel."""
+
+    def __init__(self, parent, item: dict | None = None):
+        super().__init__(title="Arc Menu Item", transient_for=parent, modal=True)
+        self._apps = _load_installed_apps()
+
+        self.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        self.add_button("Save", Gtk.ResponseType.OK)
+        self.set_default_response(Gtk.ResponseType.OK)
+        self.connect("key-press-event", self._on_key_press)
+
+        item = item or {"icon": "", "command": "", "tooltip": ""}
+        box = self.get_content_area()
+        box.set_spacing(8)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+
+        def field(label: str, value: str) -> Gtk.Entry:
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            lbl = Gtk.Label(label=label, xalign=0)
+            lbl.set_size_request(90, -1)
+            entry = Gtk.Entry()
+            entry.set_text(value or "")
+            row.pack_start(lbl, False, False, 0)
+            row.pack_start(entry, True, True, 0)
+            box.pack_start(row, False, False, 0)
+            return entry
+
+        self._icon_entry = field("Icon", item.get("icon", ""))
+        self._tooltip_entry = field("Tooltip", item.get("tooltip", ""))
+        self._command_entry = field("Command", item.get("command", ""))
+        self._action_entry = field("Action", item.get("action", ""))
+
+        search_btn = Gtk.Button(label="Search Applications...")
+        search_btn.connect("clicked", lambda _b: self._show_app_search())
+        box.pack_start(search_btn, False, False, 0)
+
+        self._search = Gtk.SearchEntry()
+        self._search.set_placeholder_text("Type to search applications...")
+        self._search.connect("search-changed", lambda _e: self._populate_apps())
+        self._search.connect("activate", lambda _e: self._select_app())
+
+        self._apps_list = Gtk.ListBox()
+        self._apps_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self._apps_list.connect("row-activated", lambda _l, _r: self._select_app())
+
+        self._apps_scroll = Gtk.ScrolledWindow()
+        self._apps_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self._apps_scroll.set_size_request(-1, 280)
+        self._apps_scroll.add(self._apps_list)
+
+        hide_btn = Gtk.Button(label="Hide Search")
+        hide_btn.connect("clicked", lambda _b: self._hide_app_search())
+
+        search_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        search_row.pack_start(self._search, True, True, 0)
+        search_row.pack_start(hide_btn, False, False, 0)
+
+        for widget in (self._search, search_row, self._apps_scroll):
+            widget.set_no_show_all(True)
+
+        box.pack_start(search_row, False, False, 0)
+        box.pack_start(self._apps_scroll, True, True, 0)
+
+        hint = Gtk.Label(
+            label="Icon: theme icon name (e.g. firefox).\n"
+            "Action: 'settings' opens the bar settings instead of a command.",
+            xalign=0, wrap=True,
+        )
+        hint.set_margin_top(4)
+        box.pack_start(hint, False, False, 0)
+        self.show_all()
+
+    def run_dialog(self) -> dict | None:
+        if self.run() == Gtk.ResponseType.OK:
+            item = self.get_item()
+            self.destroy()
+            return item
+        self.destroy()
+        return None
+
+    def _show_app_search(self) -> None:
+        self._search.set_visible(True)
+        self._apps_scroll.set_visible(True)
+        self._populate_apps()
+        self._search.grab_focus()
+
+    def _hide_app_search(self) -> None:
+        self._search.set_visible(False)
+        self._apps_scroll.set_visible(False)
+        self._search.set_text("")
+
+    def _populate_apps(self) -> None:
+        from .arcmenu import load_icon_image
+
+        for child in self._apps_list.get_children():
+            self._apps_list.remove(child)
+        query = self._search.get_text().strip().lower()
+        for app in self._apps:
+            if query and query not in app["name"].lower() and query not in (app["comment"] or "").lower():
+                continue
+            row = Gtk.ListBoxRow()
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            hbox.set_margin_top(4)
+            hbox.set_margin_bottom(4)
+            hbox.set_margin_start(6)
+            hbox.set_margin_end(6)
+            icon = load_icon_image(app["icon"], 24, "#000000")
+            hbox.pack_start(icon, False, False, 0)
+            labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            title = Gtk.Label(label=app["name"], xalign=0)
+            sub = Gtk.Label(label=app.get("comment") or app["exec"], xalign=0, width_chars=45, ellipsize=True)
+            sub.set_opacity(0.7)
+            labels.pack_start(title, False, False, 0)
+            labels.pack_start(sub, False, False, 0)
+            hbox.pack_start(labels, True, True, 0)
+            row.add(hbox)
+            row._app = app
+            self._apps_list.add(row)
+        self._apps_list.show_all()
+
+    def _select_app(self) -> None:
+        row = self._apps_list.get_selected_row() or self._apps_list.get_row_at_index(0)
+        app = getattr(row, "_app", None)
+        if app:
+            self._icon_entry.set_text(app["icon"])
+            self._tooltip_entry.set_text(app["name"])
+            self._command_entry.set_text(app["exec"])
+            self._action_entry.set_text("")
+            self._hide_app_search()
+
+    def _on_key_press(self, _widget, event) -> bool:
+        if event.keyval == Gdk.KEY_Escape:
+            self.destroy()
+            return True
+        return False
+
+    def get_item(self) -> dict:
+        item = {
+            "icon": self._icon_entry.get_text().strip(),
+            "tooltip": self._tooltip_entry.get_text().strip(),
+        }
+        action = self._action_entry.get_text().strip()
+        command = self._command_entry.get_text().strip()
+        if action:
+            item["action"] = action
+        if command:
+            item["command"] = command
+        return item

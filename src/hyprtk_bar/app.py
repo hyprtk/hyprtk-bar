@@ -144,6 +144,7 @@ class BarWindow(Gtk.Window):
         self._border_hue = 0.0
         self._border_base = ""
         self._palette_cache: dict | None = None
+        self._theme_extra_cb = None
 
         self.set_title("hyprtk-bar")
         self.set_decorated(False)
@@ -213,6 +214,15 @@ class BarWindow(Gtk.Window):
         self._bar.queue_draw()
         self._sync_rofi_variant()
         self._setup_border_animation()
+        if self._theme_extra_cb is not None:
+            self._theme_extra_cb(palette)
+
+    def set_theme_extra_callback(self, callback) -> None:
+        """Register a callback invoked with the palette after each re-theme.
+
+        Used to keep the arc menu overlay in lock-step with the bar's palette.
+        """
+        self._theme_extra_cb = callback
 
     # ── animated border (mirrors Hyprland's border/borderangle) ─────
 
