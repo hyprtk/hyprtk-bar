@@ -595,8 +595,16 @@ class ArcMenuWindow(Gtk.Window):
         The shared cfg dict is mutated by the settings dialogue before this is
         called, so the new position/shape/sizes/items are already visible via
         ``self._cfg`` — only the widget tree + layer-shell anchors need
-        rebuilding.
+        rebuilding. When ``enabled`` was switched off the overlay is hidden
+        (the surface unmaps) and nothing is rebuilt.
         """
+        if not self._enabled():
+            self._menu.cancel_animation()
+            self._menu._stop_border_animation()
+            self._apply_closed()
+            self.hide()
+            return
+
         self._menu.cancel_animation()
         self.remove(self._menu)
         self._menu.destroy()
@@ -695,7 +703,12 @@ class ArcMenuWindow(Gtk.Window):
 
     # ── state control ─────────────────────────────────────────────
 
+    def _enabled(self) -> bool:
+        return bool((self._cfg.get("arcmenu") or {}).get("enabled", True))
+
     def toggle(self) -> None:
+        if not self._enabled():
+            return
         if self._menu.is_open():
             self.close_menu()
         else:
