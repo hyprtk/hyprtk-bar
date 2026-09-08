@@ -25,7 +25,7 @@ from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .config import load_pywal_colors  # noqa: E402
 from .hypr_animations import active_border_colors, border_animation, lerp_color  # noqa: E402
-from .widgets import spawn  # noqa: E402
+from .widgets import Glyph, spawn  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.arcmenu")
 
@@ -166,11 +166,20 @@ def load_icon_image(icon_name: str, pixel: int, fg_hex: str) -> Gtk.Image:
     return Gtk.Image.new_from_pixbuf(pixbuf)
 
 
-def _make_round_button(size: int, icon_name: str, css_class: str, fg_color: str = "#000000") -> Gtk.Button:
+def _face_widget(size: int, glyph: str, icon_name: str, fg_color: str) -> Gtk.Widget:
+    """The button face: a Nerd Font glyph when ``glyph`` is set, else an icon."""
+    if glyph:
+        g = Glyph(glyph, "arc-glyph")
+        g.set_pixel_size(max(10, int(size * 0.5)))
+        return g
+    return load_icon_image(icon_name, max(8, int(size * 0.5)), fg_color)
+
+
+def _make_round_button(size: int, icon_name: str, css_class: str, fg_color: str = "#000000", glyph: str = "") -> Gtk.Button:
     btn = Gtk.Button()
     btn.set_size_request(size, size)
     btn.get_style_context().add_class(css_class)
-    btn.set_image(load_icon_image(icon_name, max(8, int(size * 0.5)), fg_color))
+    btn.set_image(_face_widget(size, glyph, icon_name, fg_color))
     btn.set_can_focus(False)
     return btn
 
@@ -290,6 +299,7 @@ class ArcMenu(Gtk.Fixed):
             arc.get("fab_icon", "view-grid-symbolic"),
             "arc-fab",
             self._palette["fab_icon_color"],
+            arc.get("fab_glyph", ""),
         )
         fab.set_tooltip_text("Menu")
         fab.connect("clicked", lambda _b: self.on_toggle() if self.on_toggle else None)
@@ -298,7 +308,8 @@ class ArcMenu(Gtk.Fixed):
     def _add_item(self, entry: dict) -> None:
         icon = entry.get("icon", "application-x-executable")
         btn = _make_round_button(
-            self.item_size, icon, "arc-item", self._palette["item_icon_color"]
+            self.item_size, icon, "arc-item", self._palette["item_icon_color"],
+            entry.get("glyph", ""),
         )
         tooltip = entry.get("tooltip") or entry.get("command") or ""
         if tooltip:
@@ -329,14 +340,23 @@ class ArcMenu(Gtk.Fixed):
 
     def refresh_icons(self) -> None:
         arc = self.cfg.get("arcmenu") or {}
-        fab_icon = arc.get("fab_icon", "view-grid-symbolic")
         self._fab.set_image(
-            load_icon_image(fab_icon, max(8, int(self.fab_size * 0.5)), self._palette["fab_icon_color"])
+            _face_widget(
+                self.fab_size,
+                arc.get("fab_glyph", ""),
+                arc.get("fab_icon", "view-grid-symbolic"),
+                self._palette["fab_icon_color"],
+            )
         )
         for item in self._items:
-            icon = item["entry"].get("icon", "application-x-executable")
+            e = item["entry"]
             item["btn"].set_image(
-                load_icon_image(icon, max(8, int(self.item_size * 0.5)), self._palette["item_icon_color"])
+                _face_widget(
+                    self.item_size,
+                    e.get("glyph", ""),
+                    e.get("icon", "application-x-executable"),
+                    self._palette["item_icon_color"],
+                )
             )
 
     def _apply_css(self) -> None:
@@ -381,6 +401,8 @@ class ArcMenu(Gtk.Fixed):
         .arc-item:hover {{
             background-color: {hover or "shade(" + p["item_color"] + ", 1.1)"};
         }}
+        .arc-fab .arc-glyph {{ color: {p["fab_icon_color"]}; }}
+        .arc-item .arc-glyph {{ color: {p["item_icon_color"]}; }}
         """
         provider = Gtk.CssProvider()
         provider.load_from_data(css.encode())

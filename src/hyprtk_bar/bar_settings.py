@@ -804,15 +804,15 @@ class BarSettings(Gtk.Window):
         self._arc_anim = self._spin_row(tab, "Animation (ms)", arc.get("animation_time", 300), 50, 2000, 25)
 
         icon_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        icon_label = Gtk.Label(label="Menu icon:", xalign=1)
+        icon_label = Gtk.Label(label="Menu glyph:", xalign=1)
         icon_label.set_size_request(70, -1)
-        self._arc_fab_icon = Gtk.Entry()
-        self._arc_fab_icon.set_text(str(arc.get("fab_icon", "view-grid-symbolic")))
-        self._arc_fab_icon.set_hexpand(True)
-        icon_hint = Gtk.Label(label="icon theme name", xalign=0)
+        self._arc_fab_glyph = Gtk.Entry()
+        self._arc_fab_glyph.set_text(str(arc.get("fab_glyph", "\uf00a")))
+        self._arc_fab_glyph.set_hexpand(True)
+        icon_hint = Gtk.Label(label="Nerd Font codepoint (blank = icon)", xalign=0)
         icon_hint.set_opacity(0.7)
         icon_row.pack_start(icon_label, False, False, 0)
-        icon_row.pack_start(self._arc_fab_icon, True, True, 0)
+        icon_row.pack_start(self._arc_fab_glyph, True, True, 0)
         icon_row.pack_start(icon_hint, False, False, 0)
         tab.pack_start(icon_row, False, False, 0)
 
@@ -926,7 +926,7 @@ class BarSettings(Gtk.Window):
     # ── arc menu items ───────────────────────────────────────────
 
     def _populate_arc_items(self) -> None:
-        from .arcmenu import load_icon_image
+        from .arcmenu import _face_widget
 
         for child in self._arc_list.get_children():
             self._arc_list.remove(child)
@@ -937,7 +937,9 @@ class BarSettings(Gtk.Window):
             hbox.set_margin_bottom(4)
             hbox.set_margin_start(6)
             hbox.set_margin_end(6)
-            icon = load_icon_image(item.get("icon", "application-x-executable"), 24, "#000000")
+            icon = _face_widget(
+                24, item.get("glyph", ""), item.get("icon", "application-x-executable"), "#000000"
+            )
             hbox.pack_start(icon, False, False, 0)
             labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             title = Gtk.Label(
@@ -1019,7 +1021,8 @@ class BarSettings(Gtk.Window):
             "fab_size": int(self._arc_fab.get_value()),
             "item_size": int(self._arc_item.get_value()),
             "animation_time": int(self._arc_anim.get_value()),
-            "fab_icon": self._arc_fab_icon.get_text().strip() or "view-grid-symbolic",
+            "fab_icon": "view-grid-symbolic",
+            "fab_glyph": self._arc_fab_glyph.get_text().strip(),
             "fab_color": _rgba_to_hex(self._arc_fab_color.get_rgba()),
             "item_color": _rgba_to_hex(self._arc_item_color.get_rgba()),
             "use_pywal": self._arc_pywal.get_active(),
@@ -1331,6 +1334,7 @@ class _ArcItemDialog(Gtk.Dialog):
             box.pack_start(row, False, False, 0)
             return entry
 
+        self._glyph_entry = field("Glyph", item.get("glyph", ""))
         self._icon_entry = field("Icon", item.get("icon", ""))
         self._tooltip_entry = field("Tooltip", item.get("tooltip", ""))
         self._command_entry = field("Command", item.get("command", ""))
@@ -1368,7 +1372,8 @@ class _ArcItemDialog(Gtk.Dialog):
         box.pack_start(self._apps_scroll, True, True, 0)
 
         hint = Gtk.Label(
-            label="Icon: theme icon name (e.g. firefox).\n"
+            label="Glyph: Nerd Font codepoint (e.g. \\uf120).\n"
+            "Icon: theme icon name (used when Glyph is blank).\n"
             "Action: 'settings' opens the bar settings instead of a command.",
             xalign=0, wrap=True,
         )
@@ -1449,6 +1454,9 @@ class _ArcItemDialog(Gtk.Dialog):
             "icon": self._icon_entry.get_text().strip(),
             "tooltip": self._tooltip_entry.get_text().strip(),
         }
+        glyph = self._glyph_entry.get_text().strip()
+        if glyph:
+            item["glyph"] = glyph
         action = self._action_entry.get_text().strip()
         command = self._command_entry.get_text().strip()
         if action:

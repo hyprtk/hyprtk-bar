@@ -216,16 +216,17 @@ DEFAULTS = {
         "item_size": 48,
         "animation_time": 300,      # ms
         "fab_icon": "view-grid-symbolic",
+        "fab_glyph": "\uf00a",
         "fab_color": "#c084fc",     # mauve / color5 accent
         "item_color": "#22d3ee",    # sky / color6 accent
         "close_on_unfocus": False,
         "close_on_click": True,
         "items": [
-            {"icon": "firefox", "command": "firefox", "tooltip": "Firefox"},
-            {"icon": "utilities-terminal", "command": "alacritty", "tooltip": "Terminal"},
-            {"icon": "system-file-manager", "command": "thunar", "tooltip": "Files"},
-            {"icon": "accessories-calculator", "command": "qalculate-gtk", "tooltip": "Calculator"},
-            {"icon": "preferences-system", "action": "settings", "tooltip": "Settings"},
+            {"glyph": "\uf0ac", "command": "firefox", "tooltip": "Firefox"},
+            {"glyph": "\uf120", "command": "alacritty", "tooltip": "Terminal"},
+            {"glyph": "\uf07c", "command": "thunar", "tooltip": "Files"},
+            {"glyph": "\uf1ec", "command": "qalculate-gtk", "tooltip": "Calculator"},
+            {"glyph": "\uf013", "action": "settings", "tooltip": "Settings"},
         ],
     },
 }
@@ -444,6 +445,7 @@ def _validate_arcmenu(arc: dict) -> dict:
     if not isinstance(valid.get("items"), list):
         valid["items"] = list(DEFAULTS["arcmenu"]["items"])
     valid["fab_icon"] = str(valid.get("fab_icon", "view-grid-symbolic") or "view-grid-symbolic")
+    valid["fab_glyph"] = str(valid.get("fab_glyph", "") or "")
     return valid
 
 
