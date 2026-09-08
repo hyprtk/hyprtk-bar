@@ -9,7 +9,7 @@ block and is fully editable without touching the bar code.
 from __future__ import annotations
 
 import logging
-import shlex
+import re
 import subprocess
 
 import gi
@@ -18,15 +18,15 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gio, Gtk  # noqa: E402
 
 from .config import DEFAULT_LINKS, icon_size_for  # noqa: E402
+from . import proc  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
 from .themer import ThemerDialog  # noqa: E402
-from .widgets import Glyph, HoverButton, spawn  # noqa: E402
+from .widgets import Glyph, HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.quicklinks")
 
-# Shell operators that require the command to run inside a shell (GLib's
-# spawn_command_line_async parses but does not evaluate them).
-_SHELL_OPS = ("&&", "||", ";")
+# Shell operators that make a command require an explicit sh -c wrapper.
+_SHELL_OPS_RE = re.compile(r"(?:&&|\|\||;|\||`|\$\(|[<>])")
 
 
 def default_browser_command() -> str:
@@ -54,13 +54,13 @@ def default_browser_command() -> str:
 
 
 def _launch(command: str) -> bool:
-    """Spawn a quick-link command, wrapping it in a shell when needed."""
+    """Spawn a quick-link command, using an explicit sh -c only when needed."""
     command = command.strip()
     if not command:
         return False
-    if any(op in command for op in _SHELL_OPS):
-        return spawn(f"sh -c {shlex.quote(command)}")
-    return spawn(command)
+    if _SHELL_OPS_RE.search(command):
+        return proc.run_shell(command)
+    return proc.spawn_command_line(command)
 
 
 class QuickLinkButton(HoverButton):

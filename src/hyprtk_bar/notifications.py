@@ -42,6 +42,15 @@ GENERIC_ICON = "dialog-information-symbolic"
 
 TOAST_GAP = 8  # vertical gap between the bar and a toast
 
+# Caps on attacker-influenced notification fields (any session-bus app can send
+# them). Truncation bounds toast/center size and memory; a giant body/actions
+# array must not be able to stall the bar.
+_MAX_APP_NAME = 128
+_MAX_SUMMARY = 300
+_MAX_BODY = 3000
+_MAX_ACTIONS = 4          # keep at most this many action pairs
+_MAX_EXPIRE_MS = 60000    # clamp a positive expire_timeout to this ceiling
+
 
 def _hint(hints: dict, key: str, default=None):
     value = hints.get(key, default)
@@ -64,11 +73,11 @@ class Notification:
         default_timeout: int,
     ):
         self.id = nid
-        self.app_name = app_name or ""
+        self.app_name = (app_name or "")[:_MAX_APP_NAME]
         self.app_icon = app_icon or ""
-        self.summary = summary or ""
-        self.body = body or ""
-        raw_actions = list(actions or [])
+        self.summary = (summary or "")[:_MAX_SUMMARY]
+        self.body = (body or "")[:_MAX_BODY]
+        raw_actions = list(actions or [])[:_MAX_ACTIONS * 2]
         # The actions array is flat: [key1, label1, key2, label2, ...].
         self.actions = [
             list(raw_actions[i:i + 2])
@@ -82,7 +91,7 @@ class Notification:
         self.created = time.time()
         self.persistent = expire_timeout == 0 or self.urgency >= 2 or bool(self.actions)
         if expire_timeout and expire_timeout > 0:
-            self.timeout_ms = expire_timeout
+            self.timeout_ms = min(expire_timeout, _MAX_EXPIRE_MS)
         else:
             self.timeout_ms = default_timeout
         self.read = False
@@ -97,6 +106,7 @@ class NotificationStore:
         self._items: list[Notification] = []  # oldest first
         self._by_id: dict[int, Notification] = {}
         self._next_id = 1
+        self.on_evicted = None  # callable(nid) — told about overflow evictions
 
     def list(self) -> list[Notification]:
         return list(self._items)
@@ -113,7 +123,10 @@ class NotificationStore:
         self._items.append(notif)
         self._by_id[notif.id] = notif
         while len(self._items) > self._max:
-            self.remove(self._items[0].id)
+            evicted = self._items[0]
+            self.remove(evicted.id)
+            if self.on_evicted is not None:
+                self.on_evicted(evicted.id)
 
     def remove(self, nid: int) -> Notification | None:
         notif = self._by_id.pop(nid, None)
@@ -193,6 +206,7 @@ class NotificationController:
         self._bar_win = bar_win
         self._notif_cfg = cfg.get("notifications") or {}
         self._store = NotificationStore(self._notif_cfg.get("max_stored", 50))
+        self._store.on_evicted = self._on_evicted
         self._default_timeout = self._notif_cfg.get("default_timeout", 5000)
         self._bus: MessageBus | None = None
         self._service: NotificationService | None = None
@@ -282,6 +296,13 @@ class NotificationController:
 
     def _changed(self, kind: str, nid: int = 0) -> None:
         GLib.idle_add(self._notify_listeners, kind, nid)
+
+    def _on_evicted(self, nid: int) -> None:
+        """An overflow eviction is a closed notification — tell clients + UI."""
+        if self._toast is not None and self._toast._notif.id == nid:
+            self._dismiss_toast()
+        self._emit_closed(nid, CLOSED_EXPIRED)
+        self._changed("close", nid)
 
     # ── the org.freedesktop.Notifications API ─────────────────────
 

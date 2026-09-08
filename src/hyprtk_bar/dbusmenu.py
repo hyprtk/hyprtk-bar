@@ -21,6 +21,11 @@ log = logging.getLogger("hyprtk_bar.dbusmenu")
 
 IFACE = "com.canonical.dbusmenu"
 
+# A malicious (or buggy) item can return a huge/deep layout; cap both so the
+# menu build can't blow up memory or hit RecursionError on the GLib main loop.
+_MAX_DEPTH = 10
+_MAX_ITEMS = 200
+
 
 def _unpack(value):
     """Recursively unwrap dbus-next Variant objects."""
@@ -99,20 +104,31 @@ class DbusMenu:
             log.warning("could not parse dbusmenu layout: %s", exc)
             on_ready(None)
             return
+        self._items_remaining = _MAX_ITEMS
         menu = Gtk.Menu()
-        self._populate(menu, children)
+        try:
+            self._populate(menu, children, depth=0)
+        except Exception as exc:
+            # Never let a malformed item crash the GLib callback chain.
+            log.warning("dbusmenu build failed: %s", exc)
+            menu = Gtk.Menu()
         on_ready(menu)
 
-    def _populate(self, menu, children) -> None:
+    def _populate(self, menu, children, depth: int = 0) -> None:
+        if depth > _MAX_DEPTH or self._items_remaining <= 0:
+            return
         radios: list[Gtk.RadioMenuItem] = []
         for node in children:
-            item = self._build_item(node, radios)
+            if self._items_remaining <= 0:
+                break
+            item = self._build_item(node, radios, depth)
             if item is not None:
                 menu.append(item)
+                self._items_remaining -= 1
         for radio in radios[1:]:
             radio.join_group(radios[0])
 
-    def _build_item(self, node, radios):
+    def _build_item(self, node, radios, depth: int):
         try:
             item_id, props, children = node
             props = _unpack(props or {}) or {}
@@ -136,7 +152,7 @@ class DbusMenu:
         if display == "submenu":
             item = Gtk.MenuItem(label=label)
             submenu = Gtk.Menu()
-            self._populate(submenu, children)
+            self._populate(submenu, children, depth + 1)
             item.set_submenu(submenu)
         elif toggle_type == "radio":
             item = Gtk.RadioMenuItem(label=label)

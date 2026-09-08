@@ -36,6 +36,9 @@ from .widgets import HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.tray")
 
+# Cap on tracked SNI items (any session-bus app can register unlimited ones).
+_MAX_SNI_ITEMS = 16
+
 WATCHER_NAME = "org.kde.StatusNotifierWatcher"
 WATCHER_PATH = "/StatusNotifierWatcher"
 ITEM_IFACE = "org.kde.StatusNotifierItem"
@@ -764,6 +767,11 @@ class TrayController:
             return
         key = service if path == ITEM_PATH else f"{service}{path}"
         if key in self._items:
+            return
+        # Any session-bus app can flood RegisterStatusNotifierItem; cap the
+        # number of tracked items so a flood can't grow the bar unboundedly.
+        if len(self._items) >= _MAX_SNI_ITEMS:
+            log.warning("tray item limit reached (%d); ignoring %r", _MAX_SNI_ITEMS, arg)
             return
         item = SniItem(self, service, path)
         try:

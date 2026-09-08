@@ -10,8 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shlex
-import subprocess
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -20,11 +18,37 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from .config import icon_size_for  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
-from .widgets import Glyph, HoverButton, spawn  # noqa: E402
+from . import proc  # noqa: E402
+from .widgets import Glyph, HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.updates")
 
 _GLYPH = "\uf0ab"  # updates icon
+
+# The updates script runs AUTOMATICALLY on a timer, so it must come from one of
+# the bar/repo-owned locations — never an arbitrary path from a config.
+_ALLOWED_SCRIPT_ROOTS = (
+    os.path.expanduser("~/hyprtk/installer/scripts"),
+    os.path.expanduser("~/.local/share/hyprtk-bar"),
+    os.path.expanduser("~/.local/bin"),
+)
+
+
+def _allowed_script(path: str):
+    """Return the resolved script path when it's an existing file in a
+    bar/repo-owned root, else None."""
+    try:
+        resolved = os.path.realpath(path)
+    except OSError:
+        return None
+    if not os.path.isfile(resolved):
+        return None
+    if resolved.startswith(os.path.expanduser("~/hyprtk/installer/scripts") + os.sep):
+        return resolved
+    for root in _ALLOWED_SCRIPT_ROOTS[1:]:
+        if resolved == root or resolved.startswith(root + os.sep):
+            return resolved
+    return None
 
 
 class Updates(HoverButton):
@@ -34,14 +58,18 @@ class Updates(HoverButton):
         super().__init__("updates", vertical=False, spacing=6)
         u = cfg.get("updates") or {}
         self._interval = max(5, int(u.get("interval", 60)))
-        self._script = os.path.expanduser(
+        # The timer-run script is allowlisted (never an arbitrary config path).
+        self._script = _allowed_script(os.path.expanduser(
             u.get("script", "~/hyprtk/installer/scripts/updates.sh")
-        )
+        ) or "")
+        if not self._script:
+            log.warning("updates: refusing non-allowlisted script path; polling disabled")
+            self._interval = 3600
         self._install = u.get(
             "install_command",
             "alacritty -o window.dimensions.lines=45 window.dimensions.columns=90"
             " --class floating -e ~/hyprtk/installer/scripts/installupdates.sh",
-        )
+        ) or ""
         font_cfg = cfg.get("font") or {}
         self._glyph = Glyph(_GLYPH, "accent-icon")
         self._glyph.set_pixel_size(
@@ -81,21 +109,22 @@ class Updates(HoverButton):
         self._tip = tooltip or f"{text} update(s)"
 
     def _query(self) -> tuple[str, str, str]:
+        if not self._script:
+            return "?", "green", ""
+        out = proc.run_checked([self._script], timeout=30).strip()
         try:
-            out = subprocess.run(
-                [self._script], capture_output=True, text=True, timeout=30
-            ).stdout.strip()
             data = json.loads(out)
             return (
                 str(data.get("text", "0")),
                 str(data.get("class", "green")),
                 str(data.get("tooltip", "")),
             )
-        except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        except (ValueError, TypeError):
             return "?", "green", ""
 
     def _on_button_press(self, _widget, event):
         if event.button == 1 and self._install:
-            # Wrapped in a shell so the embedded ~/ path expands.
-            spawn(f"sh -c {shlex.quote(self._install)}")
+            # Trusted config command; run through one explicit sh -c so the
+            # embedded ~/ path expands.
+            proc.run_shell(self._install)
         return True

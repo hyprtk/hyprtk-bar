@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import logging
-import os
-import shlex
-import shutil
 
 import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("Pango", "1.0")
 
-from gi.repository import GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Gtk, Pango  # noqa: E402
+
+from . import proc  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.widgets")
 
@@ -41,34 +40,13 @@ class Glyph(Gtk.Label):
 
 
 def spawn(command: str) -> bool:
-    """Spawn a command line, resolving ``~`` and the binary with ~/.local/bin on PATH.
+    """Spawn a command line as argv (see ``proc.spawn_command_line``).
 
-    The bar process is launched with a minimal PATH that does not include
-    ``~/.local/bin``, so bare names of user-installed launchers (hyprtk-menu,
-    ...) fail to resolve. Resolve the leading
-    executable against an augmented PATH before spawning.
+    Kept as a thin wrapper so existing callers don't change; the real work —
+    ``~``/binary resolution and quoting-safe argv building — lives in
+    ``proc``.
     """
-    command = os.path.expanduser(command).strip()
-    if not command:
-        return False
-    path = os.environ.get("PATH", "")
-    home_bin = os.path.expanduser("~/.local/bin")
-    if home_bin not in path.split(":"):
-        path = home_bin + ":" + path
-    parts = shlex.split(command)
-    if parts:
-        resolved = shutil.which(parts[0], path=path)
-        if resolved:
-            if command.startswith(parts[0]):
-                command = resolved + command[len(parts[0]):]
-            else:
-                command = " ".join([resolved] + parts[1:])
-    try:
-        GLib.spawn_command_line_async(command)
-    except GLib.Error as exc:
-        log.warning("Failed to spawn %r: %s", command, exc)
-        return False
-    return True
+    return proc.spawn_command_line(command)
 
 
 class HoverButton(Gtk.EventBox):

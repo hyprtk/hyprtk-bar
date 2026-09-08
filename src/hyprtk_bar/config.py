@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 CONFIG_DIR = Path.home() / ".config" / "hyprtk-bar"
@@ -421,7 +422,52 @@ def validate(cfg: dict) -> dict:
     else:
         valid["arcmenu"] = _validate_arcmenu(arcmenu)
 
+    # ── command/script fields must always be strings ────────────────
+    center = valid.get("center") or {}
+    center["start_command"] = _str_field(center.get("start_command"), "hyprtk-menu")
+    center["pinned"] = _clean_command_list(center.get("pinned") or [], ("class", "command", "icon"))
+
+    ql = valid.get("quicklinks") or {}
+    if isinstance(ql.get("links"), list):
+        ql["links"] = _clean_command_list(
+            ql["links"], ("id", "label", "icon", "command", "command_right", "command_middle")
+        )
+
+    upd = valid.get("updates") or {}
+    upd["script"] = _str_field(upd.get("script"), "~/hyprtk/installer/scripts/updates.sh")
+    upd["install_command"] = _str_field(upd.get("install_command"))
+
+    # workspaces.max feeds range() at build time — clamp it to avoid absurd
+    # chip counts from a hand-edited config.
+    ws = valid.get("workspaces") or {}
+    if isinstance(ws, dict):
+        try:
+            ws["max"] = max(1, min(20, int(ws.get("max", 5))))
+        except (TypeError, ValueError):
+            ws["max"] = 5
+
     return valid
+
+
+def _str_field(value, default: str = "") -> str:
+    """Coerce a config value to a string (commands must never be non-strings)."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)):
+        return str(value)
+    return default
+
+
+def _clean_command_list(entries, keys):
+    """Coerce each entry's command-ish keys to strings, dropping non-dicts."""
+    cleaned = []
+    for entry in entries or []:
+        if not isinstance(entry, dict):
+            continue
+        for key in keys:
+            entry[key] = _str_field(entry.get(key))
+        cleaned.append(entry)
+    return cleaned
 
 
 def _validate_arcmenu(arc: dict) -> dict:
@@ -445,8 +491,9 @@ def _validate_arcmenu(arc: dict) -> dict:
             valid[key] = DEFAULTS["arcmenu"][key]
     if not isinstance(valid.get("items"), list):
         valid["items"] = list(DEFAULTS["arcmenu"]["items"])
-    valid["fab_icon"] = str(valid.get("fab_icon", "view-grid-symbolic") or "view-grid-symbolic")
-    valid["fab_glyph"] = str(valid.get("fab_glyph", "") or "")
+    valid["fab_icon"] = _str_field(valid.get("fab_icon") or "view-grid-symbolic")
+    valid["fab_glyph"] = _str_field(valid.get("fab_glyph") or "")
+    valid["items"] = _clean_command_list(valid["items"], ("glyph", "command", "action", "tooltip"))
     return valid
 
 
@@ -540,7 +587,17 @@ def load() -> dict:
 
 def save(cfg: dict) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(cfg, indent=2) + "\n")
+    # Atomic write (tmp + fsync + rename) so a crash/kill can't truncate
+    # config.json and silently reset the bar to defaults.
+    tmp = CONFIG_DIR / ".config.json.tmp"
+    try:
+        tmp.write_text(json.dumps(cfg, indent=2) + "\n")
+        os.replace(tmp, CONFIG_PATH)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
 
 
 def load_pywal_colors() -> dict | None:

@@ -18,6 +18,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from . import config as config_module  # noqa: E402
+from . import proc  # noqa: E402
 from .clock import Clock  # noqa: E402
 from .config import DEFAULT_LAYOUT, icon_size_for  # noqa: E402
 from .kbstate import KbState  # noqa: E402
@@ -302,10 +303,10 @@ class Bar(Gtk.Box):
         and then this instance quits.
         """
         launcher = os.path.expanduser("~/.local/bin/hyprtk-bar")
-        try:
-            GLib.spawn_command_line_async(f"sh -c 'sleep 1; exec {launcher}'")
-        except GLib.Error as exc:
-            log.warning("could not schedule bar restart: %s", exc)
+        # One explicit sh -c; the launcher path is passed as a positional
+        # argument ($@), never string-interpolated into the script, so
+        # spaces/quotes in $HOME are safe.
+        if not proc.spawn_argv(["/bin/sh", "-c", 'sleep 1; exec "$@"', "sh", launcher]):
             return
         GLib.timeout_add(200, lambda: Gtk.main_quit() or False)
 

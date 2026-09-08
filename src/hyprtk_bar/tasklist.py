@@ -7,6 +7,7 @@ hover/right-click opens a floating preview popup listing the app's windows.
 from __future__ import annotations
 
 import logging
+import re
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -39,10 +40,26 @@ def _class_matches(pinned_class: str, window_class: str) -> bool:
     return a.startswith(b) or b.startswith(a)
 
 
+# A window class / app_id is attacker-influenced (any app on the session can
+# set its own). Before it reaches ``Gio.DesktopAppInfo.new("<id>.desktop")`` —
+# which treats a value containing ``/`` as a FILESYSTEM PATH — it must match a
+# safe desktop-id shape.
+_DESKTOP_ID_RE = re.compile(r"^[A-Za-z0-9_.+-]+$")
+
+
+def _desktop_id(value: str) -> str:
+    """Return ``value`` only when it is a safe desktop-id, else ""."""
+    value = (value or "").strip()
+    return value if _DESKTOP_ID_RE.fullmatch(value) else ""
+
+
 def resolve_command(app_class: str) -> str:
     """Best-guess launch command for an app class (via its .desktop entry)."""
+    app_id = _desktop_id(app_class)
+    if not app_id:
+        return app_class.lower()
     try:
-        info = Gio.DesktopAppInfo.new(f"{app_class}.desktop")
+        info = Gio.DesktopAppInfo.new(f"{app_id}.desktop")
         line = info.get_commandline() if info is not None else None
         if line:
             cmd = line.split()[0].rsplit("/", 1)[-1]
@@ -63,17 +80,19 @@ def resolve_icon(app_class: str, explicit: str | None = None) -> str:
     theme = Gtk.IconTheme.get_default()
     if explicit and theme.has_icon(explicit):
         return _prefer_symbolic(theme, explicit)
-    try:
-        info = Gio.DesktopAppInfo.new(f"{app_class}.desktop")
-    except (TypeError, GLib.Error):
-        # constructor returns NULL (raised by pygobject) when no matching .desktop
-        info = None
-    if info is not None:
-        icon = info.get_icon()
-        if icon is not None:
-            name = icon.to_string()
-            if name and theme.has_icon(name):
-                return _prefer_symbolic(theme, name)
+    app_id = _desktop_id(app_class)
+    if app_id:
+        try:
+            info = Gio.DesktopAppInfo.new(f"{app_id}.desktop")
+        except (TypeError, GLib.Error):
+            # constructor returns NULL (raised by pygobject) when no matching .desktop
+            info = None
+        if info is not None:
+            icon = info.get_icon()
+            if icon is not None:
+                name = icon.to_string()
+                if name and theme.has_icon(name):
+                    return _prefer_symbolic(theme, name)
     if theme.has_icon(app_class):
         return _prefer_symbolic(theme, app_class)
     return _prefer_symbolic(theme, GENERIC_ICON)
@@ -98,7 +117,10 @@ CATEGORY_SYMBOLIC = (
 
 def generic_symbolic_icon(app_class: str) -> str | None:
     """A generic symbolic icon for the app's category, or None."""
-    for candidate in (f"{app_class}.desktop", f"{app_class.lower()}.desktop"):
+    app_id = _desktop_id(app_class)
+    if not app_id:
+        return None
+    for candidate in (f"{app_id}.desktop", f"{app_id.lower()}.desktop"):
         try:
             info = Gio.DesktopAppInfo.new(candidate)
         except (TypeError, GLib.Error):
