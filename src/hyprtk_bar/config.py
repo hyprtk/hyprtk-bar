@@ -12,6 +12,7 @@ from pathlib import Path
 
 CONFIG_DIR = Path.home() / ".config" / "hyprtk-bar"
 CONFIG_PATH = CONFIG_DIR / "config.json"
+CONFIG_BAK_PATH = CONFIG_DIR / "config.json.bak"
 PYWAL_PATH = Path.home() / ".cache" / "wal" / "colors.json"
 ROFI_SYNC_SH = Path.home() / ".config" / "rofi" / "scripts" / "sync-rofi-theme.sh"
 
@@ -570,34 +571,87 @@ def _normalize_layout(raw: dict, valid: dict) -> dict:
     return layout
 
 
+def _write_config(path: Path, data: dict) -> None:
+    """Atomic write: tmp + os.replace, so a crash can't truncate the file."""
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps(data, indent=2) + "\n")
+        os.replace(tmp, path)
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
+def _backup_last_good() -> None:
+    """Snapshot the current config.json as the recovery point."""
+    try:
+        if CONFIG_PATH.is_file():
+            import shutil
+            shutil.copy2(CONFIG_PATH, CONFIG_BAK_PATH)
+    except OSError:
+        pass
+
+
 def load() -> dict:
-    """Load config from disk, writing defaults on first run."""
+    """Load config, restoring the last-good backup when the live one is lost.
+
+    The live config is never silently replaced by defaults: if it is missing
+    (e.g. lost during an interrupted update) or unreadable, the most recent
+    ``config.json.bak`` is restored first, so customisations survive a bar
+    update. Only a truly first run (no config and no backup) writes defaults.
+    """
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
     if not CONFIG_PATH.is_file():
+        if CONFIG_BAK_PATH.is_file():
+            try:
+                backup = json.loads(CONFIG_BAK_PATH.read_text())
+            except (json.JSONDecodeError, OSError):
+                backup = None
+            if backup is not None and isinstance(backup, dict):
+                log.warning("config.json missing; restoring last-good backup")
+                _write_config(CONFIG_PATH, backup)
+                return validate(backup)
+        # True first run: write defaults, then seed the backup too.
         save(DEFAULTS)
+        _backup_last_good()
         return dict(DEFAULTS)
 
     try:
         raw = json.loads(CONFIG_PATH.read_text())
     except (json.JSONDecodeError, OSError) as exc:
-        log.warning("Could not read config (%s); using defaults", exc)
+        log.warning("config unreadable (%s); restoring last-good backup", exc)
+        if CONFIG_BAK_PATH.is_file():
+            try:
+                backup = json.loads(CONFIG_BAK_PATH.read_text())
+            except (json.JSONDecodeError, OSError):
+                backup = None
+            if backup is not None and isinstance(backup, dict):
+                # Preserve the broken file for inspection, then restore.
+                try:
+                    os.replace(CONFIG_PATH, CONFIG_DIR / "config.json.corrupt")
+                except OSError:
+                    pass
+                _write_config(CONFIG_PATH, backup)
+                return validate(backup)
         return dict(DEFAULTS)
 
+    # Keep a rolling last-good snapshot on every successful read.
+    _backup_last_good()
     return validate(raw)
 
 
 def save(cfg: dict) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    # Atomic write (tmp + fsync + rename) so a crash/kill can't truncate
-    # config.json and silently reset the bar to defaults.
-    tmp = CONFIG_DIR / ".config.json.tmp"
+    # Keep the current config as the last-good backup before overwriting, then
+    # write atomically. A failed/corrupt write is therefore always recoverable.
+    _backup_last_good()
     try:
-        tmp.write_text(json.dumps(cfg, indent=2) + "\n")
-        os.replace(tmp, CONFIG_PATH)
+        _write_config(CONFIG_PATH, cfg)
     except OSError:
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
+        log.warning("failed to save config")
 
 
 def load_pywal_colors() -> dict | None:
