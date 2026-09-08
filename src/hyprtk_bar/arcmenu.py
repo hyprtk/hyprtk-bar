@@ -166,20 +166,24 @@ def load_icon_image(icon_name: str, pixel: int, fg_hex: str) -> Gtk.Image:
     return Gtk.Image.new_from_pixbuf(pixbuf)
 
 
-def _face_widget(size: int, glyph: str, icon_name: str, fg_color: str) -> Gtk.Widget:
-    """The button face: a Nerd Font glyph when ``glyph`` is set, else an icon."""
+def _face_widget(size: int, glyph: str, icon_name: str, fg_color: str, glyph_px: int = 0) -> Gtk.Widget:
+    """The button face: a Nerd Font glyph when ``glyph`` is set, else an icon.
+
+    ``glyph_px`` (0 = auto) overrides the default glyph size of half the button.
+    """
     if glyph:
+        px = glyph_px if glyph_px > 0 else int(size * 0.5)
         g = Glyph(glyph, "arc-glyph")
-        g.set_pixel_size(max(10, int(size * 0.5)))
+        g.set_pixel_size(max(10, px))
         return g
     return load_icon_image(icon_name, max(8, int(size * 0.5)), fg_color)
 
 
-def _make_round_button(size: int, icon_name: str, css_class: str, fg_color: str = "#000000", glyph: str = "") -> Gtk.Button:
+def _make_round_button(size: int, icon_name: str, css_class: str, fg_color: str = "#000000", glyph: str = "", glyph_px: int = 0) -> Gtk.Button:
     btn = Gtk.Button()
     btn.set_size_request(size, size)
     btn.get_style_context().add_class(css_class)
-    btn.set_image(_face_widget(size, glyph, icon_name, fg_color))
+    btn.set_image(_face_widget(size, glyph, icon_name, fg_color, glyph_px))
     btn.set_can_focus(False)
     return btn
 
@@ -253,6 +257,14 @@ class ArcMenu(Gtk.Fixed):
     def animation_time(self) -> int:
         return int((self.cfg.get("arcmenu") or {}).get("animation_time", 300))
 
+    @property
+    def glyph_size(self) -> int:
+        """Glyph pixel size (0 = auto: half the button size)."""
+        try:
+            return max(0, int((self.cfg.get("arcmenu") or {}).get("glyph_size", 0) or 0))
+        except (TypeError, ValueError):
+            return 0
+
     def effective_radius(self) -> int:
         """Ring radius that keeps items from overlapping on the arc fan."""
         n = len(self._items)
@@ -300,6 +312,7 @@ class ArcMenu(Gtk.Fixed):
             "arc-fab",
             self._palette["fab_icon_color"],
             arc.get("fab_glyph", ""),
+            self.glyph_size,
         )
         fab.set_tooltip_text("Menu")
         fab.connect("clicked", lambda _b: self.on_toggle() if self.on_toggle else None)
@@ -309,7 +322,7 @@ class ArcMenu(Gtk.Fixed):
         icon = entry.get("icon", "application-x-executable")
         btn = _make_round_button(
             self.item_size, icon, "arc-item", self._palette["item_icon_color"],
-            entry.get("glyph", ""),
+            entry.get("glyph", ""), self.glyph_size,
         )
         tooltip = entry.get("tooltip") or entry.get("command") or ""
         if tooltip:
@@ -346,6 +359,7 @@ class ArcMenu(Gtk.Fixed):
                 arc.get("fab_glyph", ""),
                 arc.get("fab_icon", "view-grid-symbolic"),
                 self._palette["fab_icon_color"],
+                self.glyph_size,
             )
         )
         for item in self._items:
@@ -356,6 +370,7 @@ class ArcMenu(Gtk.Fixed):
                     e.get("glyph", ""),
                     e.get("icon", "application-x-executable"),
                     self._palette["item_icon_color"],
+                    self.glyph_size,
                 )
             )
 

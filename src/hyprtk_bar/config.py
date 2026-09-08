@@ -217,6 +217,7 @@ DEFAULTS = {
         "animation_time": 300,      # ms
         "fab_icon": "view-grid-symbolic",
         "fab_glyph": "\uf00a",
+        "glyph_size": 0,           # glyph px (0 = auto: half the button size)
         "fab_color": "#c084fc",     # mauve / color5 accent
         "item_color": "#22d3ee",    # sky / color6 accent
         "close_on_unfocus": False,
@@ -437,7 +438,7 @@ def _validate_arcmenu(arc: dict) -> dict:
     for key in ("transparent", "follow_bar", "use_pywal", "close_on_unfocus", "close_on_click"):
         valid[key] = bool(valid.get(key, False))
     valid["enabled"] = bool(valid.get("enabled", True))
-    for key in ("margin", "radius", "fab_size", "item_size", "animation_time"):
+    for key in ("margin", "radius", "fab_size", "item_size", "animation_time", "glyph_size"):
         try:
             valid[key] = max(0, int(valid.get(key, DEFAULTS["arcmenu"][key])))
         except (TypeError, ValueError):

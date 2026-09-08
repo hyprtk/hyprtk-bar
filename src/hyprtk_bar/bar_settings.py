@@ -802,6 +802,7 @@ class BarSettings(Gtk.Window):
         self._arc_fab = self._spin_row(tab, "Menu button size", arc.get("fab_size", 56), 24, 120, 4)
         self._arc_item = self._spin_row(tab, "Item size", arc.get("item_size", 48), 24, 120, 4)
         self._arc_anim = self._spin_row(tab, "Animation (ms)", arc.get("animation_time", 300), 50, 2000, 25)
+        self._arc_glyph = self._spin_row(tab, "Glyph size (px)", arc.get("glyph_size", 0), 0, 64, 1)
 
         icon_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         icon_label = Gtk.Label(label="Menu glyph:", xalign=1)
@@ -1021,6 +1022,7 @@ class BarSettings(Gtk.Window):
             "fab_size": int(self._arc_fab.get_value()),
             "item_size": int(self._arc_item.get_value()),
             "animation_time": int(self._arc_anim.get_value()),
+            "glyph_size": int(self._arc_glyph.get_value()),
             "fab_icon": "view-grid-symbolic",
             "fab_glyph": self._arc_fab_glyph.get_text().strip(),
             "fab_color": _rgba_to_hex(self._arc_fab_color.get_rgba()),
