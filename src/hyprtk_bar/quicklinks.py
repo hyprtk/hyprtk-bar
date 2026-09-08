@@ -107,6 +107,11 @@ class ThemerLinkButton(QuickLinkButton):
     """
 
     def __init__(self, cfg: dict, link: dict, icon_size: int, restart_cb=None):
+        # The glyph opens the Theme Manager, so its tooltip should say so rather
+        # than the quick link's generic config label ("Wallpaper").
+        link = dict(link)
+        link.setdefault("id", "wallpaper")
+        link["label"] = "Theme Manager"
         super().__init__(cfg, link, icon_size)
         self._cfg = cfg
         self._popup = ThemerDialog(cfg, restart_cb=restart_cb)

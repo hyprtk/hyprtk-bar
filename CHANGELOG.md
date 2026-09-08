@@ -7,6 +7,14 @@ Dates are in YYYY-MM-DD format.
 
 ### Changed
 
+- **Theme Manager quick-link tooltip** — the wallpaper glyph's hover tooltip now
+  reads **Theme Manager** instead of "Wallpaper", since it opens the Theme
+  Manager dialogue.
+
+## [0.1.0] - 2026-09-08
+
+### Changed
+
 - **Theme Manager → Bar Themes page now matches the bar settings Themes tab** —
   it gained a theme **Source** selector (Pywal (dynamic) / Imported theme /
   Manual (config)), a check-list of the imported themes (enabled only when the
