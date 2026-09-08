@@ -149,6 +149,9 @@ class BarSettings(Gtk.Window):
         self.set_keep_above(True)
         self.set_default_size(620, 580)
         self.set_position(Gtk.WindowPosition.CENTER)
+        # Strip any GTK window frame/outline so the only border is the
+        # popup-box's 2px animated one (the popup-box now fills the window).
+        self.get_style_context().add_class("settings-window")
         # Transparent toplevel so the theme's opacity (via .popup-box alpha)
         # shows through to the desktop, like the bar's popups.
         self.set_app_paintable(True)
@@ -194,10 +197,6 @@ class BarSettings(Gtk.Window):
 
     def _build(self) -> None:
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        root.set_margin_top(12)
-        root.set_margin_bottom(12)
-        root.set_margin_start(12)
-        root.set_margin_end(12)
         root.get_style_context().add_class("popup-box")
         self.add(root)
 
