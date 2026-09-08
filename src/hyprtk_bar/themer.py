@@ -446,10 +446,11 @@ def _page_scroller(box: Gtk.Box) -> Gtk.ScrolledWindow:
 class ThemerDialog(Popup):
     """Layer-shell theming panel: sidebar + stack of theming pages."""
 
-    def __init__(self, cfg: dict, restart_cb=None):
+    def __init__(self, cfg: dict, restart_cb=None, theme_cb=None):
         super().__init__(cfg, cfg.get("position", "bottom"))
         self._cfg = cfg
         self._restart_cb = restart_cb
+        self._theme_cb = theme_cb
         self._status = None
         self._closed = False
         self._cache_running = False
@@ -1246,6 +1247,17 @@ class ThemerDialog(Popup):
             self._apply_bar_theme("imported", name)
 
     def _apply_bar_theme(self, source: str, theme_name: str):
+        msg = f"Bar theme: {source}"
+        if source == "imported" and theme_name:
+            msg += f" / {theme_name}"
+        if self._theme_cb is not None:
+            # Live apply — the bar re-themes without closing/reopening.
+            self._theme_cb(
+                source, theme_name if (source == "imported" and theme_name) else ""
+            )
+            self._toast(msg)
+            return
+        # Fallback (no live callback): write the config and restart the bar.
         try:
             cfg = json.loads(BAR_CONFIG.read_text())
         except (OSError, json.JSONDecodeError):
@@ -1261,9 +1273,6 @@ class ThemerDialog(Popup):
             log.warning("Failed to write bar config: %s", exc)
             self._toast("Failed to write bar config")
             return
-        msg = f"Bar theme: {source}"
-        if source == "imported" and theme_name:
-            msg += f" / {theme_name}"
         self._toast(msg)
         self._restart_bar()
 

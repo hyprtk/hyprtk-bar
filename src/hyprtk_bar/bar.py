@@ -226,7 +226,7 @@ class Bar(Gtk.Box):
         if mid == "start_button":
             return StartButton(cfg, ipc)
         if mid == "quicklinks":
-            return QuickLinks(cfg, ipc, restart_cb=self.restart)
+            return QuickLinks(cfg, ipc, restart_cb=self.restart, theme_cb=self.apply_theme)
         if mid == "workspaces":
             return Workspaces(cfg, ipc)
         if mid == "tasklist":
@@ -515,6 +515,20 @@ class Bar(Gtk.Box):
         }
 
     # ── theming callback (set by the app window) ────────────────
+
+    def apply_theme(self, source: str, theme_name: str = "") -> None:
+        """Apply a theme source / imported theme live, without restarting.
+
+        Used by the Theme Manager (and matching bar settings behaviour): the
+        shared config is updated, saved, and the bar re-themes in place.
+        """
+        cfg = self._cfg
+        cfg.setdefault("theme", {})["source"] = source
+        if theme_name:
+            cfg["theme"]["theme_name"] = theme_name
+        config_module.save(cfg)
+        if self._theme_cb is not None:
+            self._theme_cb()
 
     def set_theme_callback(self, callback) -> None:
         self._theme_cb = callback

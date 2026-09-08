@@ -7,6 +7,17 @@ Dates are in YYYY-MM-DD format.
 
 ### Changed
 
+- **Theme Manager → Bar Themes applies themes without restarting** — selecting
+  a source (pywal / imported / manual) or an imported theme now re-themes the
+  bar live instead of closing and reopening it. The Theme Manager uses the same
+  in-place re-theme path as the bar settings dialogue (`Bar.apply_theme`), which
+  updates the shared config, saves it, and re-themes. "Restart Bar" still
+  restarts explicitly.
+
+## [0.1.0] - 2026-09-08
+
+### Changed
+
 - **Theme Manager quick-link tooltip** — the wallpaper glyph's hover tooltip now
   reads **Theme Manager** instead of "Wallpaper", since it opens the Theme
   Manager dialogue.

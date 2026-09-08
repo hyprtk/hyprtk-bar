@@ -106,7 +106,7 @@ class ThemerLinkButton(QuickLinkButton):
     here, inside the quicklinks row.
     """
 
-    def __init__(self, cfg: dict, link: dict, icon_size: int, restart_cb=None):
+    def __init__(self, cfg: dict, link: dict, icon_size: int, restart_cb=None, theme_cb=None):
         # The glyph opens the Theme Manager, so its tooltip should say so rather
         # than the quick link's generic config label ("Wallpaper").
         link = dict(link)
@@ -114,7 +114,7 @@ class ThemerLinkButton(QuickLinkButton):
         link["label"] = "Theme Manager"
         super().__init__(cfg, link, icon_size)
         self._cfg = cfg
-        self._popup = ThemerDialog(cfg, restart_cb=restart_cb)
+        self._popup = ThemerDialog(cfg, restart_cb=restart_cb, theme_cb=theme_cb)
 
     def _on_button_press(self, _widget, event):
         if event.button == 1:
@@ -140,7 +140,7 @@ class QuickLinks(Gtk.Box):
     Theme Manager dialogue instead of spawning an external command.
     """
 
-    def __init__(self, cfg: dict, ipc=None, restart_cb=None):
+    def __init__(self, cfg: dict, ipc=None, restart_cb=None, theme_cb=None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         self._cfg = cfg
         self._buttons: list[QuickLinkButton] = []
@@ -150,7 +150,7 @@ class QuickLinks(Gtk.Box):
                 continue
             if link.get("id") == "wallpaper":
                 button = ThemerLinkButton(cfg, link, self._glyph_size(),
-                                          restart_cb=restart_cb)
+                                          restart_cb=restart_cb, theme_cb=theme_cb)
             else:
                 button = QuickLinkButton(cfg, link, self._glyph_size())
             self._buttons.append(button)
