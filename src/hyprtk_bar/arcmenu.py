@@ -753,8 +753,19 @@ class ArcMenuWindow(Gtk.Window):
         return False
 
     def _on_pointer_press(self, _widget, event) -> bool:
+        # Middle-click anywhere on the menu surface disables the arc menu:
+        # close it and persist arcmenu.enabled=false so the settings dialogue
+        # shows it off and the overlay stays hidden until re-enabled there.
         if event.button == Gdk.BUTTON_MIDDLE:
-            self.close_menu()
+            from . import config as config_module
+
+            arc = self._cfg.setdefault("arcmenu", {})
+            arc["enabled"] = False
+            try:
+                config_module.save(self._cfg)
+            except OSError:
+                log.warning("could not persist arc menu disable", exc_info=True)
+            self.reload_from_cfg()
             return True
         return False
 
