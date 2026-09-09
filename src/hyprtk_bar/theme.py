@@ -586,8 +586,11 @@ menu separator {{
 }}
 .settings-color:hover {{ border-color: {accent}; }}
 /* ListBox (arc menu item list, item-dialog app list) paints the GTK theme's
-   opaque bg by default — make it transparent so the popup-box theme shows. */
+   opaque bg by default — make it transparent so the popup-box theme shows.
+   The GTK theme also recolours a selected row's text (often black); override
+   that with the accent + contrast colour like the monitor's tree. */
 .settings-list, .settings-list row {{ background-color: transparent; }}
+.settings-list row:selected {{ background-color: {accent}; color: {active_fg_final}; }}
 /* The bar-settings window is frameless + transparent; strip any GTK theme
    frame/outline so its only border is the popup-box's 2px animated one. */
 .settings-window {{
