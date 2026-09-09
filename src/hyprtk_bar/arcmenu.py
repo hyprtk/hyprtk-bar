@@ -54,6 +54,74 @@ DEFAULT_ITEMS = [
     {"icon": "preferences-system", "action": "settings", "tooltip": "Settings"},
 ]
 
+# Curated app -> Nerd Font glyph lookup for the arc-menu item editor. Each entry
+# is ``(glyph, keyword, ...)``; a keyword is matched (substring, lowercased)
+# against an app's icon name, exec command and display name. The first hit wins;
+# no hit returns "" so the editor falls back to the theme icon.
+ARC_APP_GLYPHS = [
+    ("\uf120", "terminal", "alacritty", "kitty", "wezterm", "foot", "urxvt",
+     "rxvt", "xterm", "console", "konsole", "termite", "tilix", "terminator"),
+    ("\uf07c", "thunar", "nautilus", "nemo", "dolphin", "pcmanfm",
+     "file-manager", "filemanager", "folder"),
+    ("\uf0ac", "browser", "firefox", "chrome", "chromium", "brave", "epiphany",
+     "falkon", "qutebrowser", "librewolf", "waterfox"),
+    ("\uf0ce", "libreoffice-calc", "scalc", "gnumeric", "spreadsheet", "excel"),
+    ("\uf1ec", "calculator", "qalculate", "galculator"),
+    ("\uf1c3", "libreoffice-impress", "powerpoint", "presentation", "impress"),
+    ("\uf013", "settings", "preferences", "control-center", "systemsettings",
+     "configuration"),
+    ("\uf001", "spotify", "rhythmbox", "audacious", "clementine", "strawberry",
+     "amarok", "music", "mpd"),
+    ("\uf008", "vlc", "celluloid", "totem", "mpv", "video", "film",
+     "media-player", "player"),
+    ("\uf03e", "gimp", "inkscape", "krita", "darktable", "rawtherapee", "eog",
+     "gwenview", "viewnior", "image", "picture", "photo", "screenshot"),
+    ("\uf0e0", "thunderbird", "geary", "evolution", "claws", "mail", "email"),
+    ("\uf075", "discord", "telegram", "signal", "slack", "whatsapp", "element",
+     "hexchat", "irssi", "chat", "messaging"),
+    ("\uf11b", "steam", "lutris", "retroarch", "heroic", "game"),
+    ("\uf15c", "gedit", "mousepad", "kate", "notepad", "leafpad", "pluma",
+     "text-editor", "editor"),
+    ("\uf121", "vscode", "visual-studio-code", "code-oss", "sublime", "emacs",
+     "vim", "neovim", "pycharm", "intellij", "android-studio", "geany", "code"),
+    ("\uf1c0", "database", "sql", "mysql", "mariadb", "postgres", "sqlite",
+     "dbeaver"),
+    ("\uf1c1", "evince", "okular", "zathura", "mupdf", "pdf", "document",
+     "reader", "book", "ebook"),
+    ("\uf108", "monitor", "htop", "btop", "task-manager", "system-monitor",
+     "process", "mission-center"),
+    ("\uf083", "camera", "webcam", "cheese", "obs-studio", "obsproject"),
+    ("\uf1eb", "wifi", "network", "wpa", "connman"),
+    ("\uf293", "bluetooth", "blueberry", "blueman"),
+    ("\uf02f", "print", "printer"),
+    ("\uf1c6", "archive", "file-roller", "ark", "engrampa", "peazip",
+     "compress"),
+    ("\uf019", "download", "transmission", "deluge", "qbittorrent", "torrent"),
+    ("\uf1fc", "paint", "draw", "mypaint", "pinta", "azpainter"),
+    ("\uf0ad", "wrench", "gparted", "partition", "baobab", "disk-usage",
+     "disk"),
+    ("\uf0a3", "certificate", "password", "keyring", "keepass", "seahorse",
+     "kleopatra"),
+    ("\uf007", "user", "account", "users"),
+    ("\uf011", "logout", "session", "poweroff", "shutdown", "reboot",
+     "suspend", "hibernate"),
+]
+
+
+def glyph_for_app(app: dict) -> str:
+    """Best-effort Nerd Font glyph for an installed app, or "" to use the icon.
+
+    Matches :data:`ARC_APP_GLYPHS` against the app's icon name, exec command and
+    display name (all lowercased). Returns the first hit's glyph; no hit returns
+    "" so the arc-menu item editor reverts to the theme icon.
+    """
+    haystack = " ".join(str(app.get(k, "")) for k in ("icon", "exec", "name")).lower()
+    for glyph, *keywords in ARC_APP_GLYPHS:
+        for kw in keywords:
+            if kw in haystack:
+                return glyph
+    return ""
+
 # ── colour helpers ───────────────────────────────────────────────
 
 

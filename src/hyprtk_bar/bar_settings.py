@@ -1580,6 +1580,8 @@ class _ArcItemDialog(Gtk.Dialog):
         self._apps_list.show_all()
 
     def _select_app(self) -> None:
+        from .arcmenu import glyph_for_app
+
         row = self._apps_list.get_selected_row() or self._apps_list.get_row_at_index(0)
         app = getattr(row, "_app", None)
         if app:
@@ -1587,6 +1589,9 @@ class _ArcItemDialog(Gtk.Dialog):
             self._tooltip_entry.set_text(app["name"])
             self._command_entry.set_text(app["exec"])
             self._action_entry.set_text("")
+            # Prefer a Nerd Font glyph when one is known for the app; otherwise
+            # leave the glyph blank so the button falls back to the theme icon.
+            self._glyph_entry.set_text(glyph_for_app(app))
             self._hide_app_search()
 
     def _on_key_press(self, _widget, event) -> bool:
