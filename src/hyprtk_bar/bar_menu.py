@@ -26,13 +26,13 @@ def build_bar_menu(cfg: dict, actions: dict) -> Gtk.Menu:
     settings.connect("activate", lambda *_a: actions["open_settings"]())
     menu.append(settings)
 
-    about = Gtk.MenuItem(label="About hyprtk-bar")
-    about.connect("activate", lambda *_a: actions["open_about"]())
-    menu.append(about)
-
     reload = Gtk.MenuItem(label="Reload config")
     reload.connect("activate", lambda *_a: actions["reload_config"]())
     menu.append(reload)
+
+    about = Gtk.MenuItem(label="About hyprtk-bar")
+    about.connect("activate", lambda *_a: actions["open_about"]())
+    menu.append(about)
 
     return menu
 
