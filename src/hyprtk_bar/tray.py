@@ -399,9 +399,33 @@ class SniItem:
                 except TypeError:
                     log.debug("no signal %r on %s", sig, self.service)
         if self._props_iface is not None:
-            self._props_iface.on_properties_changed(
-                lambda iface_name, changed, invalidated: self._on_change()
-            )
+            self._props_iface.on_properties_changed(self._on_props_changed)
+
+    def detach(self) -> None:
+        """Remove every D-Bus signal subscription so the bus stops pinning this
+        item (and its widgets/pixmaps) after unregister. Without this, each
+        register/unregister cycle leaves a zombie item in the bus's handler
+        registry — a slow but real leak on nm-applet resets and name flaps."""
+        if self._iface is not None:
+            for sig in ("new_icon", "new_title", "new_tool_tip", "new_status", "new_menu"):
+                off = getattr(self._iface, f"off_{sig}", None)
+                if off:
+                    try:
+                        off(self._on_change)
+                    except Exception:
+                        pass
+        if self._props_iface is not None:
+            off = getattr(self._props_iface, "off_properties_changed", None)
+            if off:
+                try:
+                    off(self._on_props_changed)
+                except Exception:
+                    pass
+        self._iface = None
+        self._props_iface = None
+
+    def _on_props_changed(self, iface_name, changed, invalidated) -> None:
+        self._on_change()
 
     def _on_change(self) -> None:
         self._load_props()
@@ -577,6 +601,10 @@ class TrayButton(HoverButton):
         else:
             widget_anchor, menu_anchor = Gdk.Gravity.SOUTH_WEST, Gdk.Gravity.NORTH_WEST
         menu.popup_at_widget(self, widget_anchor, menu_anchor, None)
+        # A Gtk.Menu is a popup window that lingers after dismissal unless
+        # destroyed; each open builds a fresh one, so release it on close to
+        # avoid accumulating hidden menu surfaces.
+        menu.connect("deactivate", lambda m: m.destroy())
 
 
 class Tray(Gtk.Box):
@@ -830,6 +858,7 @@ class TrayController:
         item = self._items.pop(key, None)
         if item is None:
             return
+        item.detach()
         self._tray.remove_item(key)
         self._emit_unregistered(item.service)
 

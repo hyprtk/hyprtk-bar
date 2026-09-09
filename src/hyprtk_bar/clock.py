@@ -35,7 +35,22 @@ class Clock(HoverButton):
             self._build_calendar_popup()
 
         self._update()
-        GLib.timeout_add_seconds(1, self._tick)
+        self._tick_id = GLib.timeout_add_seconds(1, self._tick)
+
+    def shutdown(self) -> None:
+        """Stop the 1s tick and release popups so a rebuilt module doesn't leak."""
+        if self._tick_id is not None:
+            GLib.source_remove(self._tick_id)
+            self._tick_id = None
+        for popup in (self._date_popup, self._popup):
+            if popup is not None:
+                try:
+                    popup.hide_popup()
+                    popup.destroy()
+                except Exception:
+                    pass
+        self._date_popup = None
+        self._popup = None
 
     def _build_date_popup(self) -> None:
         """The date is a popup (above a bottom bar, below a top bar), never

@@ -5,6 +5,19 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-09
 
+### Fixed
+
+- **Memory leaks** — SNI items now detach their D-Bus signal subscriptions on
+  unregister (nm-applet resets / name flaps no longer pin zombie items in the
+  bus handler registry); DBusMenu icons are dimension-capped and each menu is
+  destroyed on dismissal; removed widget rows are now destroyed (not just
+  removed) across the menu (app list, favorites, recents, pinned grid, plasma
+  browser/trash), themer (theme list, thumbnail/pywal/variant/icon grids), and
+  the notification center. Module poll timers (clock, kbstate, updates, sysmon)
+  are stopped on shutdown and wired into the bar's teardown.
+- **Notification name-owner fight** — the 150 ms retry+pkill loop is bounded
+  (5 tries, linear backoff) so an unknown/stubborn daemon can't churn forever.
+
 ### Changed
 
 - **Security hardening** — SNI `IconPixmap` dimensions are capped (512px) so a

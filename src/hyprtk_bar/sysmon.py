@@ -90,7 +90,7 @@ class SysMon(HoverButton):
             self._labels[key] = label
 
         self._update()
-        GLib.timeout_add_seconds(self._interval, self._tick)
+        self._tick_id = GLib.timeout_add_seconds(self._interval, self._tick)
         bind_hover_tooltip(self, cfg, lambda: self._tip)
 
         # Left-click opens the Mission Center-style system monitor dialog.
@@ -122,8 +122,14 @@ class SysMon(HoverButton):
             popup.show_above(self)
 
     def shutdown(self) -> None:
-        if self._popup is not None and self._popup.get_visible():
-            self._popup.hide_popup()
+        if self._tick_id is not None:
+            GLib.source_remove(self._tick_id)
+            self._tick_id = None
+        if self._popup is not None:
+            if self._popup.get_visible():
+                self._popup.hide_popup()
+            self._popup.destroy()
+            self._popup = None
 
     def _on_button_press(self, _widget, event):
         if event.button == 1:

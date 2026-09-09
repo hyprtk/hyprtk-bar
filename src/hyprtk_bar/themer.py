@@ -336,6 +336,7 @@ def is_valid(wallpaper_dir: Path) -> bool:
 def _remove_all_children(widget):
     for child in list(widget.get_children()):
         widget.remove(child)
+        child.destroy()
 
 
 def _set_label_css(widget: Gtk.Widget, css: str):
@@ -1212,6 +1213,7 @@ class ThemerDialog(Popup):
 
         for child in self._bar_themes_box.get_children():
             self._bar_themes_box.remove(child)
+            child.destroy()
         self._bar_theme_buttons = {}
         themes = list_themes()
         if not themes:

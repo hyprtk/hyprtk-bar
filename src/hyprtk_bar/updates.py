@@ -84,11 +84,17 @@ class Updates(HoverButton):
 
         self._tip = ""
         self._update()
-        GLib.timeout_add_seconds(self._interval, self._tick)
+        self._tick_id = GLib.timeout_add_seconds(self._interval, self._tick)
         bind_hover_tooltip(self, cfg, lambda: self._tip)
 
     def apply_font(self, font_size, icon_size=0) -> None:
         self._glyph.set_pixel_size(icon_size_for(font_size, icon_size))
+
+    def shutdown(self) -> None:
+        """Stop the poll timer so a rebuilt module doesn't keep running pacman."""
+        if self._tick_id is not None:
+            GLib.source_remove(self._tick_id)
+            self._tick_id = None
 
     def _tick(self) -> bool:
         self._update()

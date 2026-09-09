@@ -449,6 +449,7 @@ class MenuWindow(Gtk.Window):
         child = self.get_child()
         if child is not None:
             self.remove(child)
+            child.destroy()  # release the old layout's whole widget tree
         self._build_ui()
         self._refresh_favorites()
         self._refresh_apps()
@@ -833,6 +834,7 @@ class MenuWindow(Gtk.Window):
         grid = self._win11_pinned_grid
         for child in grid.get_children():
             grid.remove(child)
+            child.destroy()
         pinned = self.pinned if self.pinned else DEFAULT_PINNED
         cols = 6
         col = 0
@@ -869,6 +871,7 @@ class MenuWindow(Gtk.Window):
             return
         for child in self.recents_list.get_children():
             self.recents_list.remove(child)
+            child.destroy()
         by_id = {entry.id: entry for entry in self.apps}
         shown = 0
         for item in self.recents:
@@ -1168,6 +1171,7 @@ class MenuWindow(Gtk.Window):
             return
         for child in browse.get_children():
             browse.remove(child)
+            child.destroy()
         try:
             entries = list(os.scandir(path))
         except OSError:
@@ -1216,6 +1220,7 @@ class MenuWindow(Gtk.Window):
             return
         for child in browse.get_children():
             browse.remove(child)
+            child.destroy()
         items = _trash_items()
         for item in items:
             row = self._make_plasma_row(
@@ -1836,6 +1841,7 @@ class MenuWindow(Gtk.Window):
             return
         for child in self.fav_row.get_children():
             self.fav_row.remove(child)
+            child.destroy()
         for entry in self.apps:
             if entry.id not in self.pinned:
                 continue
@@ -1854,6 +1860,7 @@ class MenuWindow(Gtk.Window):
             return
         for child in self.app_list.get_children():
             self.app_list.remove(child)
+            child.destroy()
         for entry in self._visible_apps():
             self.app_list.add(self._make_row(entry))
         self.app_list.show_all()

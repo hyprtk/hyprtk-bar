@@ -601,8 +601,20 @@ class Bar(Gtk.Box):
         if tasklist is not None:
             tasklist.shutdown()
         clock = self._widgets.get("clock")
-        if clock is not None and clock._popup is not None:
-            clock._popup.hide_popup()
+        if clock is not None:
+            shutdown = getattr(clock, "shutdown", None)
+            if shutdown is not None:
+                shutdown()
+        kb = self._widgets.get("kbstate")
+        if kb is not None:
+            shutdown = getattr(kb, "shutdown", None)
+            if shutdown is not None:
+                shutdown()
+        upd = self._widgets.get("updates")
+        if upd is not None:
+            shutdown = getattr(upd, "shutdown", None)
+            if shutdown is not None:
+                shutdown()
         qs = self._widgets.get("quicksettings")
         if qs is not None:
             qs.shutdown()

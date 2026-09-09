@@ -50,6 +50,7 @@ _MAX_SUMMARY = 300
 _MAX_BODY = 3000
 _MAX_ACTIONS = 4          # keep at most this many action pairs
 _MAX_EXPIRE_MS = 60000    # clamp a positive expire_timeout to this ceiling
+_MAX_NAME_RETRIES = 5     # stop fighting a foreign daemon after this many tries
 
 
 def _hint(hints: dict, key: str, default=None):
@@ -264,16 +265,26 @@ class NotificationController:
             log.info("owns %s (notification daemon active)", NAME)
         else:
             self._am_server = False
-            log.warning(
-                "another process owns %s — killing it and retrying",
-                NAME,
-            )
             # The name is held by a competing daemon that slipped in (D-Bus
-            # auto-activation during a restart). Stop it and take the name.
+            # auto-activation during a restart). Stop it and retry — but bound
+            # the retries so a stubborn/unknown owner doesn't spawn pkill +
+            # request loops forever at 150ms.
+            self._name_retries = getattr(self, "_name_retries", 0) + 1
+            if self._name_retries > _MAX_NAME_RETRIES:
+                log.warning(
+                    "%s still not owned after %d attempts; giving up "
+                    "(another daemon owns it)", NAME, _MAX_NAME_RETRIES,
+                )
+                return
+            log.warning(
+                "another process owns %s — killing it and retrying (%d/%d)",
+                NAME, self._name_retries, _MAX_NAME_RETRIES,
+            )
             self._kill_competing_daemons()
             if self._bus is not None:
+                delay = min(5000, 150 * self._name_retries)  # linear backoff
                 GLib.timeout_add(
-                    150,
+                    delay,
                     lambda: (
                         self._bus.request_name(
                             NAME, NameFlag.DO_NOT_QUEUE, self._on_name_reply
@@ -286,6 +297,12 @@ class NotificationController:
 
     def add_listener(self, cb) -> None:
         self._listeners.append(cb)
+
+    def remove_listener(self, cb) -> None:
+        try:
+            self._listeners.remove(cb)
+        except ValueError:
+            pass
 
     def _notify_listeners(self, kind: str, nid: int = 0) -> None:
         for cb in list(self._listeners):
@@ -482,6 +499,7 @@ class NotificationCenterButton(HoverButton):
             self._ctrl.mark_read()
 
     def shutdown(self) -> None:
+        self._ctrl.remove_listener(self._on_change)
         self._popup.hide_popup()
         self._popup.destroy()
 
@@ -524,6 +542,7 @@ class NotificationCenter(Popup):
     def refresh(self) -> None:
         for child in self._list_box.get_children():
             self._list_box.remove(child)
+            child.destroy()
         try:
             items = self._ctrl._store.list()
             if not items:

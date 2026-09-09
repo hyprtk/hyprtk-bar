@@ -44,6 +44,11 @@ def _pixbuf_from_argb(width: int, height: int, data: bytes):
     try:
         if width <= 0 or height <= 0 or len(data) < width * height * 4:
             return None
+        # Icon data is remote-controlled; cap dimensions so a large icon-data
+        # can't force a big allocation on every menu open (mirrors the tray's
+        # SNI IconPixmap cap).
+        if width > 512 or height > 512:
+            return None
         return GdkPixbuf.Pixbuf.new_from_bytes(
             GLib.Bytes(bytes(data)),
             GdkPixbuf.Colorspace.RGB,

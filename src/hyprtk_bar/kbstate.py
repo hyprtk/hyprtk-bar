@@ -64,13 +64,19 @@ class KbState(HoverButton):
             self._icons[key] = img
         self._tip = ""
         self._update()
-        GLib.timeout_add(self._interval, self._tick)
+        self._tick_id = GLib.timeout_add(self._interval, self._tick)
         bind_hover_tooltip(self, cfg, lambda: self._tip)
 
     def apply_font(self, font_size, icon_size=0) -> None:
         size = icon_size_for(font_size, icon_size)
         for img in self._icons.values():
             img.set_pixel_size(size)
+
+    def shutdown(self) -> None:
+        """Stop the poll timer so a rebuilt module doesn't keep ticking."""
+        if self._tick_id is not None:
+            GLib.source_remove(self._tick_id)
+            self._tick_id = None
 
     def _tick(self) -> bool:
         self._update()
