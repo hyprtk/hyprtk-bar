@@ -8,7 +8,7 @@
 @define-color win11_hover alpha(@color6, 0.12);
 
 .layout-win11 .menu {
-    border-radius: 12px;
+    border-radius: 16px;
     border: 2px solid alpha(@foreground, 0.15);
 }
 
