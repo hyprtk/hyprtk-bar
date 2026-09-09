@@ -5,6 +5,12 @@ so callers must marshal updates to the GTK main loop (e.g. GLib.idle_add).
 Reconnects automatically if Hyprland restarts, firing "__connected__" so
 subscribers can do a full refresh.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · ipc
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import json

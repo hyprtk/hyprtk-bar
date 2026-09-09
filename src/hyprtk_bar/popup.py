@@ -6,6 +6,12 @@ clamped against a corner. Popups are therefore plain layer-shell windows
 anchored to the bar's edge and offset with margins, drawn as our own rounded
 boxes (which render cleanly, like the bar pill itself).
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · popup
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import cairo

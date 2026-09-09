@@ -8,6 +8,12 @@ A graph can run in single-series mode (``push``, used by the Memory / Disks /
 Network / GPU pages) or multi-series mode (``push_many``, used by the CPU page
 to plot every thread/core at once).
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · graphs
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import re

@@ -6,6 +6,12 @@ theme-gui on left, re-generate the palette on right; clipboard history:
 pick/delete/wipe). The link list lives in the config's ``quicklinks.links``
 block and is fully editable without touching the bar code.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · quicklinks
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

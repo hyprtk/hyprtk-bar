@@ -6,6 +6,12 @@ via a windowrule on the title "hyprtk-bar settings"). Edits the bar's
 section, and reordered within its section — plus bar width, height, alignment
 and theme. Apply writes the config and rebuilds/re-themes the bar live.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · bar_settings
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -4,6 +4,12 @@ Reads the keyboard LED brightness files under /sys/class/leds (the same source
 the old waybar keyboard_state.sh polled) so it works on Wayland. Each lock is
 a symbolic icon: lit up (accent) while the lock is on, dimmed while it is off.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · kbstate
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import glob

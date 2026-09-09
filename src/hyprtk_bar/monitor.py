@@ -5,6 +5,12 @@ bar with a sidebar of resource pages (CPU / Memory / Disks / Network / GPU /
 Apps) and live cairo graphs + readouts. All colours come from the bar's palette
 (pywal / imported theme / manual) so the panel always matches the bar.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · monitor
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import json

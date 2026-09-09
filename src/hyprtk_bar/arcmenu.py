@@ -10,6 +10,12 @@ GTK3 widget. It is now owned by the bar process (no separate app):
 - configured from the bar settings dialogue's "Arc Menu" tab (stored in the
   bar config under ``arcmenu``).
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · arcmenu
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

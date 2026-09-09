@@ -7,6 +7,12 @@ the menu's semantic tokens (panel_bg, text, accent, ...) that the base
 ``assets/style.css`` and layout CSS consume.
 """
 
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · theme
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
+
 import colorsys
 import os
 import re

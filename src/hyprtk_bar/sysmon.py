@@ -1,4 +1,10 @@
 """System monitor widget: CPU, RAM and disk usage (shown before the clock)."""
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · sysmon
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

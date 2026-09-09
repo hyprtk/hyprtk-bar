@@ -1,4 +1,10 @@
 """Shared widgets for hyprtk-bar."""
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · widgets
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

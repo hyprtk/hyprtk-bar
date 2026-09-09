@@ -6,6 +6,12 @@ the bar opens a notification center that lists the history with action buttons.
 No other notification daemon (mako/swaync/xfce4-notifyd) may hold the bus name for this
 to receive notifications.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · notifications
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

@@ -5,6 +5,12 @@ pending-update count, colored by threshold (green/yellow/red), a hover tooltip,
 and a left-click that opens the update installer in a floating terminal. The
 count, CSS class and tooltip come from the script's waybar-style JSON output.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · updates
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import json

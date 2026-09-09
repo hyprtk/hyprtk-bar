@@ -10,6 +10,12 @@ The active animations file is found by reading ``hyprland.lua`` for a
 non-commented ``require("animations-...")``; the file's ``borderangle`` speed
 (falling back to ``border``) supplies the pace. Pure stdlib — no GTK.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · hypr_animations
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import os

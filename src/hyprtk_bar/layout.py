@@ -5,6 +5,12 @@ no drag & drop is needed. Each section is an ``SectionBox``: it hosts its module
 widgets and — because empty bar space belongs to a section — right-clicking it
 opens the bar menu (entry point to the settings window).
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · layout
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import gi

@@ -1,5 +1,11 @@
 """Application discovery, categorization, search, and launch for hyprtk-menu."""
 
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · apps
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
+
 import os
 import re
 import shlex

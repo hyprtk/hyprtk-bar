@@ -14,6 +14,12 @@ The palette is derived from the theme's CSS:
 The font family is NOT taken from the theme — the bar uses the system font so
 pywal and imported themes render identically.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · theme_import
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

@@ -6,6 +6,12 @@ icons. If another process already owns the watcher name (e.g. waybar), items
 are *adopted* from that watcher instead, so the tray works alongside it and
 keeps showing items after it stops and this process takes the name.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · tray
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

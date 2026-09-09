@@ -11,6 +11,12 @@ non-commented ``require("animations-...")``; the file's ``border`` and
 ``borderangle`` ``hl.animation`` blocks supply the speed. Pure stdlib — no
 GTK, so it is trivially testable.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · hypr_animations
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

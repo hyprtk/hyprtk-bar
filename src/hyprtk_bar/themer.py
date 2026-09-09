@@ -11,6 +11,12 @@ The dialogue is a ``Popup`` (layer-shell) like the system monitor, but keeps
 ``ON_DEMAND`` keyboard focus so its text entries are usable. All colours come
 from the bar's resolved palette (pywal / imported theme / manual).
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · themer
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import hashlib

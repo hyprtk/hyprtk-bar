@@ -10,6 +10,12 @@ Rules of thumb:
     mid-argument, redirections)?  -> ``run_shell`` — one explicit ``sh -c``.
   * Need stdout back?  -> ``run_checked`` (blocks; keep off the UI thread).
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · proc
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

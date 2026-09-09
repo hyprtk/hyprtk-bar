@@ -5,6 +5,15 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-09
 
+### Changed
+
+- **Hyprtk watermark** — every module now carries a branded header
+  (`# HYPRTK · hyprtk-bar · <module>` / `Part of the Hyprtk desktop suite ·
+  github.com/hyprtk`) after its docstring, unifying the project under the
+  Hyprtk brand.
+
+## [0.1.0] - 2026-09-09
+
 ### Added
 
 - **System monitor Apps page** — four views (User apps / System apps / User

@@ -1,5 +1,11 @@
 """Layer-shell menu window for hyprtk-menu."""
 
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · menu_window
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
+
 import json
 import os
 import shlex

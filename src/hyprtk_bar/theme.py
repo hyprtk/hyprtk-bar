@@ -1,4 +1,10 @@
 """Theming: resolve a palette (pywal + imported theme + config) and emit GTK CSS."""
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · theme
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import colorsys

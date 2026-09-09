@@ -1,4 +1,10 @@
 """Layer-shell window hosting the taskbar, plus Hyprland event wiring."""
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · app
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import cairo

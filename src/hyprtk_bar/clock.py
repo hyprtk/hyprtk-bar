@@ -1,4 +1,10 @@
 """Clock widget: time label with a hover date popup and a floating calendar."""
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · clock
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import datetime

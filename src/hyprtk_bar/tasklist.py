@@ -4,6 +4,12 @@ Each app is one button with a running/active indicator. Left-click focuses the
 most recent window (or minimizes the focused one), middle-click closes, and
 hover/right-click opens a floating preview popup listing the app's windows.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · tasklist
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

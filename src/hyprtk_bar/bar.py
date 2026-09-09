@@ -7,6 +7,12 @@ Layout (inside the transparent layer-shell surface):
 The pill carries the background/rounded corners and is composed of three
 sections (left/center/right) populated from the config's ``layout``.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · bar
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

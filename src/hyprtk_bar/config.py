@@ -3,6 +3,12 @@
 Config lives at ~/.config/hyprtk-bar/config.json (JSON).
 On first run a default config is written so the user can edit it.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · config
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import json

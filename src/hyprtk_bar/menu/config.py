@@ -9,6 +9,12 @@ config dict so the menu sees the same (possibly freshly migrated) ``menu``
 block the bar uses — never a stale file read.
 """
 
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · config
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
+
 import json
 import os
 import tempfile

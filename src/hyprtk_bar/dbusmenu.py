@@ -6,6 +6,12 @@ object (the `Menu` property). Instead of asking the applet to open its own menu
 menu layout with `GetLayout` and render a native Gtk.Menu, firing `Event` back
 for activation.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · dbusmenu
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

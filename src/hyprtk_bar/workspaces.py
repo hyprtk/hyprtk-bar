@@ -1,4 +1,10 @@
 """Workspace chips widget: click to switch workspace (a mini task view)."""
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · workspaces
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import gi

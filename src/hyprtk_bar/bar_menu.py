@@ -3,6 +3,12 @@
 All settings live in the bar settings window (right-click → "Bar settings…").
 The context menu itself is just the entry point plus a config reload utility.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · bar_menu
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import gi

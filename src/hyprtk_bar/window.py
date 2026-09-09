@@ -4,6 +4,12 @@ Shows the focused window's title as text, hidden while no window is focused.
 The module has a FIXED width so changing titles never shift the other modules;
 the title is ellipsized within it.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · window
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import gi

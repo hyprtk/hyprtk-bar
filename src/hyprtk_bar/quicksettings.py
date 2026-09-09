@@ -5,6 +5,12 @@ Backed by the system session tools: `nmcli`, `bluetoothctl`, `wpctl`
 backlight device exists. State is refreshed when the flyout opens and polled
 every few seconds while it is visible.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · quicksettings
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging

@@ -5,6 +5,12 @@ display and are trivially testable. Every reader is defensive: on any error it
 returns a zero/empty value rather than raising. Rate readers (CPU, disk I/O,
 network) are sampler classes that keep a previous sample and compute deltas.
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · monitor_data
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import json

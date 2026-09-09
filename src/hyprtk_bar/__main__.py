@@ -5,6 +5,12 @@ Gtk.main(). A SIGTERM quits it cleanly. Only one instance is allowed — a
 flock in $XDG_RUNTIME_DIR prevents duplicate bars stacking (e.g. from
 duplicate autostart entries).
 """
+
+# ─────────────────────────────────────────────────────────────────
+#   HYPRTK · hyprtk-bar · __main__
+#   Part of the Hyprtk desktop suite · github.com/hyprtk
+# ─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import argparse
