@@ -39,10 +39,11 @@ log = logging.getLogger("hyprtk_bar.bar")
 
 
 class StartButton(HoverButton):
-    def __init__(self, cfg: dict, ipc):
+    def __init__(self, cfg: dict, ipc, bar):
         super().__init__("task-button start", vertical=True, spacing=2)
         center = cfg.get("center") or {}
         self._ipc = ipc
+        self._bar = bar
         self._command = center.get("start_command", "hyprtk-menu")
         font_cfg = cfg.get("font") or {}
         glyph = Glyph(center.get("start_glyph", "\uf015"), "accent-icon")
@@ -61,7 +62,10 @@ class StartButton(HoverButton):
 
     def _on_button_press(self, _widget, event):
         if event.button == 1:
-            if not spawn(self._command):
+            toggle = self._bar._menu_cb
+            if toggle is not None:
+                toggle()
+            elif not spawn(self._command):
                 log.warning("Failed to launch start menu %r", self._command)
         return True
 
@@ -77,6 +81,8 @@ class Bar(Gtk.Box):
         self._height_cb = None
         self._position_cb = None
         self._arcmenu_cb = None
+        self._menu_cb = None
+        self._menu_reload_cb = None
         self._widgets: dict[str, Gtk.Widget] = {}
         self._sections: dict[str, SectionBox] = {}
         self._tray_ctrl: TrayController | None = None
@@ -226,7 +232,7 @@ class Bar(Gtk.Box):
     def _build_widget(self, mid: str) -> Gtk.Widget | None:
         cfg, ipc = self._cfg, self._ipc
         if mid == "start_button":
-            return StartButton(cfg, ipc)
+            return StartButton(cfg, ipc, self)
         if mid == "quicklinks":
             return QuickLinks(cfg, ipc, restart_cb=self.restart, theme_cb=self.apply_theme)
         if mid == "workspaces":
@@ -505,6 +511,12 @@ class Bar(Gtk.Box):
             if self._arcmenu_cb is not None:
                 self._arcmenu_cb(block)
 
+        def set_menu(block: dict) -> None:
+            cfg["menu"] = block
+            config_module.save(cfg)
+            if self._menu_reload_cb is not None:
+                self._menu_reload_cb(block)
+
         def open_settings() -> None:
             self.open_settings()
 
@@ -526,6 +538,7 @@ class Bar(Gtk.Box):
             "set_border_animation": set_border_animation,
             "apply_layout": apply_layout,
             "set_arcmenu": set_arcmenu,
+            "set_menu": set_menu,
             "open_settings": open_settings,
         }
 
@@ -550,6 +563,12 @@ class Bar(Gtk.Box):
 
     def set_arcmenu_callback(self, callback) -> None:
         self._arcmenu_cb = callback
+
+    def set_menu_callback(self, callback) -> None:
+        self._menu_cb = callback
+
+    def set_menu_reload_callback(self, callback) -> None:
+        self._menu_reload_cb = callback
 
     def set_height_callback(self, callback) -> None:
         self._height_cb = callback

@@ -3,6 +3,20 @@
 All notable changes to hyprtk-bar are documented in this file.
 Dates are in YYYY-MM-DD format.
 
+## [0.1.0] - 2026-09-09
+
+### Added
+
+- **Start menu merged into the bar** — the standalone hyprtk-menu app is gone;
+  the bar now owns the start menu (search, favorites, recents, power bar, four
+  layouts: whisker/win7/win11/plasma). New `menu` config block in the bar config
+  (legacy `~/.config/hyprtk-menu/config.json` is auto-imported on first run), a
+  **Menu** tab in the bar settings dialogue (enabled/layout/position/align/gaps),
+  toggling via the start button or `Super+Space` (SIGUSR1 from
+  `installer/scripts/hyprtk-bar-menu-toggle.sh`), live re-theme from the bar's
+  palette + pywal, and live layout/position reload when settings change.
+  Vendored under `src/hyprtk_bar/menu/` with its assets in `assets/`.
+
 ## [0.1.0] - 2026-09-08
 
 ### Added

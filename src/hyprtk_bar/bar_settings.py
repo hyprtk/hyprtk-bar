@@ -16,7 +16,7 @@ gi.require_version("Gdk", "3.0")
 
 from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
-from .config import DEFAULT_LAYOUT, MODULE_IDS, MODULE_LABELS  # noqa: E402
+from .config import DEFAULT_LAYOUT, MENU_LAYOUTS, MODULE_IDS, MODULE_LABELS  # noqa: E402
 from .theme_import import import_theme, list_themes  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
 
@@ -234,6 +234,7 @@ class BarSettings(Gtk.Window):
             ("themes", "\uf1fc", "Themes"),
             ("animations", "\uf1fe", "Animations"),
             ("arcmenu", "\uf0e7", "Arc Menu"),
+            ("menu", "\uf0ca", "Menu"),
             ("modules", "\uf009", "Modules"),
         ):
             sidebar.pack_start(self._build_page_button(key, glyph, label),
@@ -311,6 +312,8 @@ class BarSettings(Gtk.Window):
             self._build_animations_tab(page)
         elif key == "arcmenu":
             self._build_arcmenu_tab(page)
+        elif key == "menu":
+            self._build_menu_tab(page)
         elif key == "modules":
             self._build_modules_tab(page)
         return page
@@ -319,7 +322,8 @@ class BarSettings(Gtk.Window):
     def _page_title(key: str) -> str:
         return {
             "bar": "Bar", "fonts": "Fonts", "themes": "Themes",
-            "animations": "Animations", "arcmenu": "Arc Menu", "modules": "Modules",
+            "animations": "Animations", "arcmenu": "Arc Menu", "menu": "Menu",
+            "modules": "Modules",
         }[key]
 
     def _tab_margins(self) -> Gtk.Box:
@@ -1035,6 +1039,118 @@ class BarSettings(Gtk.Window):
             "items": self._arc_items,
         }
 
+    _MENU_POSITIONS = [
+        ("top-left", "Top Left"),
+        ("top-center", "Top Center"),
+        ("top-right", "Top Right"),
+        ("center", "Center"),
+        ("bottom-left", "Bottom Left"),
+        ("bottom-center", "Bottom Center"),
+        ("bottom-right", "Bottom Right"),
+    ]
+
+    def _build_menu_tab(self, page: Gtk.Box) -> None:
+        menu = self._cfg.get("menu") or {}
+        hint = Gtk.Label(
+            label="The start menu is owned by the bar, toggled by the start "
+            "button or the menu keybind. It follows the bar theme and pywal.",
+            xalign=0, wrap=True,
+        )
+        hint.set_opacity(0.8)
+        page.pack_start(hint, False, False, 0)
+
+        self._menu_enabled = self._radio_bool_row(
+            page, "Enabled", bool(menu.get("enabled", True))
+        )
+
+        layout_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        layout_label = Gtk.Label(label="Layout:", xalign=1)
+        layout_label.set_size_request(70, -1)
+        self._menu_layout = _radio_group(
+            [(name, name.capitalize()) for name in MENU_LAYOUTS]
+        )
+        layout_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for btn in self._menu_layout.values():
+            layout_box.pack_start(btn, False, False, 0)
+        current = menu.get("layout", "whisker")
+        if current not in self._menu_layout:
+            current = "whisker"
+        self._menu_layout[current].set_active(True)
+        layout_box.set_hexpand(True)
+        layout_row.pack_start(layout_label, False, False, 0)
+        layout_row.pack_start(layout_box, True, True, 0)
+        page.pack_start(layout_row, False, False, 0)
+
+        pos_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        pos_label = Gtk.Label(label="Position:", xalign=1)
+        pos_label.set_size_request(70, -1)
+        self._menu_position = _radio_group(
+            [(key, label.replace(" ", "\n")) for key, label in self._MENU_POSITIONS]
+        )
+        grid = Gtk.Grid(row_spacing=2, column_spacing=4)
+        for i, (key, _label) in enumerate(self._MENU_POSITIONS):
+            grid.attach(self._menu_position[key], i % 3, i // 3, 1, 1)
+        current = menu.get("position", "auto")
+        if current == "auto":
+            current = "top-left"
+        if current not in self._menu_position:
+            current = "top-left"
+        self._menu_position[current].set_active(True)
+        grid.set_hexpand(True)
+        pos_row.pack_start(pos_label, False, False, 0)
+        pos_row.pack_start(grid, True, True, 0)
+        page.pack_start(pos_row, False, False, 0)
+
+        align_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        align_label = Gtk.Label(label="Align:", xalign=1)
+        align_label.set_size_request(70, -1)
+        self._menu_align = _radio_group(
+            [("left", "Left"), ("center", "Center"), ("right", "Right")]
+        )
+        align_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for btn in self._menu_align.values():
+            align_box.pack_start(btn, False, False, 0)
+        align = menu.get("align", "left")
+        if align not in self._menu_align:
+            align = "left"
+        self._menu_align[align].set_active(True)
+        align_box.set_hexpand(True)
+        align_row.pack_start(align_label, False, False, 0)
+        align_row.pack_start(align_box, True, True, 0)
+        page.pack_start(align_row, False, False, 0)
+
+        self._menu_gap_in = self._spin_row(page, "Gap in (px)", menu.get("gap_in", 4), 0, 60, 2)
+        self._menu_gap_out = self._spin_row(page, "Gap out (px)", menu.get("gap_out", 5), 0, 60, 2)
+
+    def _active_menu_block(self) -> dict:
+        pos = "auto"
+        for key, btn in self._menu_position.items():
+            if btn.get_active():
+                pos = key
+                break
+        layout = "whisker"
+        for key, btn in self._menu_layout.items():
+            if btn.get_active():
+                layout = key
+                break
+        align = "left"
+        for key, btn in self._menu_align.items():
+            if btn.get_active():
+                align = key
+                break
+        menu = dict(self._cfg.get("menu") or {})
+        menu.update(
+            {
+                "enabled": self._menu_enabled.get_active(),
+                "layout": layout,
+                "position": pos,
+                "align": align,
+                "gap_in": int(self._menu_gap_in.get_value()),
+                "gap_out": int(self._menu_gap_out.get_value()),
+            }
+        )
+        return menu
+
     def _build_modules_tab(self, page: Gtk.Box) -> None:
         tab = page
         hint = Gtk.Label(
@@ -1187,6 +1303,9 @@ class BarSettings(Gtk.Window):
 
         # arc menu
         self._actions["set_arcmenu"](self._active_arc_block())
+
+        # start menu
+        self._actions["set_menu"](self._active_menu_block())
 
         # The theme actions above mutate the shared cfg and re-theme the bar,
         # but this window's widgets keep their build-time override colours.

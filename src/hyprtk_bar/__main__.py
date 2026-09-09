@@ -26,6 +26,7 @@ from .app import BarWindow, select_monitors
 from .arcmenu import ArcMenuWindow  # noqa: E402
 from .config import load as load_config
 from .ipc import HyprIPC
+from .menu.menu_window import MenuWindow  # noqa: E402
 
 _lock_file = None
 
@@ -91,6 +92,22 @@ def _run_window() -> int:
         primary._bar.set_arcmenu_callback(lambda _block: arc_win.reload_from_cfg())
         logging.info("started arc menu overlay")
 
+    # The start menu (hyprtk-menu) is likewise owned by the bar process: created
+    # when the ``menu`` module is enabled, toggled by SIGUSR1 and by the bar's
+    # start button. Its settings open the bar settings dialogue's "Menu" page.
+    # Unlike the arc overlay it starts HIDDEN (the start button / keybind
+    # reveals it).
+    menu_win = None
+    if (cfg.get("menu") or {}).get("enabled", True):
+        menu_win = MenuWindow(
+            bar_cfg=cfg,
+            on_settings=lambda: _open_menu_settings(windows),
+        )
+        primary = next((w for w in windows if w.is_primary), windows[0])
+        primary._bar.set_menu_callback(lambda: menu_win.toggle())
+        primary._bar.set_menu_reload_callback(lambda _block: menu_win.reload_from_cfg())
+        logging.info("started start menu")
+
     def on_sigterm(*_args):
         Gtk.main_quit()
         return GLib.SOURCE_REMOVE
@@ -100,14 +117,22 @@ def _run_window() -> int:
             arc_win.toggle()
         return GLib.SOURCE_CONTINUE
 
+    def on_sigusr1(*_args):
+        if menu_win is not None:
+            menu_win.toggle()
+        return GLib.SOURCE_CONTINUE
+
     GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, on_sigterm, None)
     GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR2, on_sigusr2, None)
+    GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, on_sigusr1, None)
 
     try:
         Gtk.main()
     finally:
         if arc_win is not None:
             arc_win.destroy()
+        if menu_win is not None:
+            menu_win.destroy()
         for win in windows:
             win.shutdown()
     return 0
@@ -117,6 +142,12 @@ def _open_arc_settings(windows) -> None:
     """Open the bar settings dialogue on the Arc Menu tab."""
     primary = next((w for w in windows if w.is_primary), windows[0])
     primary._bar.open_settings("arcmenu")
+
+
+def _open_menu_settings(windows) -> None:
+    """Open the bar settings dialogue on the Menu tab."""
+    primary = next((w for w in windows if w.is_primary), windows[0])
+    primary._bar.open_settings("menu")
 
 
 def main(argv=None) -> int:

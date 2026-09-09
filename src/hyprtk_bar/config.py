@@ -157,7 +157,7 @@ DEFAULTS = {
         "start_button": True,
         "start_icon": "view-grid-symbolic",
         "start_glyph": "\uf015",
-        "start_command": "hyprtk-menu",
+        "start_command": "~/hyprtk/installer/scripts/hyprtk-bar-menu-toggle.sh",
         "pinned": DEFAULT_PINNED,
     },
     "workspaces": {
@@ -232,10 +232,40 @@ DEFAULTS = {
             {"glyph": "\uf013", "action": "settings", "tooltip": "Settings"},
         ],
     },
+    "menu": {
+        "enabled": True,            # the start menu is owned by the bar process
+        "position": "auto",         # auto | top-left|top-center|top-right|center|bottom-*
+        "align": "left",            # left | center | right
+        "gap_in": 4,                # gap between the menu and the bar (px)
+        "gap_out": 5,               # gap between the menu and the screen edge (px)
+        "layout": "whisker",        # whisker | win7 | win11 | plasma
+        "width": 920,
+        "height": 580,
+        "sidebar_width": 180,
+        "recents_width": 230,
+        "show_recents": True,
+        "max_recents": 10,
+        "favorites": [],
+        "recents": [],
+        "power": {
+            "lock": "pidof swaylock hyprlock || swaylock || hyprlock",
+            "logout": "hyprctl dispatch exit",
+            "reboot": "systemctl reboot",
+            "shutdown": "systemctl poweroff",
+            "suspend": "systemctl suspend",
+            "hibernate": "systemctl hibernate",
+        },
+    },
 }
 
 # Path of the legacy standalone app's config, imported once into ``arcmenu``.
 LEGACY_ARC_CONFIG = Path.home() / ".config" / "hyprtk-arc-menu" / "config.json"
+
+# Path of the legacy standalone hyprtk-menu config, imported once into ``menu``.
+LEGACY_MENU_CONFIG = Path.home() / ".config" / "hyprtk-menu" / "config.json"
+
+# Defaults for the in-bar menu (hyprtk-menu merged into the bar process).
+MENU_LAYOUTS = ("whisker", "win7", "win11", "plasma")
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -423,9 +453,25 @@ def validate(cfg: dict) -> dict:
     else:
         valid["arcmenu"] = _validate_arcmenu(arcmenu)
 
+    # ── menu ─────────────────────────────────────────────────────
+    # First-run migration from the removed standalone hyprtk-menu app.
+    if not cfg.get("menu") and LEGACY_MENU_CONFIG.is_file():
+        try:
+            legacy = json.loads(LEGACY_MENU_CONFIG.read_text())
+        except (json.JSONDecodeError, OSError):
+            legacy = {}
+        if isinstance(legacy, dict) and legacy:
+            valid["menu"] = _validate_menu(_deep_merge(DEFAULTS["menu"], legacy))
+
+    menu = valid.get("menu")
+    if not isinstance(menu, dict):
+        valid["menu"] = dict(DEFAULTS["menu"])
+    else:
+        valid["menu"] = _validate_menu(menu)
+
     # ── command/script fields must always be strings ────────────────
     center = valid.get("center") or {}
-    center["start_command"] = _str_field(center.get("start_command"), "hyprtk-menu")
+    center["start_command"] = _str_field(center.get("start_command"), "~/hyprtk/installer/scripts/hyprtk-bar-menu-toggle.sh")
     center["pinned"] = _clean_command_list(center.get("pinned") or [], ("class", "command", "icon"))
 
     ql = valid.get("quicklinks") or {}
@@ -495,6 +541,34 @@ def _validate_arcmenu(arc: dict) -> dict:
     valid["fab_icon"] = _str_field(valid.get("fab_icon") or "view-grid-symbolic")
     valid["fab_glyph"] = _str_field(valid.get("fab_glyph") or "")
     valid["items"] = _clean_command_list(valid["items"], ("glyph", "command", "action", "tooltip"))
+    return valid
+
+
+def _validate_menu(menu: dict) -> dict:
+    """Coerce/correct the ``menu`` config block, falling back to defaults."""
+    valid = _deep_merge(DEFAULTS["menu"], menu)
+    valid["enabled"] = bool(valid.get("enabled", True))
+    layout = valid.get("layout", "whisker")
+    if layout not in MENU_LAYOUTS:
+        log.warning("Unknown menu layout %r, using whisker", layout)
+        valid["layout"] = "whisker"
+    if valid.get("align") not in ("left", "center", "right"):
+        valid["align"] = "left"
+    for key in ("gap_in", "gap_out", "width", "height", "sidebar_width", "recents_width", "max_recents"):
+        try:
+            valid[key] = max(0, int(valid.get(key, DEFAULTS["menu"][key])))
+        except (TypeError, ValueError):
+            valid[key] = DEFAULTS["menu"][key]
+    valid["show_recents"] = bool(valid.get("show_recents", True))
+    for key in ("favorites", "recents"):
+        valid[key] = [str(x) for x in (valid.get(key) or []) if x]
+    power = valid.get("power")
+    if not isinstance(power, dict):
+        valid["power"] = dict(DEFAULTS["menu"]["power"])
+    else:
+        for key in ("lock", "logout", "reboot", "shutdown", "suspend", "hibernate"):
+            power[key] = _str_field(power.get(key), DEFAULTS["menu"]["power"][key])
+        valid["power"] = power
     return valid
 
 

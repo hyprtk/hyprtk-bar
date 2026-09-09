@@ -560,9 +560,13 @@ menu separator {{
 }}
 .settings-check:checked, .settings-radio:checked {{ color: {accent}; }}
 /* Arc Menu settings widgets — notebook tabs and colour buttons use the theme
-   fg/accent so the page matches the rest of the dialogue. */
+   fg/accent so the page matches the rest of the dialogue. The notebook's
+   internal ``stack`` node paints the GTK theme's opaque base_color by default
+   (``notebook > stack:not(:only-child)``) — make it transparent so the
+   popup-box's themed background shows through the page area. */
 .settings-notebook {{ background-color: transparent; }}
 .settings-notebook header {{ background-color: transparent; }}
+.settings-notebook > stack {{ background-color: transparent; }}
 .settings-notebook tab {{
   padding: 4px 12px; border-radius: 6px; color: {fg};
 }}
