@@ -11,11 +11,15 @@ Dates are in YYYY-MM-DD format.
   the bar now owns the start menu (search, favorites, recents, power bar, four
   layouts: whisker/win7/win11/plasma). New `menu` config block in the bar config
   (legacy `~/.config/hyprtk-menu/config.json` is auto-imported on first run), a
-  **Menu** tab in the bar settings dialogue (enabled/layout/position/align/gaps),
-  toggling via the start button or `Super+Space` (SIGUSR1 from
+  **Menu** tab in the bar settings dialogue (enabled/layout/position/align/gaps/
+  follow), toggling via the start button or `Super+Space` (SIGUSR1 from
   `installer/scripts/hyprtk-bar-menu-toggle.sh`), live re-theme from the bar's
   palette + pywal, and live layout/position reload when settings change.
   Vendored under `src/hyprtk_bar/menu/` with its assets in `assets/`.
+- **Follow hyprtk-bar** toggle (`menu.follow_bar`, default on): anchors the menu
+  to the bar's edge and aligns it to the bar pill (width + align + gaps) instead
+  of the screen edge; off places it at the chosen screen corner. It also controls
+  theming — off resolves the menu's own pywal palette rather than the bar's theme.
 
 ## [0.1.0] - 2026-09-08
 

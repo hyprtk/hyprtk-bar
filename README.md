@@ -33,7 +33,9 @@ all themed live from your pywal16 palette.
   and restores every window on the active workspace.
 - **Multi-monitor** — one bar per monitor when configured, each with its own
   active workspace; the tray and notification daemon stay on the primary bar.
-- **Start button** — launches your app menu (hyprtk-menu by default).
+- **Start menu** — a full application menu built into the bar (search,
+  favorites, recents, power buttons; whisker/win7/win11/plasma layouts),
+  toggled from the start button or `Super+Space`.
 - **Floating settings window** — drag it by its header, change everything
   live, everything applies without restarting the bar.
 
@@ -149,7 +151,7 @@ Module ids:
 
 | Id | Module |
 | --- | --- |
-| `start_button` | Launches your app menu. |
+| `start_button` | Opens the in-bar start menu. |
 | `quicklinks` | Launcher buttons with Nerd Font glyphs (terminal, files, apps, browser, wallpaper, clipboard, screenshot). |
 | `workspaces` | Workspace chips. |
 | `tasklist` | Pinned + running application buttons. |
@@ -170,7 +172,7 @@ flags automatically.
   "start_button": true,
   "start_icon": "view-grid-symbolic",
   "start_glyph": "\uf015",
-  "start_command": "hyprtk-menu",
+  "start_command": "~/hyprtk/installer/scripts/hyprtk-bar-menu-toggle.sh",
   "pinned": [
     { "class": "firefox", "command": "firefox", "icon": "firefox" }
   ]
@@ -234,7 +236,7 @@ flags automatically.
 
 | Area | Action |
 | --- | --- |
-| Start button | Left-click: open app menu. |
+| Start button | Left-click: open the start menu. |
 | Workspace chip | Left-click: switch to that workspace. |
 | Task button | Left-click: focus the most recent window (minimize if already focused). Middle-click: close. Right-click / hover: window preview. |
 | Pinned app (not running) | Click: launch it. |
@@ -245,6 +247,22 @@ flags automatically.
 | Reload config | Restarts the bar process so the latest source **and** config are loaded (a plain config reload cannot pick up new modules). |
 | Show-desktop strip | Left-click: minimize / restore all windows on the active workspace. |
 
+### The start menu
+
+hyprtk-bar ships the application menu built in (the former standalone
+hyprtk-menu): search, category sidebar, pinned favorites, recently used, and a
+power bar, in four layouts — `whisker`, `win7`, `win11`, `plasma`.
+
+- **Open** — the start button, or `Super+Space` (a script signals the bar with
+  SIGUSR1: `installer/scripts/hyprtk-bar-menu-toggle.sh`).
+- **Follow hyprtk-bar** — with `menu.follow_bar` on (default) the menu anchors
+  to the bar's edge and aligns horizontally to the bar pill (its width + align
+  + gaps); off positions it at the chosen screen corner. It themes from the
+  bar's palette (pywal / imported / manual) and re-themes live.
+- **Configure** — from the bar settings dialogue's *Menu* tab: enabled, layout,
+  position, alignment, gaps, follow toggle. Legacy `menu` settings from the
+  standalone app (`~/.config/hyprtk-menu/config.json`) auto-import on first run.
+
 ### The settings window
 
 Opened from the bar's right-click menu. Every control applies live on *Apply*:
@@ -252,6 +270,11 @@ Opened from the bar's right-click menu. Every control applies live on *Apply*:
 - **Bar** — height, width (`NN%` or px), alignment.
 - **Theme** — source (pywal / waybar / manual), imported waybar theme, and
   *Import…* to pull a waybar theme folder into the bar.
+- **Animations** — enable the pill border animation and pick its mode/speed.
+- **Arc Menu** — the FAB overlay: position, shape, sizes, colours, theming
+  source, and its item list (add/edit/remove/reorder with installed-app search).
+- **Menu** — the start menu: enabled, layout, position, alignment, gaps, and a
+  *Follow hyprtk-bar* toggle that anchors the menu to the bar's edge + pill.
 - **Modules** — show/hide each module, assign it to left / center / right, and
   reorder it within its section.
 - **Reset layout** — restore the default arrangement.
@@ -346,7 +369,13 @@ src/hyprtk_bar/
 ├── bar_settings.py    the settings window
 ├── config.py          config loading / validation / defaults
 ├── theme.py           palette resolution + GTK CSS generation
-├── waybar_theme.py    waybar theme import / parsing
+├── theme_import.py    imported-theme parsing (former waybar_theme.py)
+├── arcmenu.py         the arc menu overlay (FAB + fan-out items)
+├── menu/              the in-bar start menu (hyprtk-menu merged in)
+│   ├── menu_window.py layer-shell start menu (layouts, power bar)
+│   ├── apps.py        .desktop scan, categories, search, launch
+│   ├── theme.py       menu CSS assembly (pywal + bar palette)
+│   └── config.py      menu config block read/write (in the bar config)
 ├── ipc.py             hyprctl queries + Hyprland event socket
 ├── layout.py          left/center/right section boxes
 ├── popup.py           layer-shell popups (calendar, previews, panels)
