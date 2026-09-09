@@ -529,6 +529,10 @@ class Bar(Gtk.Box):
         def open_settings() -> None:
             self.open_settings()
 
+        def open_about() -> None:
+            from .bar_menu import show_about
+            show_about(self.get_toplevel())
+
         return {
             "set_source": set_source,
             "set_theme_name": set_theme_name,
@@ -546,6 +550,7 @@ class Bar(Gtk.Box):
             "set_quicklink_icon_size": set_quicklink_icon_size,
             "set_border_animation": set_border_animation,
             "apply_layout": apply_layout,
+            "open_about": open_about,
             "set_arcmenu": set_arcmenu,
             "set_menu": set_menu,
             "open_settings": open_settings,

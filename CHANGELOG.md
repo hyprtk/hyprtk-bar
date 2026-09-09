@@ -5,6 +5,12 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-09
 
+### Added
+
+- **About hyprtk-bar** — right-click menu entry that opens a branded, themed
+  About window (frameless, popup-box glass + animated border) showing the
+  Hyprtk brand, version and the project repo.
+
 ### Changed
 
 - **Hyprtk watermark** — every module now carries a branded header
