@@ -1662,9 +1662,19 @@ class ThemerDialog(Popup):
         grid.set_row_spacing(6)
         self._icon_presets = []
         for i, (display_name, papirus_color) in enumerate(_COLOR_PRESETS):
-            btn = Gtk.Button(label=display_name)
+            btn = Gtk.Button()
             btn.set_relief(Gtk.ReliefStyle.NONE)
             btn.set_tooltip_text(papirus_color)
+            content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            icon_pb = _fit_pixbuf(
+                str(ICON_THEME_DIR / f"folder-{papirus_color}.svg"), 20, 20
+            )
+            if icon_pb is not None:
+                img = Gtk.Image.new_from_pixbuf(icon_pb)
+                content.pack_start(img, False, False, 0)
+            lbl = Gtk.Label(label=display_name, xalign=0)
+            content.pack_start(lbl, False, False, 0)
+            btn.add(content)
             btn.connect("clicked", lambda b, c=papirus_color: self._apply_icon_preset(c))
             grid.attach(btn, i % 4, i // 4, 1, 1)
             self._icon_presets.append(btn)
