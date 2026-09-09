@@ -274,7 +274,7 @@ class BarWindow(Gtk.Window):
             "color_b": colors[1],
         }
         self._border_hue = 0.0
-        self._border_anim_id = GLib.timeout_add(33, self._border_anim_tick)
+        self._border_anim_id = GLib.timeout_add(66, self._border_anim_tick)
 
     def _border_anim_tick(self) -> bool:
         """Advance the border blend and re-render with the animated color."""
@@ -282,11 +282,19 @@ class BarWindow(Gtk.Window):
             return GLib.SOURCE_REMOVE
         period = self._border_anim["period_ms"]
         # Ping-pong: 0 -> 1 -> 0 over the period (one leg = half the period).
-        self._border_hue = (self._border_hue + 33.0 / (period / 2.0)) % 2.0
+        # Tick at ~15fps — a slow border blend needs no more; keeps the CSS
+        # rebuild + redraw cheap.
+        self._border_hue = (self._border_hue + 66.0 / (period / 2.0)) % 2.0
         t = self._border_hue if self._border_hue <= 1.0 else 2.0 - self._border_hue
         color = lerp_color(
             self._border_anim["color_a"], self._border_anim["color_b"], t
         )
+        # The blend moves in tiny steps per frame (long periods); skip frames
+        # whose color hasn't visibly changed to avoid rebuilding CSS + redrawing
+        # ~30×/s needlessly. Updates still apply as soon as the color shifts.
+        if color == getattr(self, "_border_last_color", None):
+            return GLib.SOURCE_CONTINUE
+        self._border_last_color = color
         try:
             # Animate the pill border plus every popup/dialogue that carries
             # the themed ``.popup-box`` border (notification center, quick

@@ -20,6 +20,7 @@ import os
 import random
 import re
 import subprocess
+import threading
 from pathlib import Path
 
 import gi
@@ -1294,7 +1295,7 @@ class ThemerDialog(Popup):
             cfg["theme"]["theme_name"] = theme_name
         try:
             BAR_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-            BAR_CONFIG.write_text(json.dumps(cfg, indent=2) + "\n")
+            _atomic_write(BAR_CONFIG, json.dumps(cfg, indent=2) + "\n")
         except OSError as exc:
             log.warning("Failed to write bar config: %s", exc)
             self._toast("Failed to write bar config")
@@ -1607,7 +1608,7 @@ class ThemerDialog(Popup):
                     continue
             new_lines.append(line)
         SWAYLOCK_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        SWAYLOCK_CONFIG.write_text("\n".join(new_lines) + "\n")
+        _atomic_write(SWAYLOCK_CONFIG, "\n".join(new_lines) + "\n")
         self._load_swaylock()
         self._toast("Swaylock colors applied and saved")
 
@@ -1829,26 +1830,34 @@ class ThemerDialog(Popup):
             return
         self._sddm_status.set_text("Updating SDDM & GRUB...")
         btn.set_sensitive(False)
-        try:
-            proc = subprocess.run(
-                ["pkexec", "env", f"HOME={HOME}", "bash", str(SDDM_UPDATE_SH), "-y"],
-                capture_output=True, text=True, timeout=120,
-            )
-            if proc.returncode == 0:
-                self._sddm_status.set_text("Done! Reboot to test.")
-                self._toast("SDDM & GRUB updated")
-            else:
-                self._sddm_status.set_text(f"Error: {proc.stderr[:200]}")
-                self._toast("Update failed")
-        except subprocess.TimeoutExpired:
-            self._sddm_status.set_text("Update timed out")
-            self._toast("Update timed out")
-        except Exception as exc:
-            log.warning("SDDM/GRUB update failed: %s", exc)
-            self._sddm_status.set_text(f"Error: {exc}")
+
+        def _run():
+            try:
+                proc = subprocess.run(
+                    ["pkexec", "env", f"HOME={HOME}", "bash", str(SDDM_UPDATE_SH), "-y"],
+                    capture_output=True, text=True, timeout=120,
+                )
+                ok = proc.returncode == 0
+                err = proc.stderr[:200] if not ok else ""
+            except subprocess.TimeoutExpired:
+                ok, err = False, "update timed out"
+            except Exception as exc:
+                log.warning("SDDM/GRUB update failed: %s", exc)
+                ok, err = False, str(exc)
+            GLib.idle_add(self._sddm_done, btn, ok, err)
+
+        # Run off the GTK thread — pkexec shows a polkit dialog and update.sh can
+        # take a while; blocking here would freeze the whole bar.
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _sddm_done(self, btn, ok: bool, err: str):
+        if ok:
+            self._sddm_status.set_text("Done! Reboot to test.")
+            self._toast("SDDM & GRUB updated")
+        else:
+            self._sddm_status.set_text(f"Error: {err}")
             self._toast("Update failed")
-        finally:
-            btn.set_sensitive(True)
+        btn.set_sensitive(True)
 
     # ── helpers ───────────────────────────────────────────────────
 

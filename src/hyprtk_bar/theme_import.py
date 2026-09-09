@@ -360,9 +360,23 @@ def _text_color(body: str, colors: dict[str, str]) -> str | None:
 
 # ── palette extraction ──────────────────────────────────────────
 
+# Theme names come from the (user-writable) bar config; refuse anything that
+# could escape the themes dir via ../.
+_THEME_NAME_RE = re.compile(r"^[A-Za-z0-9_.+-]+$")
+
+
+def _safe_theme_dir(theme_name: str):
+    """Resolve a theme directory, refusing traversal-style names."""
+    if not theme_name or not _THEME_NAME_RE.fullmatch(theme_name):
+        return None
+    return find_themes_dir() / theme_name
+
+
 def parse_palette(theme_name: str) -> dict | None:
     """Parse an imported theme into a hyprtk-bar palette dict, or None."""
-    theme_dir = find_themes_dir() / theme_name
+    theme_dir = _safe_theme_dir(theme_name)
+    if theme_dir is None:
+        return None
     if not (theme_dir / "style.css").is_file():
         return None
     css = _read_theme_css(theme_dir)

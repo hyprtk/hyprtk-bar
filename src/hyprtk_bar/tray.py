@@ -9,10 +9,12 @@ keeps showing items after it stops and this process takes the name.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -38,6 +40,15 @@ log = logging.getLogger("hyprtk_bar.tray")
 
 # Cap on tracked SNI items (any session-bus app can register unlimited ones).
 _MAX_SNI_ITEMS = 16
+
+# Cap on SNI IconPixmap dimensions (remote-controlled; guards against absurd
+# allocations). 512px is far beyond any tray icon need.
+_MAX_PIXMAP_DIM = 512
+
+# IconThemePath from a remote item is injected into GTK's GLOBAL icon search
+# path; only accept sane, directory-resolvable absolute paths so a malicious
+# client can't point the shared search at "/" or a net export.
+_MAX_THEME_PATH_LEN = 512
 
 WATCHER_NAME = "org.kde.StatusNotifierWatcher"
 WATCHER_PATH = "/StatusNotifierWatcher"
@@ -209,7 +220,14 @@ def _to_snake(name: str) -> str:
 
 def _pixbuf_from_pixmap(width: int, height: int, argb: bytes):
     try:
-        if width <= 0 or height <= 0 or len(argb) < width * height * 4:
+        if width <= 0 or height <= 0:
+            return None
+        # A remote app controls IconPixmap dimensions; refuse absurd sizes so a
+        # malicious StatusNotifier client can't force multi-megabyte allocations
+        # per refresh (memory DoS / GTK crash).
+        if width > _MAX_PIXMAP_DIM or height > _MAX_PIXMAP_DIM:
+            return None
+        if len(argb) < width * height * 4:
             return None
         return GdkPixbuf.Pixbuf.new_from_bytes(
             GLib.Bytes(argb),
@@ -221,6 +239,30 @@ def _pixbuf_from_pixmap(width: int, height: int, argb: bytes):
         )
     except Exception:
         return None
+
+
+def _safe_icon_theme_path(value) -> str:
+    """Return *value* if it is a safe icon-theme search path, else "".
+
+    SNI IconThemePath is remote-controlled and lands in GTK's shared icon search
+    path; restrict it to an existing, absolute, non-traversal directory under a
+    normal icon location (home or a system icon dir), with a sane length.
+    """
+    if not isinstance(value, str):
+        return ""
+    path = value.strip()
+    if not path or len(path) > _MAX_THEME_PATH_LEN or not os.path.isabs(path):
+        return ""
+    try:
+        real = os.path.realpath(path)
+    except OSError:
+        return ""
+    allowed = (str(Path.home()), "/usr/share/icons", "/usr/local/share/icons", "/usr/share/pixmaps")
+    if not real.startswith(allowed):
+        return ""
+    if not os.path.isdir(real):
+        return ""
+    return real
 
 
 class Watcher(ServiceInterface):
@@ -326,9 +368,10 @@ class SniItem:
             elif prop == "ItemIsMenu":
                 self.item_is_menu = bool(value)
             elif prop == "IconThemePath":
-                if value and not self._theme_paths_added:
+                safe = _safe_icon_theme_path(value)
+                if safe and not self._theme_paths_added:
                     try:
-                        Gtk.IconTheme.get_default().add_search_path(value)
+                        Gtk.IconTheme.get_default().add_search_path(safe)
                     except Exception:
                         pass
                     self._theme_paths_added = True

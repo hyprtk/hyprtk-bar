@@ -227,7 +227,8 @@ class ArcMenu(Gtk.Fixed):
             self._add_item(entry)
 
         self._apply_css()
-        self._start_border_animation()
+        # Border animation is started on open() and stopped on close() — a
+        # closed FAB doesn't need a permanently re-rendering border.
 
     # ── geometry ─────────────────────────────────────────────────
 
@@ -499,6 +500,9 @@ class ArcMenu(Gtk.Fixed):
         self.layout_fab(win_w, win_h)
         self._anim_start = time.monotonic()
         self._schedule_tick(win_w, win_h)
+        # Only run the 30fps border animation while the menu is open; a closed
+        # FAB doesn't need a permanently re-rendering border.
+        self._start_border_animation()
 
     def close(self, win_w: int, win_h: int) -> None:
         if not self._open:
@@ -507,6 +511,7 @@ class ArcMenu(Gtk.Fixed):
         self._opening = False
         self._anim_start = time.monotonic()
         self._schedule_tick(win_w, win_h)
+        self._stop_border_animation()
 
     # ── border animation (mirrors the bar) ───────────────────────
 
@@ -523,7 +528,7 @@ class ArcMenu(Gtk.Fixed):
         self._border_period = max(200, int(speed * 100))
         self._border_colors = colors
         self._border_hue = 0.0
-        self._border_timer = GLib.timeout_add(33, self._border_tick)
+        self._border_timer = GLib.timeout_add(66, self._border_tick)
 
     def _stop_border_animation(self) -> None:
         if self._border_timer is not None:
@@ -535,9 +540,14 @@ class ArcMenu(Gtk.Fixed):
     def _border_tick(self) -> bool:
         if self._border_period is None:
             return False
-        self._border_hue = (self._border_hue + 33.0 / (self._border_period / 2.0)) % 2.0
+        # ~15fps tick: a slow border blend needs no more (cheaper CSS rebuild).
+        self._border_hue = (self._border_hue + 66.0 / (self._border_period / 2.0)) % 2.0
         t = self._border_hue if self._border_hue <= 1.0 else 2.0 - self._border_hue
-        self._animated_border = lerp_color(self._border_colors[0], self._border_colors[1], t)
+        color = lerp_color(self._border_colors[0], self._border_colors[1], t)
+        self._animated_border = color
+        if color == getattr(self, "_border_last_color", None):
+            return True
+        self._border_last_color = color
         try:
             self._apply_css()
         except Exception:

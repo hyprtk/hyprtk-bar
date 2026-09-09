@@ -94,20 +94,32 @@ class SysMon(HoverButton):
         bind_hover_tooltip(self, cfg, lambda: self._tip)
 
         # Left-click opens the Mission Center-style system monitor dialog.
-        self._popup = SysMonitorDialog(cfg) if (self._sys_cfg.get("monitor", True)) else None
+        # Built lazily on first open — constructing the whole dialog (pages,
+        # graphs, DMIDecode reads) at startup delays first paint.
+        self._full_cfg = cfg
+        self._monitor_enabled = bool(self._sys_cfg.get("monitor", True))
+        self._popup = None
 
     def apply_font(self, font_size, icon_size=0) -> None:
         size = icon_size_for(font_size, icon_size)
         for img in self._icons:
             img.set_pixel_size(size)
 
-    def _toggle_monitor(self) -> None:
+    def _dialog(self) -> SysMonitorDialog | None:
+        if not self._monitor_enabled:
+            return None
         if self._popup is None:
+            self._popup = SysMonitorDialog(self._full_cfg)
+        return self._popup
+
+    def _toggle_monitor(self) -> None:
+        popup = self._dialog()
+        if popup is None:
             return
-        if self._popup.get_visible():
-            self._popup.hide_popup()
+        if popup.get_visible():
+            popup.hide_popup()
         else:
-            self._popup.show_above(self)
+            popup.show_above(self)
 
     def shutdown(self) -> None:
         if self._popup is not None and self._popup.get_visible():

@@ -65,8 +65,11 @@ class StartButton(HoverButton):
             toggle = self._bar._menu_cb
             if toggle is not None:
                 toggle()
-            elif not spawn(self._command):
-                log.warning("Failed to launch start menu %r", self._command)
+            elif (self._bar._cfg.get("menu") or {}).get("enabled", True):
+                # No in-process menu callback (e.g. standalone fallback) — spawn
+                # the configured command instead.
+                if not spawn(self._command):
+                    log.warning("Failed to launch start menu %r", self._command)
         return True
 
 

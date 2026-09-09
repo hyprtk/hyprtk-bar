@@ -5,6 +5,25 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-09
 
+### Changed
+
+- **Security hardening** — SNI `IconPixmap` dimensions are capped (512px) so a
+  remote client can't force huge allocations; SNI `IconThemePath` is validated
+  (existing absolute dir under home/system icon locations) before being injected
+  into GTK's global icon search path. Imported-theme names are validated against
+  a whitelist (`_safe_theme_dir`) before touching the filesystem, and themer
+  bar/swaylock config writes are atomic.
+- **Responsiveness** — SDDM/GRUB update (pkexec) and the package-update check
+  now run on worker threads (no more UI-thread stalls). The Themer and System
+  Monitor dialogs build lazily on first open instead of at startup. Border
+  animations tick at ~15fps with a color-change skip (arc border only animates
+  while open).
+- **Menu integration fixes** — `menu.enabled` is honoured at runtime (off hides
+  the menu and toggle no-ops); the start button no-ops when the menu is
+  disabled; settings Apply preserves `position: "auto"` (new Auto radio); menu
+  saves route through the bar's config save (last-good backup); the menu's 2s
+  wal-watcher timer is released on destroy.
+
 ### Added
 
 - **Start menu merged into the bar** — the standalone hyprtk-menu app is gone;

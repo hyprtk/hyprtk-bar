@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -94,7 +95,15 @@ class Updates(HoverButton):
         return GLib.SOURCE_CONTINUE
 
     def _update(self) -> None:
-        text, css, tooltip = self._query()
+        # Run the (potentially slow) update check on a worker thread so the bar
+        # never stalls waiting for pacman/checkupdates on the UI thread.
+        def _work():
+            text, css, tooltip = self._query()
+            GLib.idle_add(self._apply, text, css, tooltip)
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _apply(self, text: str, css: str, tooltip: str) -> None:
         self._label.set_text(text)
         ctx = self._label.get_style_context()
         if css == "red":
@@ -107,6 +116,7 @@ class Updates(HoverButton):
             ctx.remove_class("high")
             ctx.remove_class("warn")
         self._tip = tooltip or f"{text} update(s)"
+        return GLib.SOURCE_REMOVE
 
     def _query(self) -> tuple[str, str, str]:
         if not self._script:

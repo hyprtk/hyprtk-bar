@@ -114,14 +114,25 @@ class ThemerLinkButton(QuickLinkButton):
         link["label"] = "Theme Manager"
         super().__init__(cfg, link, icon_size)
         self._cfg = cfg
-        self._popup = ThemerDialog(cfg, restart_cb=restart_cb, theme_cb=theme_cb)
+        self._restart_cb = restart_cb
+        self._theme_cb = theme_cb
+        self._popup = None
+
+    def _dialog(self) -> "ThemerDialog":
+        # Built lazily on first open: constructing it eagerly (as the quicklinks
+        # module is created at startup) decodes the current wallpaper and builds
+        # all 8 pages before Gtk.main() — delaying first paint.
+        if self._popup is None:
+            self._popup = ThemerDialog(self._cfg, restart_cb=self._restart_cb, theme_cb=self._theme_cb)
+        return self._popup
 
     def _on_button_press(self, _widget, event):
         if event.button == 1:
-            if self._popup.get_visible():
-                self._popup.hide_popup()
+            popup = self._dialog()
+            if popup.get_visible():
+                popup.hide_popup()
             else:
-                self._popup.show_above(self)
+                popup.show_above(self)
         elif event.button == 3:
             command = self._link.get("command_right") or ""
             if command and not _launch(command):

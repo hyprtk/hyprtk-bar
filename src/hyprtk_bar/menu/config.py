@@ -83,14 +83,26 @@ def load_config():
 
 
 def save_config(config):
-    """Write the menu block back into the bar config (atomic, preserves the rest)."""
+    """Write the menu block back into the bar config.
+
+    When running inside the bar, route through the bar's own config.save() so
+    the last-good backup (config.json.bak) is kept and validation runs — a
+    single write path for the file instead of two competing ones. Falls back
+    to an atomic write when used standalone.
+    """
+    # Update the in-memory bar dict in place (the bar reads from it live).
+    if isinstance(_bar_cfg, dict):
+        _bar_cfg["menu"] = config
+    try:
+        from .. import config as bar_config
+        bar_config.save(_bar_cfg if isinstance(_bar_cfg, dict) else bar_config.load())
+        return
+    except Exception:
+        pass
     bar = _read_bar_config()
     if not isinstance(bar, dict):
         bar = {}
     bar["menu"] = config
-    # When running inside the bar, also update the in-memory dict in place.
-    if isinstance(_bar_cfg, dict):
-        _bar_cfg["menu"] = config
     os.makedirs(os.path.dirname(BAR_CONFIG_FILE), exist_ok=True)
     try:
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(BAR_CONFIG_FILE),

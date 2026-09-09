@@ -272,7 +272,7 @@ class MenuWindow(Gtk.Window):
         self._wal_mtime = theme.wal_mtime()
         self._bar_cfg_prev = theme.bar_config_mtime()
         self._themes_dir_prev = theme.themes_dir_mtime()
-        GLib.timeout_add_seconds(2, self._check_wal)
+        self._wal_timer = GLib.timeout_add_seconds(2, self._check_wal)
 
         # Border animation mirrors the bar's (low/high/custom from the bar
         # config). Started while the menu is visible.
@@ -290,6 +290,9 @@ class MenuWindow(Gtk.Window):
         self.connect("destroy", self._on_menu_destroy)
 
     def _on_menu_destroy(self, *_args) -> None:
+        if self._wal_timer is not None:
+            GLib.source_remove(self._wal_timer)
+            self._wal_timer = None
         self._stop_border_animation()
 
     # -- layer shell ------------------------------------------------------
@@ -2054,7 +2057,7 @@ class MenuWindow(Gtk.Window):
             return
         self._border_colors = colors
         self._border_hue = 0.0
-        self._border_anim_id = GLib.timeout_add(33, self._border_anim_tick)
+        self._border_anim_id = GLib.timeout_add(66, self._border_anim_tick)
 
     def _stop_border_animation(self):
         if self._border_anim_id is not None:
@@ -2065,10 +2068,13 @@ class MenuWindow(Gtk.Window):
         """Advance the border blend and re-render with the animated color."""
         if self._border_anim_period is None:
             return False
-        # Ping-pong: 0 -> 1 -> 0 over the period (one leg = half the period).
-        self._border_hue = (self._border_hue + 33.0 / (self._border_anim_period / 2.0)) % 2.0
+        # ~15fps tick: a slow border blend needs no more (cheaper CSS update).
+        self._border_hue = (self._border_hue + 66.0 / (self._border_anim_period / 2.0)) % 2.0
         t = self._border_hue if self._border_hue <= 1.0 else 2.0 - self._border_hue
         color = lerp_color(self._border_colors[0], self._border_colors[1], t)
+        if color == getattr(self, "_border_last_color", None):
+            return True
+        self._border_last_color = color
         try:
             apply_border_color(color)
         except Exception as exc:
@@ -2077,6 +2083,8 @@ class MenuWindow(Gtk.Window):
         return True
 
     def show_menu(self):
+        if not self._enabled():
+            return
         self._apply_position()
         self._apply_layout_tweaks()
         self._refresh_favorites()
@@ -2109,10 +2117,16 @@ class MenuWindow(Gtk.Window):
                     child.get_style_context().remove_class("selected")
 
     def toggle(self):
+        if not self._enabled():
+            return
         if self.get_visible():
             self.hide_menu()
         else:
             self.show_menu()
+
+    def _enabled(self) -> bool:
+        """Whether the menu module is enabled (menu.enabled in the bar config)."""
+        return bool((self._bar_cfg.get("menu") or {}).get("enabled", True))
 
     def reposition(self):
         """Re-apply anchoring after the user changes alignment."""
@@ -2128,8 +2142,13 @@ class MenuWindow(Gtk.Window):
         The bar settings dialogue mutates the shared bar config and calls this
         (via the bar's ``set_menu`` action) so layout/position/alignment/gaps
         apply live — mirroring how the arc menu reloads after its settings.
+        When ``menu.enabled`` was switched off the menu hides and stays hidden
+        (toggle no-ops) until re-enabled.
         """
         self.config = cfg.load_config()
+        if not self._enabled():
+            self.hide_menu()
+            return
         new_layout = self.config.get("layout", "whisker")
         old_layout = getattr(self, "_layout_name", None)
         self._layout_name = new_layout

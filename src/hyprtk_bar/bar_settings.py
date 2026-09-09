@@ -1091,21 +1091,25 @@ class BarSettings(Gtk.Window):
         pos_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         pos_label = Gtk.Label(label="Position:", xalign=1)
         pos_label.set_size_request(70, -1)
+        pos_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        pos_box.set_hexpand(True)
         self._menu_position = _radio_group(
+            [("auto", "Auto (bar)")] +
             [(key, label.replace(" ", "\n")) for key, label in self._MENU_POSITIONS]
         )
+        auto_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        auto_box.pack_start(self._menu_position["auto"], False, False, 0)
+        pos_box.pack_start(auto_box, False, False, 0)
         grid = Gtk.Grid(row_spacing=2, column_spacing=4)
         for i, (key, _label) in enumerate(self._MENU_POSITIONS):
             grid.attach(self._menu_position[key], i % 3, i // 3, 1, 1)
+        pos_box.pack_start(grid, False, False, 0)
         current = menu.get("position", "auto")
-        if current == "auto":
-            current = "top-left"
         if current not in self._menu_position:
-            current = "top-left"
+            current = "auto"
         self._menu_position[current].set_active(True)
-        grid.set_hexpand(True)
         pos_row.pack_start(pos_label, False, False, 0)
-        pos_row.pack_start(grid, True, True, 0)
+        pos_row.pack_start(pos_box, True, True, 0)
         page.pack_start(pos_row, False, False, 0)
 
         align_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
