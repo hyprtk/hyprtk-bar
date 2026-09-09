@@ -142,7 +142,15 @@ def resolve_palette():
     Returns a dict with ``background``/``foreground``/``accent``/``hover`` plus
     optional ``border_color``/``border_radius``/``theme_name`` when an imported
     theme is active — the same palette hyprtk-bar builds.
+
+    When ``menu.follow_bar`` is off the menu resolves its OWN palette from pywal
+    instead of mirroring the bar's chosen theme.
     """
+    menu_cfg = cfg.load_config()
+    follow_bar = bool(menu_cfg.get("follow_bar", True))
+    if not follow_bar:
+        return _own_palette()
+
     theme = cfg.load_bar_theme()
     source = theme.get("source", "pywal")
     palette = {
@@ -166,6 +174,26 @@ def resolve_palette():
                 palette["hover"] = _rgba(palette["foreground"], 0.08)
                 palette["border_color"] = palette["accent"]
     return palette
+
+
+def _own_palette():
+    """The menu's own palette (menu.follow_bar = false): pywal-driven."""
+    pywal = cfg.load_pywal_colors()
+    if not pywal:
+        return {
+            "background": FALLBACK.get("background", "#1e1e2e"),
+            "foreground": FALLBACK.get("foreground", "#cdd6f4"),
+            "accent": FALLBACK.get("color5", "#c084fc"),
+            "hover": "rgba(255, 255, 255, 0.08)",
+        }
+    accent = pywal.get("color5") or pywal.get("color4") or "#c084fc"
+    return {
+        "background": pywal.get("background") or FALLBACK.get("background", "#1e1e2e"),
+        "foreground": pywal.get("foreground") or FALLBACK.get("foreground", "#cdd6f4"),
+        "accent": accent,
+        "hover": _rgba(pywal.get("foreground", "#cdd6f4"), 0.08),
+        "border_color": accent,
+    }
 
 
 # ── palette -> menu semantic tokens ─────────────────────────────

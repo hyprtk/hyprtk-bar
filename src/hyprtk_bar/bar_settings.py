@@ -1063,6 +1063,10 @@ class BarSettings(Gtk.Window):
             page, "Enabled", bool(menu.get("enabled", True))
         )
 
+        self._menu_follow = self._radio_bool_row(
+            page, "Follow hyprtk-bar", bool(menu.get("follow_bar", True))
+        )
+
         layout_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         layout_label = Gtk.Label(label="Layout:", xalign=1)
         layout_label.set_size_request(70, -1)
@@ -1142,6 +1146,7 @@ class BarSettings(Gtk.Window):
         menu.update(
             {
                 "enabled": self._menu_enabled.get_active(),
+                "follow_bar": self._menu_follow.get_active(),
                 "layout": layout,
                 "position": pos,
                 "align": align,

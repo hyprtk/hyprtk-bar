@@ -32,6 +32,7 @@ def set_bar_cfg(cfg: dict) -> None:
 DEFAULT_CONFIG = {
     "position": "auto",
     "align": "left",
+    "follow_bar": True,   # mirror the bar's palette (glass + text); off = menu's own pywal
     "gap_in": 4,     # gap between the menu and the bar when following it (px)
     "gap_out": 5,    # gap between the menu and the screen edge (px)
     "layout": "whisker",

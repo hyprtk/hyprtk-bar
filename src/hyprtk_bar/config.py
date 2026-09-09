@@ -236,6 +236,7 @@ DEFAULTS = {
         "enabled": True,            # the start menu is owned by the bar process
         "position": "auto",         # auto | top-left|top-center|top-right|center|bottom-*
         "align": "left",            # left | center | right
+        "follow_bar": True,         # mirror the bar's palette; off = menu's own pywal
         "gap_in": 4,                # gap between the menu and the bar (px)
         "gap_out": 5,               # gap between the menu and the screen edge (px)
         "layout": "whisker",        # whisker | win7 | win11 | plasma
@@ -548,6 +549,7 @@ def _validate_menu(menu: dict) -> dict:
     """Coerce/correct the ``menu`` config block, falling back to defaults."""
     valid = _deep_merge(DEFAULTS["menu"], menu)
     valid["enabled"] = bool(valid.get("enabled", True))
+    valid["follow_bar"] = bool(valid.get("follow_bar", True))
     layout = valid.get("layout", "whisker")
     if layout not in MENU_LAYOUTS:
         log.warning("Unknown menu layout %r, using whisker", layout)
