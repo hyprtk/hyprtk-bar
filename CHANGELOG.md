@@ -5,6 +5,17 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-09
 
+### Added
+
+- **System monitor Apps page** — four views (User apps / System apps / User
+  processes / System processes); "apps" are processes owning a compositor
+  window, "processes" are everything owned by that user. Each row shows
+  process, CPU and memory; **Kill**, **Force kill** and **Launch** act on the
+  selected process (Launch re-runs its command line). Killing a system-owned
+  process goes through the scoped `hyprtk-system-kill` sudo helper (installed
+  to /usr/local/bin by setup-sudoers.sh alongside dmidecode — never NOPASSWD
+  ALL); user-owned processes are killed directly.
+
 ### Fixed
 
 - **Memory leaks** — SNI items now detach their D-Bus signal subscriptions on

@@ -7,7 +7,10 @@ Apps) and live cairo graphs + readouts. All colours come from the bar's palette
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
+import subprocess
 import threading
 
 import gi
@@ -779,23 +782,137 @@ class SysMonitorDialog(Popup):
         self._stat_vals.update(stats.vals)
 
     def _build_apps_page(self, page: Gtk.Box) -> None:
-        self._apps_store = Gtk.ListStore(str, str, str)
-        tree = Gtk.TreeView(model=self._apps_store)
-        tree.get_style_context().add_class("mc-tree")
-        for i, title in enumerate(("Process", "CPU", "Memory")):
-            renderer = Gtk.CellRendererText()
-            if i:
-                renderer.set_property("xalign", 1)
-            col = Gtk.TreeViewColumn(title, renderer, text=i)
-            col.set_expand(i == 0)
-            if i:
-                col.set_alignment(1)
-            tree.append_column(col)
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_vexpand(True)
-        scroll.add(tree)
-        page.pack_start(scroll, True, True, 0)
+        # Four views: user apps, system apps, user processes, system processes.
+        # Apps = processes owning a compositor window; processes = everything
+        # owned by that user (apps included). Rows carry their pid in column 0.
+        self._apps_views: dict[str, Gtk.TreeView] = {}
+        self._apps_stores: dict[str, Gtk.ListStore] = {}
+        self._uid = os.getuid()
+
+        notebook = Gtk.Notebook()
+        notebook.get_style_context().add_class("settings-notebook")
+        for key, label in (
+            ("user-apps", "User apps"),
+            ("system-apps", "System apps"),
+            ("user-procs", "User processes"),
+            ("system-procs", "System processes"),
+        ):
+            store = Gtk.ListStore(int, str, str, str)
+            tree = Gtk.TreeView(model=store)
+            tree.get_style_context().add_class("mc-tree")
+            for i, title in enumerate(("Process", "CPU", "Memory")):
+                renderer = Gtk.CellRendererText()
+                if i:
+                    renderer.set_property("xalign", 1)
+                col = Gtk.TreeViewColumn(title, renderer, text=i + 1)
+                col.set_expand(i == 0)
+                if i:
+                    col.set_alignment(1)
+                tree.append_column(col)
+            tree.set_search_column(1)
+            scroll = Gtk.ScrolledWindow()
+            scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scroll.set_vexpand(True)
+            scroll.add(tree)
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            box.pack_start(scroll, True, True, 0)
+            notebook.append_page(box, Gtk.Label(label=label))
+            self._apps_views[key] = tree
+            self._apps_stores[key] = store
+        notebook.set_vexpand(True)
+        page.pack_start(notebook, True, True, 0)
+
+        # ── actions: kill / force-kill / launch the selected process ──
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        bar.get_style_context().add_class("mc-actions")
+        self._apps_selection = Gtk.Label(label="Select a process", xalign=0)
+        self._apps_selection.set_opacity(0.7)
+        self._apps_selection.set_ellipsize(3)
+        bar.pack_start(self._apps_selection, True, True, 0)
+        launch_btn = Gtk.Button(label="Launch")
+        launch_btn.connect("clicked", lambda *_: self._apps_launch())
+        kill_btn = Gtk.Button(label="Kill")
+        kill_btn.get_style_context().add_class("settings-btn")
+        kill_btn.connect("clicked", lambda *_: self._apps_kill(force=False))
+        force_btn = Gtk.Button(label="Force kill")
+        force_btn.get_style_context().add_class("settings-btn")
+        force_btn.connect("clicked", lambda *_: self._apps_kill(force=True))
+        for b in (launch_btn, kill_btn, force_btn):
+            bar.pack_start(b, False, False, 0)
+        page.pack_start(bar, False, False, 0)
+
+        self._apps_notebook = notebook
+        notebook.connect("switch-page", lambda *_: self._update_apps())
+
+    # ── apps actions ──────────────────────────────────────────────
+
+    def _active_apps_tree(self) -> Gtk.TreeView:
+        return self._apps_views[self._active_apps_key()]
+
+    def _active_apps_key(self) -> str:
+        page = self._apps_notebook.get_current_page()
+        return ("user-apps", "system-apps", "user-procs", "system-procs")[page]
+
+    def _selected_process(self):
+        tree = self._active_apps_tree()
+        selection = tree.get_selection()
+        if selection is None:
+            return None
+        model, it = selection.get_selected()
+        if it is None:
+            return None
+        return model[it]
+
+    def _apps_launch(self) -> None:
+        row = self._selected_process()
+        if row is None:
+            self._apps_toast("Select a process to launch")
+            return
+        pid = int(row[0])
+        name = str(row[1])
+        if monitor_data.launch_process(pid):
+            self._apps_toast(f"Launched {name}")
+        else:
+            self._apps_toast(f"Nothing to launch for {name} (no command line)")
+
+    def _apps_kill(self, force: bool) -> None:
+        row = self._selected_process()
+        if row is None:
+            self._apps_toast("Select a process to kill")
+            return
+        pid = int(row[0])
+        name = str(row[1])
+        verb = "Force kill" if force else "Kill"
+        if not self._confirm(f"{verb} {name} (PID {pid})?"):
+            return
+        if monitor_data.kill_process(pid, force=force):
+            self._apps_toast(f"{verb}ed {name}")
+        else:
+            self._apps_toast(f"Could not {verb.lower()} {name} (permission?)")
+
+    def _apps_toast(self, text: str) -> None:
+        if self._apps_selection is not None:
+            self._apps_selection.set_text(text)
+
+    def _confirm(self, text: str) -> bool:
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            modal=True,
+            destroy_with_parent=True,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.NONE,
+            text=text,
+        )
+        dialog.format_secondary_text(
+            "This will terminate the process. Unsaved work in it will be lost."
+        )
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        ok = dialog.add_button("OK", Gtk.ResponseType.ACCEPT)
+        ok.get_style_context().add_class("confirm-accept")
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        response = dialog.run()
+        dialog.destroy()
+        return response == Gtk.ResponseType.ACCEPT
 
     # ── theming ───────────────────────────────────────────────────
 
@@ -1073,14 +1190,41 @@ class SysMonitorDialog(Popup):
                 parts.append(f"{info['max_clock']:,} MHz max")
             self._gpu_detail.set_text(" \u00b7 ".join(p for p in parts if p))
 
+    def _window_pids(self) -> set[int]:
+        """PIDs owning windows on the compositor (refreshed once per poll)."""
+        try:
+            out = subprocess.run(
+                ["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=5
+            ).stdout
+            data = json.loads(out)
+            return {int(w["pid"]) for w in data if isinstance(w, dict) and w.get("pid")}
+        except Exception:
+            return set()
+
     def _update_apps(self) -> None:
-        if self._apps_store is None:
+        if not getattr(self, "_apps_stores", None):
             return
-        rows = monitor_data.top_processes(APP_ROWS)
-        self._apps_store.clear()
+        rows = monitor_data.top_processes(APP_ROWS, window_pids=self._window_pids())
+        buckets = {
+            "user-apps": [], "system-apps": [],
+            "user-procs": [], "system-procs": [],
+        }
         for r in rows:
-            mem = monitor_data.fmt_bytes(r["mem"]) if r["mem"] > 0 else "--"
-            self._apps_store.append([r["name"], f"{r['cpu']:.1f}", mem])
+            user = r.get("uid") == self._uid
+            app = bool(r.get("is_app"))
+            if user:
+                buckets["user-procs"].append(r)
+                if app:
+                    buckets["user-apps"].append(r)
+            else:
+                buckets["system-procs"].append(r)
+                if app:
+                    buckets["system-apps"].append(r)
+        for key, store in self._apps_stores.items():
+            store.clear()
+            for r in buckets[key]:
+                mem = monitor_data.fmt_bytes(r["mem"]) if r["mem"] > 0 else "--"
+                store.append([r["pid"], r["name"], f"{r['cpu']:.1f}", mem])
 
     # ── refresh ───────────────────────────────────────────────────
 

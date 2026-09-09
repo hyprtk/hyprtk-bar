@@ -63,6 +63,52 @@ def fmt_bytes(n: float) -> str:
     return f"{n:.1f} {units[i]}"
 
 
+# ── process control ───────────────────────────────────────────────
+
+def kill_process(pid: int, force: bool = False) -> bool:
+    """Send SIGTERM (or SIGKILL when ``force``) to a pid.
+
+    User-owned processes are killed directly; system (root/other) processes go
+    through the scoped ``hyprtk-system-kill`` sudo helper so the bar can act
+    on them without a password and without blanket NOPASSWD. Returns False on
+    failure (permission, missing pid, helper absent).
+    """
+    signal_name = "-KILL" if force else "-TERM"
+    uid = _read_pid_uid(pid)
+    if uid is None:
+        return False
+    try:
+        if uid == os.getuid():
+            # Own process: no elevation needed.
+            return subprocess.run(
+                ["kill", signal_name, str(pid)], capture_output=True, timeout=5
+            ).returncode == 0
+        # System process: use the scoped sudo helper.
+        helper = "/usr/local/bin/hyprtk-system-kill"
+        return subprocess.run(
+            ["sudo", "-n", helper, str(pid), signal_name],
+            capture_output=True, timeout=10,
+        ).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def launch_process(pid: int) -> bool:
+    """Launch a new instance of a process from its stored argv (detached).
+
+    Re-runs the selected process's command line so "Launch" restarts the same
+    app/process. Returns False when the process has no usable argv.
+    """
+    argv = _read_pid_cmdline(pid)
+    if not argv:
+        return False
+    try:
+        subprocess.Popen(argv, start_new_session=True)
+        return True
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+
+
 def fmt_rate(bps: float) -> str:
     return fmt_bytes(bps) + "/s"
 
@@ -1011,9 +1057,50 @@ def _read_pid_rss(pid: int) -> int:
     return 0
 
 
-def top_processes(n: int = 15) -> list[dict]:
-    """Top-N processes by per-core CPU% (two /proc samples ~150ms apart)."""
+def _read_pid_uid(pid: int) -> int | None:
+    """Real UID owner of a pid (from /proc/<pid>/status), or None."""
+    try:
+        with open(f"/proc/{pid}/status") as f:
+            for line in f:
+                if line.startswith("Uid:"):
+                    parts = line.split()
+                    return int(parts[1]) if len(parts) > 1 else None
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def _read_pid_cmdline(pid: int) -> list[str]:
+    """The process's argv (null-separated /proc/<pid>/cmdline), or []."""
+    try:
+        raw = Path("/proc", str(pid), "cmdline").read_bytes()
+    except OSError:
+        return []
+    return [a for a in raw.decode("utf-8", "replace").split("\0") if a]
+
+
+def _window_pids() -> set[int]:
+    """PIDs owning windows on the Hyprland compositor (for app detection)."""
+    try:
+        out = subprocess.run(
+            ["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=5
+        ).stdout
+        data = json.loads(out)
+        return {int(w["pid"]) for w in data if isinstance(w, dict) and w.get("pid")}
+    except Exception:
+        return set()
+
+
+def top_processes(n: int = 15, window_pids: set[int] | None = None) -> list[dict]:
+    """Top-N processes by per-core CPU% (two /proc samples ~150ms apart).
+
+    Each row carries ``pid``, ``name`` (comm), ``cpu``, ``mem`` (GB), ``uid``
+    (owner), ``cmdline`` (argv) and ``is_app`` (owns a compositor window). Pass
+    ``window_pids`` from the caller to avoid a duplicate hyprctl query.
+    """
     ncpu = os.cpu_count() or 1
+    if window_pids is None:
+        window_pids = _window_pids()
 
     def sample() -> tuple[int, dict]:
         total = 1
@@ -1055,6 +1142,9 @@ def top_processes(n: int = 15) -> list[dict]:
                 "name": comm,
                 "cpu": cpu,
                 "mem": _read_pid_rss(pid) * _KB / _GB,
+                "uid": _read_pid_uid(pid),
+                "cmdline": _read_pid_cmdline(pid),
+                "is_app": pid in window_pids,
             }
         )
     rows.sort(key=lambda r: r["cpu"], reverse=True)
