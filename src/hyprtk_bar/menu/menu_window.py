@@ -355,12 +355,13 @@ class MenuWindow(Gtk.Window):
 
     def _apply_position(self):
         position = self.config.get("position", "auto")
+        follow_bar = bool(self.config.get("follow_bar", True))
         top = GtkLayerShell.Edge.TOP
         bottom = GtkLayerShell.Edge.BOTTOM
         left = GtkLayerShell.Edge.LEFT
         right = GtkLayerShell.Edge.RIGHT
 
-        if position == "center":
+        if position == "center" and not follow_bar:
             # No anchors on any edge → the surface is centered on the output.
             for anchor in (top, bottom, left, right):
                 GtkLayerShell.set_anchor(self, anchor, False)
@@ -373,34 +374,37 @@ class MenuWindow(Gtk.Window):
         v_margin = gap_out
         x = None  # explicit left edge (px) when following the bar
 
-        if position == "auto":
-            geo = self._bar_geometry()
-            if geo is not None:
-                edge, bar_left, bar_right = geo
-                align = self.config.get("align", "left")
-                horizontal = align if align in ("left", "center", "right") else "left"
-                menu_w = int(self.config.get("width", 920))
-                if horizontal == "left":
-                    x = bar_left
-                elif horizontal == "right":
-                    x = bar_right - menu_w
-                else:
-                    x = (bar_left + bar_right - menu_w) // 2
-                total = self._monitor_width()
-                if total > 0:
-                    x = max(gap_out, min(x, total - menu_w - gap_out))
-                # The bar's exclusive zone already offsets the menu clear of the
-                # bar's full surface (height + gap_in + gap_out); only the
-                # configured gap_in breathing gap is needed on top of that.
-                v_margin = gap_in
+        # Follow hyprtk-bar: the menu sits at the bar's edge and aligns
+        # horizontally to the bar pill (its width + align + gaps), not the
+        # screen. ``position`` only picks the fallback when follow is off.
+        geo = self._bar_geometry() if follow_bar else None
+        if geo is not None:
+            edge, bar_left, bar_right = geo
+            align = self.config.get("align", "left")
+            horizontal = align if align in ("left", "center", "right") else "left"
+            menu_w = int(self.config.get("width", 920))
+            if horizontal == "left":
+                x = bar_left
+            elif horizontal == "right":
+                x = bar_right - menu_w
             else:
+                x = (bar_left + bar_right - menu_w) // 2
+            total = self._monitor_width()
+            if total > 0:
+                x = max(gap_out, min(x, total - menu_w - gap_out))
+            # The bar's exclusive zone already offsets the menu clear of the
+            # bar's full surface (height + gap_in + gap_out); only the
+            # configured gap_in breathing gap is needed on top of that.
+            v_margin = gap_in
+        else:
+            if position == "auto":
                 edge = "top"
                 align = self.config.get("align", "left")
                 horizontal = align if align in ("left", "center", "right") else "left"
-        else:
-            parts = position.split("-")
-            edge = parts[0] if parts[0] in ("top", "bottom") else "top"
-            horizontal = parts[1] if len(parts) > 1 else "left"
+            else:
+                parts = position.split("-")
+                edge = parts[0] if parts[0] in ("top", "bottom") else "top"
+                horizontal = parts[1] if len(parts) > 1 else "left"
 
         GtkLayerShell.set_anchor(self, top, edge == "top")
         GtkLayerShell.set_anchor(self, bottom, edge == "bottom")

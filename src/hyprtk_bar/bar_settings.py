@@ -1053,7 +1053,10 @@ class BarSettings(Gtk.Window):
         menu = self._cfg.get("menu") or {}
         hint = Gtk.Label(
             label="The start menu is owned by the bar, toggled by the start "
-            "button or the menu keybind. It follows the bar theme and pywal.",
+            "button or the menu keybind. Follow hyprtk-bar anchors the menu to "
+            "the bar's edge and pill width (align follows the bar's width); "
+            "off positions it at the chosen screen corner. It follows the bar "
+            "theme and pywal.",
             xalign=0, wrap=True,
         )
         hint.set_opacity(0.8)
