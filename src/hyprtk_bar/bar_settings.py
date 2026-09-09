@@ -161,6 +161,13 @@ class BarSettings(Gtk.Window):
         self.connect("key-press-event", self._on_key)
         self._build()
         self.show_all()
+        # _build already called _set_active_page, but a Gtk.Stack with a
+        # crossfade transition drops a visible-child change made before the
+        # window is realized and falls back to its first page. Re-apply after
+        # show_all so opening settings on the Menu/Arc Menu page actually shows
+        # that page (not Bar).
+        if self._initial_page in self._page_buttons:
+            self._set_active_page(self._initial_page)
 
     # ── ui ───────────────────────────────────────────────────────
 
