@@ -631,7 +631,7 @@ class ThemerDialog(Popup):
                 ctx.add_class("settings-radio")
             elif isinstance(w, Gtk.Switch):
                 ctx.add_class("settings-switch")
-            elif isinstance(w, (Gtk.SpinButton, Gtk.Entry)):
+            elif isinstance(w, (Gtk.SpinButton, Gtk.Entry, Gtk.SearchEntry)):
                 ctx.add_class("settings-input")
                 for state in states:
                     try:
@@ -705,6 +705,13 @@ class ThemerDialog(Popup):
         preview_wrap.pack_start(self._current_img, False, False, 0)
         box.pack_start(preview_wrap, False, False, 0)
 
+        # Search field under the preview — filters the thumbnail grid.
+        self._search_text = ""
+        search = Gtk.SearchEntry()
+        search.set_placeholder_text("Search wallpapers\u2026")
+        search.connect("changed", self._on_wallpaper_search)
+        box.pack_start(search, False, False, 0)
+
         _add_section_title(box, "Wallpaper Directory")
         dir_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._dir_label = Gtk.Label(label=str(self._wall_dir), xalign=0)
@@ -774,7 +781,8 @@ class ThemerDialog(Popup):
         """
         if self._fill_id is not None or self._cache_running:
             return
-        if not self._all_images or self._loaded_count >= len(self._all_images):
+        images = self._visible_images()
+        if not images or self._loaded_count >= len(images):
             return
         v = self._vadj
         if v is None:
@@ -898,10 +906,28 @@ class ThemerDialog(Popup):
         self._load_batch()
         self._fill_batches()
 
+    def _visible_images(self) -> list[Path]:
+        """Wallpapers matching the current search text (all when empty)."""
+        query = self._search_text.strip().lower()
+        if not query:
+            return self._all_images
+        return [p for p in self._all_images if query in p.name.lower()]
+
+    def _on_wallpaper_search(self, entry) -> None:
+        self._search_text = entry.get_text()
+        self._reload_grid()
+
+    def _reload_grid(self) -> None:
+        _remove_all_children(self._flow)
+        self._loaded_count = 0
+        self._load_batch()
+        self._fill_batches()
+
     def _load_batch(self):
+        images = self._visible_images()
         start = self._loaded_count
-        end = min(start + _BATCH_SIZE, len(self._all_images))
-        for img_path in self._all_images[start:end]:
+        end = min(start + _BATCH_SIZE, len(images))
+        for img_path in images[start:end]:
             if not img_path.is_file():  # image deleted since the index was built
                 continue
             btn = Gtk.Button()
@@ -916,6 +942,7 @@ class ThemerDialog(Popup):
                 img.set_from_file(str(img_path))
             btn.add(img)
             btn.connect("clicked", self._on_thumb_click, img_path)
+            btn.connect("button-press-event", self._on_thumb_press, img_path)
             self._flow.add(btn)
             # Children added after the page was shown stay hidden until shown —
             # without this only the first batch ever appeared.
@@ -925,6 +952,15 @@ class ThemerDialog(Popup):
     def _on_thumb_click(self, btn, path: Path):
         self._selected = path
         self._set_preview(str(path))
+
+    def _on_thumb_press(self, _btn, event, path: Path) -> bool:
+        """Double-click a thumbnail to apply it immediately."""
+        if event.button == 1 and event.type == Gdk.EventType.DOUBLE_BUTTON_PRESS:
+            self._selected = path
+            self._set_preview(str(path))
+            self._apply_selected()
+            return True
+        return False
 
     def _apply_random(self, btn):
         if not self._all_images:
@@ -959,7 +995,7 @@ class ThemerDialog(Popup):
                 self._load_thumbnails()
         dialog.destroy()
 
-    def _apply_selected(self, btn):
+    def _apply_selected(self, _btn=None):
         if self._selected is None:
             self._toast("Select a wallpaper first")
             return
