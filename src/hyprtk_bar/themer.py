@@ -38,7 +38,7 @@ gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .config import resolve_script, SCRIPTS_DIR  # noqa: E402
-from .popup import Popup, center_on_screen  # noqa: E402
+from .popup import Popup, center_layer_dialog  # noqa: E402
 from .theme_import import (  # noqa: E402
     find_installed_themes,
     import_theme,
@@ -641,8 +641,7 @@ class BarThemeImportDialog(Popup):
         chooser.connect("response", self._on_browse_response)
         # The Theme Manager is a layer-shell surface, so a normal chooser would
         # render behind it — float the chooser on the overlay layer instead.
-        GtkLayerShell.init_for_window(chooser)
-        center_on_screen(chooser, 820, 560)
+        center_layer_dialog(chooser, 820, 560)
         chooser.show_all()
 
     def _on_browse_response(self, dialog, response):
@@ -1552,8 +1551,7 @@ class ThemerDialog(Popup):
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.OK_CANCEL,
         )
-        GtkLayerShell.init_for_window(dialog)
-        center_on_screen(dialog, 460, 220)
+        center_layer_dialog(dialog, 460, 220)
 
         def on_response(dlg, response):
             dlg.destroy()

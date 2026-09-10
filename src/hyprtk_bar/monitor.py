@@ -27,7 +27,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from . import monitor_data  # noqa: E402
 from .config import PYWAL_PATH, load_pywal_colors  # noqa: E402
 from .graphs import HistoryGraph, core_colors  # noqa: E402
-from .popup import Popup  # noqa: E402
+from .popup import Popup, center_layer_dialog  # noqa: E402
 from .theme import resolve_palette  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
 
@@ -902,9 +902,6 @@ class SysMonitorDialog(Popup):
 
     def _confirm(self, text: str) -> bool:
         dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            destroy_with_parent=True,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.NONE,
             text=text,
@@ -916,6 +913,7 @@ class SysMonitorDialog(Popup):
         ok = dialog.add_button("OK", Gtk.ResponseType.ACCEPT)
         ok.get_style_context().add_class("confirm-accept")
         dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        center_layer_dialog(dialog)
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.ACCEPT

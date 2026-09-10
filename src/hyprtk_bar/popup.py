@@ -71,6 +71,17 @@ def center_on_screen(window, width: int, height: int) -> None:
     )
 
 
+def center_layer_dialog(dialog, width: int = 460, height: int = 220) -> None:
+    """Make a plain ``Gtk.Dialog`` a layer-shell OVERLAY surface, centred.
+
+    Confirmations are opened from layer-shell popups (the menu, system monitor,
+    Theme Manager). A normal window would render behind them, so move it to the
+    OVERLAY layer — the same treatment the Theme Manager's own confirm uses.
+    """
+    GtkLayerShell.init_for_window(dialog)
+    center_on_screen(dialog, width, height)
+
+
 class Popup(Gtk.Window):
     """A borderless, transparent layer-shell window that floats above the bar."""
 

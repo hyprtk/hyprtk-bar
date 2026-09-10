@@ -26,6 +26,7 @@ from . import apps, config as cfg, theme
 from .hypr_animations import active_border_colors, border_period_ms, lerp_color
 from .theme import apply_border_color, apply_css, build_css
 from ..widgets import Glyph
+from ..popup import center_layer_dialog
 
 # Win7-style places entries (label, icon_name, command_or_path)
 WIN7_PLACES = [
@@ -1312,9 +1313,6 @@ class MenuWindow(Gtk.Window):
 
     def _confirm_empty_trash(self):
         dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            destroy_with_parent=True,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.NONE,
             text="Empty Trash?",
@@ -1327,6 +1325,7 @@ class MenuWindow(Gtk.Window):
         confirm = dialog.add_button("Empty Trash", Gtk.ResponseType.ACCEPT)
         confirm.get_style_context().add_class("confirm-accept")
         dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        center_layer_dialog(dialog)
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.ACCEPT
@@ -1966,9 +1965,6 @@ class MenuWindow(Gtk.Window):
         """Ask before running a destructive power action. Returns bool."""
         title = CONFIRM_LABELS.get(action, action.capitalize())
         dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            destroy_with_parent=True,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.NONE,
             text="%s?" % title,
@@ -1982,6 +1978,7 @@ class MenuWindow(Gtk.Window):
         confirm = dialog.add_button(title, Gtk.ResponseType.ACCEPT)
         confirm.get_style_context().add_class("confirm-accept")
         dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        center_layer_dialog(dialog)
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.ACCEPT

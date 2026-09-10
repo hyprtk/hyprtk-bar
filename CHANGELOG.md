@@ -62,6 +62,11 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Confirmation dialogs opened *behind* the popup that launched them.** The
+  menu, system monitor and Theme Manager are layer-shell surfaces, so their
+  plain `Gtk.MessageDialog`s rendered behind. All confirms now use a shared
+  `center_layer_dialog()` helper (OVERLAY layer, centred) and sit on top.
+
 - **Confirmation dialogs (reboot / shutdown / empty trash) had light buttons.**
   They are separate GTK dialogs, so the menu-wide `.menu button` reset didn't
   reach them, and `.confirm-dialog button` set only `background-color` — the GTK
