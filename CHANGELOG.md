@@ -37,6 +37,13 @@ Dates are in YYYY-MM-DD format.
   matrix, the per-distro package-name mapping, and the remaining Arch /
   `~/hyprtk` assumptions.
 
+### Changed
+
+- **Start menu power/settings icons are now Nerd Font glyphs.** The power
+  buttons used bundled PNGs and the settings button a system symbolic icon
+  (which rendered as a blank placeholder where the icon theme lacked it). Both
+  now use glyphs from the bundled Nerd Font, matching the bar's icon style.
+
 ### Fixed
 
 - **Start menu's settings (cog) button rendered unthemed.** The bar's global

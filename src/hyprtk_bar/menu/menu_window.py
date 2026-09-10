@@ -20,11 +20,12 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 
-from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell, Pango
+from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, Pango
 
 from . import apps, config as cfg, theme
 from .hypr_animations import active_border_colors, border_period_ms, lerp_color
 from .theme import apply_border_color, apply_css, build_css
+from ..widgets import Glyph
 
 # Win7-style places entries (label, icon_name, command_or_path)
 WIN7_PLACES = [
@@ -74,22 +75,14 @@ def _bar_width_px(width, total):
     except (TypeError, ValueError):
         return 0
 
-POWER_ICONS = {
-    "lock": "system-lock-screen",
-    "logout": "system-log-out",
-    "reboot": "system-reboot",
-    "shutdown": "system-shutdown",
-    "suspend": "system-suspend",
-    "hibernate": "system-suspend-hibernate",
-}
-
-POWER_PNG = {
-    "lock": "lock.png",
-    "logout": "logout.png",
-    "reboot": "reboot.png",
-    "shutdown": "shutdown.png",
-    "suspend": "suspend.png",
-    "hibernate": "hibernate.png",
+# Nerd Font glyphs for the power actions (same icon language as the bar).
+POWER_GLYPH = {
+    "lock": "\uf023",
+    "logout": "\uf08b",
+    "reboot": "\uf021",
+    "shutdown": "\uf011",
+    "suspend": "\uf186",
+    "hibernate": "\uf236",
 }
 
 POWER_ICON_SIZE = 16
@@ -1398,8 +1391,8 @@ class MenuWindow(Gtk.Window):
         self.settings_button = Gtk.Button()
         self.settings_button.get_style_context().add_class("menu-settings-btn")
         self.settings_button.set_tooltip_text("Menu settings")
-        cog = Gtk.Image.new_from_icon_name("preferences-system-symbolic", Gtk.IconSize.MENU)
-        cog.get_style_context().add_class("menu-settings-icon")
+        cog = Glyph("\uf013", "menu-settings-icon")
+        cog.set_pixel_size(POWER_ICON_SIZE)
         self.settings_button.add(cog)
         self.settings_button.connect("clicked", self._open_settings)
         left.pack_start(self.settings_button, False, False, 0)
@@ -1763,23 +1756,10 @@ class MenuWindow(Gtk.Window):
     # -- helpers ----------------------------------------------------------
 
     def _make_power_icon(self, action, pixel_size=POWER_ICON_SIZE):
-        """Custom PNG power icon (scaled to match system size), else system icon."""
-        png = POWER_PNG.get(action)
-        if png:
-            path = os.path.join(theme.BASE_DIR, "assets", png)
-            try:
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
-                width = max(pixel_size, 1)
-                height = max(int(pixbuf.get_height() * (width / max(pixbuf.get_width(), 1))), 1)
-                scaled = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)
-                image = Gtk.Image.new_from_pixbuf(scaled)
-                image.get_style_context().add_class("power-icon")
-                return image
-            except (GLib.Error, OSError):
-                pass
-        return Gtk.Image.new_from_icon_name(
-            POWER_ICONS.get(action, "system-run"), Gtk.IconSize.MENU
-        )
+        """Nerd Font glyph for a power action (matches the bar's icon style)."""
+        glyph = Glyph(POWER_GLYPH.get(action, "\uf011"), "power-icon")
+        glyph.set_pixel_size(pixel_size)
+        return glyph
 
     def _make_icon_image(self, entry, pixel_size):
         icon = entry.icon

@@ -310,10 +310,10 @@ paned.horizontal > separator:hover {
     background-color: @selected_bg;
     border-color: @accent;
 }
-.power-btn image {
+.power-btn .power-icon {
     color: @text;
 }
-.power-btn:hover image {
+.power-btn:hover .power-icon {
     color: @selected_text;
 }
 .power-btn.power-danger {
@@ -323,7 +323,7 @@ paned.horizontal > separator:hover {
     background-color: alpha(@color1, 0.85);
     border-color: @color1;
 }
-.power-btn.power-danger:hover image {
+.power-btn.power-danger:hover .power-icon {
     color: #ffffff;
 }
 
