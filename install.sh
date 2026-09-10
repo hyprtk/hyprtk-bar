@@ -416,6 +416,7 @@ configure_autostart() {
 -- >>> hyprtk-bar autostart (added by install.sh) >>>
 hl.on("hyprland.start", function()
     hl.exec_cmd("awww-daemon &")
+    hl.exec_cmd("~/.local/share/hyprtk-bar/scripts/wal-watcher.sh &")
     hl.exec_cmd("~/.local/bin/hyprtk-bar &")
 end)
 -- <<< hyprtk-bar autostart <<<

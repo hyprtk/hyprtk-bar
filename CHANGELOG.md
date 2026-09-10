@@ -7,6 +7,10 @@ Dates are in YYYY-MM-DD format.
 
 ### Added
 
+- **`wal-watcher.sh` bundled and autostarted.** It watches `awww` for wallpaper
+  changes made by any tool and regenerates the palette, copied configs and icon
+  colours — using the bar's bundled `change-icons.sh`, so no `~/hyprtk` install
+  is required.
 - **Bundled default wallpapers.** Four wallpapers (`3.png`, `14.png`, `66.png`,
   `default.png`) ship in `Wallpapers/` and the installer copies them into
   `~/Pictures/Wallpapers/` (no-clobber — files the user already has are kept).
