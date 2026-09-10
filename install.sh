@@ -270,6 +270,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
     if [ -d "$SCRIPT_DIR/themes" ]; then
         echo ":: Bundled bar themes: $(ls -d "$SCRIPT_DIR"/themes/*/ 2>/dev/null | wc -l)"
     fi
+    if [ -d "$SCRIPT_DIR/Wallpapers" ]; then
+        echo ":: Bundled wallpapers: $(ls "$SCRIPT_DIR"/Wallpapers/* 2>/dev/null | wc -l)"
+    fi
     if [ "$PM" = "pacman" ]; then
         if command -v yay >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then
             echo ":: AUR helper: present"
@@ -336,6 +339,16 @@ if [ -d "$SCRIPT_DIR/themes" ]; then
     mkdir -p "$CONFIG_DIR/themes"
     cp -rf "$SCRIPT_DIR/themes/." "$CONFIG_DIR/themes/"
     echo ":: Installed bundled bar themes into $CONFIG_DIR/themes"
+fi
+
+# ── Bundled wallpapers ─────────────────────────────────────────────────────
+# Ship a few default wallpapers into the user's Pictures folder. Existing files
+# with the same name are left alone (no-clobber) so the user's own are safe.
+if [ -d "$SCRIPT_DIR/Wallpapers" ]; then
+    WALL_DIR="$HOME/Pictures/Wallpapers"
+    mkdir -p "$WALL_DIR"
+    cp -n "$SCRIPT_DIR"/Wallpapers/* "$WALL_DIR/" 2>/dev/null || true
+    echo ":: Installed bundled wallpapers into $WALL_DIR"
 fi
 
 # ── Preserve the user's live config across install/update ────────────────

@@ -7,6 +7,9 @@ Dates are in YYYY-MM-DD format.
 
 ### Added
 
+- **Bundled default wallpapers.** Four wallpapers (`3.png`, `14.png`, `66.png`,
+  `default.png`) ship in `Wallpapers/` and the installer copies them into
+  `~/Pictures/Wallpapers/` (no-clobber — files the user already has are kept).
 - **Bundled bar themes.** The eight hyprtk bar themes (`hyprtk`, `hyprtk-aero`,
   `hyprtk-clear`, `hyprtk-glass`, `hyprtk-inverse`, `hyprtk-light`,
   `hyprtk-negative`, `hyprtk-reverse`) now ship in `themes/` and the installer
