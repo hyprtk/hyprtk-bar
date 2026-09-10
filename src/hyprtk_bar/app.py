@@ -153,6 +153,7 @@ class BarWindow(Gtk.Window):
         self._theme_extra_cb = None
         self._ls_ready = False
         self._last_margins: tuple[int, int] | None = None
+        self._surface_x = 0
 
         self.set_title("hyprtk-bar")
         self.set_decorated(False)
@@ -424,6 +425,7 @@ class BarWindow(Gtk.Window):
             right = remaining - left
         else:
             left = right = 0
+        self._surface_x = left
         if (left, right) == self._last_margins:
             return
         self._last_margins = (left, right)

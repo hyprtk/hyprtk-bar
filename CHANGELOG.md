@@ -62,6 +62,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Module tooltips appeared at the screen edge instead of above their module.**
+  The tooltip x used the pill/widget's *surface-local* allocation as if it were
+  *monitor-local*; with a constrained bar width (the surface is inset from the
+  monitor edge) every tooltip was clamped to one side. Positions now translate
+  to monitor coordinates and add the surface offset.
+
 - **Confirmation dialogs opened *behind* the popup that launched them.** The
   menu, system monitor and Theme Manager are layer-shell surfaces, so their
   plain `Gtk.MessageDialog`s rendered behind. All confirms now use a shared

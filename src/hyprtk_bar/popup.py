@@ -160,15 +160,29 @@ class Popup(Gtk.Window):
 
         The pill is narrower than the monitor (e.g. ``width: 75%``), so popups
         must stay inside it — otherwise they spill past the bar's right edge.
-        The pill allocation is relative to the bar window, which spans its
-        monitor (origin x=0), so it is already monitor-local.
+        The bar surface itself is inset from the monitor edge when the width is
+        constrained, so the pill's window-relative position is translated to
+        monitor coordinates and the surface offset added.
         """
         pill = getattr(getattr(bar_win, "_bar", None), "pill", None)
         if pill is not None:
             alloc = pill.get_allocation()
             if alloc.width > 0:
-                return alloc.x, alloc.x + alloc.width
+                return self._monitor_x(bar_win, pill), \
+                    self._monitor_x(bar_win, pill) + alloc.width
         return 0, screen_w
+
+    @staticmethod
+    def _monitor_x(bar_win, widget) -> int:
+        """Monitor-local x of ``widget`` inside ``bar_win``'s surface."""
+        wx = widget.get_allocation().x
+        try:
+            ok, tx, _ty = widget.translate_coordinates(bar_win, 0, 0)
+            if ok:
+                wx = tx
+        except Exception:
+            pass
+        return int(getattr(bar_win, "_surface_x", 0)) + wx
 
     def set_bar_edge(self, edge: str) -> None:
         """Re-anchor the popup to the current bar edge (top/bottom toggle).
@@ -236,7 +250,9 @@ class Popup(Gtk.Window):
         bar_win = widget.get_toplevel()
         w_alloc = widget.get_allocation()
         _bx, _by, screen_w, _screen_h = self._monitor_geometry(bar_win)
-        cx = w_alloc.x + w_alloc.width // 2
+        # Widget position in monitor coordinates (the bar surface may be inset
+        # from the monitor edge when the width is constrained).
+        cx = self._monitor_x(bar_win, widget) + w_alloc.width // 2
         margin = 6
         pill_left, pill_right = self._pill_bounds(bar_win, screen_w)
         left_bound = max(margin, pill_left + margin)
