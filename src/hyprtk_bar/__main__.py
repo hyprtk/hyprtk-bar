@@ -159,7 +159,7 @@ def _open_menu_settings(windows) -> None:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="hyprtk-bar",
-        description="Windows 11-style taskbar for Hyprland (GTK3 + layer shell).",
+        description="HYPRTK taskbar for Hyprland (GTK3 + layer shell).",
     )
     parser.add_argument(
         "--print-config",

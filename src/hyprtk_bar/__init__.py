@@ -1,4 +1,4 @@
-"""hyprtk-bar: Windows 11-style taskbar for Hyprland (GTK3 + layer shell)."""
+"""hyprtk-bar: HYPRTK taskbar for Hyprland (GTK3 + layer shell)."""
 
 # ─────────────────────────────────────────────────────────────────
 #   HYPRTK · hyprtk-bar · __init__
