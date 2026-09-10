@@ -17,10 +17,12 @@ CONFIG_DIR="$HOME/.config/$APP_NAME"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 
 usage() {
-    echo "Usage: $0 [--no-deps|--uninstall|--help]"
-    echo "  (no args)    Install the bar, installing any missing system deps first."
-    echo "  --no-deps    Skip system package installation (assume typelibs present)."
-    echo "  --uninstall  Remove the bar, its launcher and desktop entry."
+    echo "Usage: $0 [--no-deps|--no-extras|--uninstall|--help]"
+    echo "  (no args)     Install the bar with system deps + feature dependencies."
+    echo "  --no-deps     Skip system package installation (assume typelibs present)."
+    echo "  --no-extras   Skip the optional feature binaries (quick settings, monitor,"
+    echo "                clipboard, theming, etc. — those features then degrade)."
+    echo "  --uninstall   Remove the bar, its launcher and desktop entry."
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -44,6 +46,11 @@ fi
 SKIP_DEPS=0
 if [[ "${1:-}" == "--no-deps" ]]; then
     SKIP_DEPS=1
+fi
+
+SKIP_EXTRAS=0
+if [[ "${1:-}" == "--no-extras" ]]; then
+    SKIP_EXTRAS=1
 fi
 
 # ── Package-manager detection ──────────────────────────────────────────────
@@ -88,6 +95,23 @@ BUILD_DEPS[xbps]="gcc pkg-config gobject-introspection cairo-devel python3-devel
 BUILD_DEPS[apk]="gcc musl-dev pkgconfig gobject-introspection-dev cairo-dev python3-dev"
 BUILD_DEPS[emerge]="dev-python/pycairo"
 BUILD_DEPS[nix]=""
+
+# Optional feature dependencies — the external binaries the bar shells out to
+# for quick settings, system monitor, clipboard, theming, etc. Installed by
+# default (skip with --no-extras); each feature degrades gracefully when its
+# tool is missing, so a partial install is still a working bar.
+declare -A EXTRAS
+EXTRAS[pacman]="networkmanager bluez bluez-utils pipewire pipewire-pulse wireplumber brightnessctl hyprsunset dmidecode pciutils cliphist wl-clipboard rofi libnotify wob papirus-icon-theme polkit awww matugen"
+EXTRAS[apt]="network-manager bluez pipewire pipewire-pulse wireplumber brightnessctl dmidecode pciutils wl-clipboard rofi libnotify papirus-icon-theme policykit-1"
+EXTRAS[dnf]="NetworkManager bluez pipewire pipewire-pulse wireplumber brightnessctl dmidecode pciutils wl-clipboard rofi libnotify papirus-icon-theme polkit"
+EXTRAS[zypper]="NetworkManager bluez pipewire pipewire-pulse wireplumber brightnessctl dmidecode pciutils wl-clipboard rofi libnotify papirus-icon-theme polkit"
+EXTRAS[xbps]="NetworkManager bluez pipewire wireplumber brightnessctl dmidecode pciutils wl-clipboard rofi libnotify papirus-icon-theme polkit"
+EXTRAS[apk]="networkmanager bluez pipewire wireplumber brightnessctl dmidecode pciutils wl-clipboard rofi libnotify papirus-icon-theme polkit"
+EXTRAS[emerge]="net-misc/networkmanager net-wireless/bluez media-video/pipewire media-video/wireplumber x11-misc/rofi gui-apps/wl-clipboard x11-libs/libnotify"
+EXTRAS[nix]="networkmanager bluez pipewire wireplumber rofi wl-clipboard libnotify"
+
+# AUR-only extras (Arch) — installed via yay/paru when an AUR helper is present.
+EXTRAS_AUR="python-pywal16-git papirus-folders"
 
 # True when the two typelibs the bar cannot run without are present.
 typelib_present() {
@@ -140,6 +164,27 @@ install_pkgs() {
     esac
 }
 
+install_extras() {
+    local pm="$1"
+    if [ -n "${EXTRAS[$pm]:-}" ]; then
+        echo ":: Installing optional feature dependencies via $pm ..."
+        install_pkgs "$pm" ${EXTRAS[$pm]:-} || \
+            echo ":: WARN: some optional packages failed to install — those features degrade gracefully."
+    fi
+    if [ "$pm" = "pacman" ] && [ -n "${EXTRAS_AUR:-}" ]; then
+        local aur=""
+        command -v yay >/dev/null 2>&1 && aur=yay
+        [ -z "$aur" ] && command -v paru >/dev/null 2>&1 && aur=paru
+        if [ -n "$aur" ]; then
+            echo ":: Installing AUR extras via $aur ..."
+            "$aur" -S --noconfirm --needed ${EXTRAS_AUR} || \
+                echo ":: WARN: some AUR packages failed to install."
+        else
+            echo ":: NOTE: no AUR helper (yay/paru) found — install manually: ${EXTRAS_AUR}"
+        fi
+    fi
+}
+
 PM="$(detect_pkg_manager)"
 
 # ── System dependencies ─────────────────────────────────────────────────────
@@ -157,6 +202,13 @@ if [ "$SKIP_DEPS" -eq 0 ]; then
             install_pkgs "$PM" ${BUILD_DEPS[$PM]:-}
         fi
     fi
+fi
+
+# ── Optional feature dependencies ─────────────────────────────────────────
+if [ "$SKIP_EXTRAS" -eq 0 ] && [ "$SKIP_DEPS" -eq 0 ] && [ "$PM" != "none" ]; then
+    install_extras "$PM"
+elif [ "$SKIP_EXTRAS" -eq 0 ] && [ "$SKIP_DEPS" -eq 1 ]; then
+    echo ":: NOTE: --no-deps implies --no-extras (system packages not managed here)."
 fi
 
 echo ":: Installing $APP_NAME..."
