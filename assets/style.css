@@ -353,6 +353,11 @@ paned.horizontal > separator:hover {
 .confirm-dialog button {
     border-radius: 8px;
     padding: 6px 14px;
+    /* Reset the GTK theme's button `background-image` gradient, which would
+       otherwise paint the buttons light regardless of the palette. */
+    background-image: none;
+    box-shadow: none;
+    text-shadow: none;
     background-color: @surface;
     border: 1px solid @input_border;
 }

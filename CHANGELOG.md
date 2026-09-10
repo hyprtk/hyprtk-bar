@@ -62,6 +62,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Confirmation dialogs (reboot / shutdown / empty trash) had light buttons.**
+  They are separate GTK dialogs, so the menu-wide `.menu button` reset didn't
+  reach them, and `.confirm-dialog button` set only `background-color` — the GTK
+  theme's `background-image` gradient showed through. It now resets
+  `background-image`/`box-shadow`/`text-shadow` too.
+
 - **Selecting a wallpaper (or Random) did nothing on a standalone install.**
   `awww img` needs `awww-daemon` running, which the standalone setup never
   started — so the call failed silently. `wallpaper-colors.sh` and
