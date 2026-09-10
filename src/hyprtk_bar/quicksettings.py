@@ -116,6 +116,8 @@ def get_volume() -> tuple[float, bool] | None:
 
 def set_volume_pct(pct: int) -> None:
     _run(["wpctl", "set-volume", SINK, f"{max(0, min(pct, 100)) / 100:.2f}"])
+    # Moving the slider re-enables a muted sink.
+    _run(["wpctl", "set-mute", SINK, "0"])
 
 
 def toggle_mute() -> None:
@@ -134,6 +136,8 @@ def get_mic_volume() -> tuple[float, bool] | None:
 
 def set_mic_volume_pct(pct: int) -> None:
     _run(["wpctl", "set-volume", SOURCE, f"{max(0, min(pct, 100)) / 100:.2f}"])
+    # Moving the slider re-enables a muted source.
+    _run(["wpctl", "set-mute", SOURCE, "0"])
 
 
 def toggle_mic_mute() -> None:
@@ -218,7 +222,8 @@ class SliderRow(Gtk.Box):
         self._set_pct = set_pct
         self._muted_get = muted_get
         self._mute_toggle = mute_toggle
-        self._icon_on = icon_on_name
+        self._icon_name = icon_name          # the "on" (unmuted) icon
+        self._icon_on = icon_on_name         # the "off" (muted) icon
         self._pending = None
 
         self._icon = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.INVALID)
@@ -250,18 +255,22 @@ class SliderRow(Gtk.Box):
         self.pack_start(self._pct, False, False, 0)
 
     def refresh(self) -> None:
-        pct = self._get_pct()
-        if pct is not None:
-            self._scale.handler_block_by_func(self._on_value_changed)
-            self._scale.set_value(pct)
-            self._scale.handler_unblock_by_func(self._on_value_changed)
-            self._pct.set_text(f"{int(round(pct))}%")
+        muted = False
         if self._muted_get is not None:
-            self._update_icon(self._muted_get())
+            muted = bool(self._muted_get())
+        pct = self._get_pct()
+        # A muted source shows 0 so the slider reads "off"; moving it unmutes.
+        display = 0 if muted else (pct if pct is not None else 0)
+        self._scale.handler_block_by_func(self._on_value_changed)
+        self._scale.set_value(display)
+        self._scale.handler_unblock_by_func(self._on_value_changed)
+        self._pct.set_text(f"{int(round(display))}%")
+        if self._muted_get is not None:
+            self._update_icon(muted)
 
     def _update_icon(self, muted: bool) -> None:
         if self._icon_on:
-            name = self._icon_on if muted else self._icon.get_icon_name()[0]
+            name = self._icon_on if muted else self._icon_name
             self._icon.set_from_icon_name(name, Gtk.IconSize.INVALID)
             self._icon.set_pixel_size(18)
 
