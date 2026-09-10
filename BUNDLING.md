@@ -157,21 +157,47 @@ The bar reaches outside itself through three vectors:
 
 ---
 
-## Not yet audited (do before Phase 1)
+## Closure audit (complete)
 
-This inventory covers the scripts the bar calls **directly** plus their first-hop
-transitives. A full closure is not done yet:
+The full `bash` / `source` / `exec` closure is mapped below. It cleanly
+partitions into two disjoint sets — no further bar-bundling is needed.
 
-- `screenshot.sh` (286 lines) and `sshot.sh` likely pull their own deps
-  (grim/slurp/swappy/hyprshot, GPU detection).
-- `library.sh` (105 lines) defines shared installer functions (`_installSymLink`,
-  `_installPackagesPacman`, …) that `installupdates.sh` and others source.
-- `installer/scripts/` has **47** scripts and `hypr/scripts/` has **14**; only a
-  subset are bar-reachable, but the transitive graph (e.g. `wal-watcher.sh`,
-  `wallpaper-restore.sh`, `Volume.sh`, `updatewal.sh`) has not been mapped to the
-  bar. A future audit should enumerate the full `bash`/`source`/`exec` closure.
+### Bar-bundled scripts (closed set — no dotfiles deps)
 
-The bar also still reads/writes desktop-wide config it does not own:
-`~/.config/rofi`, `~/.config/swaylock`, `~/.config/matuwall`,
-`~/.local/share/icons/Papirus-Dark`, and `~/.cache/theme-gui`. Decide whether
-those are bundled assets, install.sh-managed, or left as dotfiles responsibilities.
+| Script | Reaches |
+|--------|---------|
+| `wallpaper-colors.sh` | `change-icons.sh` (bundled), `awww`, `wal`, `hyprctl`, `wob` |
+| `change-icons.sh` | `papirus-folders.sh` (third-party), `notify-send`, `sed`/`tr` |
+| `sync-rofi-theme.sh` | `python3`, `ln` (variants bundled) |
+| `appsmenu.sh` | `rofi` (config bundled) |
+| `updatewal-awww.sh` | `change-icons.sh` (bundled), `wal`, `awww`, `hyprctl`, `notify-send`, `source ~/.cache/wal/colors.sh` (pywal cache) |
+| 3× toggle scripts | `kill` / `cat` / `flock` |
+
+The only non-bundled reference is `~/.cache/wal/colors.sh` — a pywal-generated
+cache file, not a dotfiles script.
+
+### Dotfiles-owned C-scripts + their full transitive closure
+
+These are reached only via the C-scripts (never by the bundled set) and stay in
+the dotfiles; the bar degrades gracefully when any of them is absent.
+
+| Script | Reaches |
+|--------|---------|
+| `ssdetect.sh` | `screenshot.sh` + `sshot.sh` |
+| `screenshot.sh` | `notification-handler` (sourced), `installer/scripts/settings/*`, `grim`/`slurp`/`hyprpicker`/`rofi`/`notify-send` |
+| `sshot.sh` | `hyprquickframe` |
+| `installupdates.sh` | `library.sh` (sourced: pacman/yay/sudo helpers), `update-TS-run.sh`, `yay`, `timeshift` |
+| `update-TS-run.sh` | `sudo`/`sed`/`tee`/`grub-mkconfig` |
+| `sddm/update.sh` | `grub-mkconfig`/`fc-cache`/`sudo`/`sed`/`tee` + `sddm.conf`/`theme.conf` |
+| `updates.sh` | `checkupdates`/`trizen` |
+
+### Desktop-wide config the bar reads/writes
+
+| Path | Decision |
+|------|----------|
+| rofi `variants/` | **bundled** (`scripts/rofi/variants/`) |
+| rofi `variant.rasi` symlink + base rofi config | rofi/user responsibility (rofi is a separate app) |
+| `~/.config/swaylock/config` | dotfiles (swaylock is a separate app; themer edits if present) |
+| `~/.config/matuwall/config.json` | dotfiles (matuwall is a separate app; themer edits if present) |
+| `~/.local/share/icons/Papirus-Dark` | install.sh-managed (`papirus-icon-theme` extras) |
+| `~/.cache/theme-gui` | bar-owned (auto-generated thumbnail cache) |
