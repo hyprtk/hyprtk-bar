@@ -3,8 +3,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WALLPAPER="$1"
 [ -f "$WALLPAPER" ] || exit 1
 
-# Set wallpaper with awww
-awww img "$WALLPAPER" --transition-type fade --transition-duration 2 --transition-fps 60 2>/dev/null
+# Set wallpaper (ensure the daemon is running first — a standalone install may
+# not have started it). Prefer awww, fall back to swww.
+if command -v awww >/dev/null 2>&1; then
+    pgrep -x awww-daemon >/dev/null 2>&1 || { setsid awww-daemon >/dev/null 2>&1 & sleep 0.4; }
+    awww img "$WALLPAPER" --transition-type fade --transition-duration 2 --transition-fps 60 2>/dev/null
+elif command -v swww >/dev/null 2>&1; then
+    pgrep -x swww-daemon >/dev/null 2>&1 || { setsid swww-daemon >/dev/null 2>&1 & sleep 0.4; }
+    swww img "$WALLPAPER" --transition-type fade --transition-duration 2 --transition-fps 60 2>/dev/null
+fi
 
 # Run pywal
 wal -i "$WALLPAPER" -n -q

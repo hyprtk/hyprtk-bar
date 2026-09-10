@@ -401,6 +401,12 @@ configure_autostart() {
         echo "     hl.on(\"hyprland.start\", function() hl.exec_cmd(\"~/.local/bin/$APP_NAME &\") end)"
         return 0
     fi
+    # Drop any block we added previously so it can be upgraded in place.
+    if grep -q -- "-- >>> hyprtk-bar autostart" "$target" 2>/dev/null; then
+        sed -i '/-- >>> hyprtk-bar autostart/,/-- <<< hyprtk-bar autostart <<</d' "$target"
+    fi
+    # If the bar is autostarted elsewhere (e.g. the hyprtk dotfiles' own
+    # autostart.lua), leave that alone.
     if grep -q "hyprtk-bar" "$target" 2>/dev/null; then
         echo ":: hyprtk-bar autostart already present in $target"
         return 0
@@ -409,6 +415,7 @@ configure_autostart() {
 
 -- >>> hyprtk-bar autostart (added by install.sh) >>>
 hl.on("hyprland.start", function()
+    hl.exec_cmd("awww-daemon &")
     hl.exec_cmd("~/.local/bin/hyprtk-bar &")
 end)
 -- <<< hyprtk-bar autostart <<<

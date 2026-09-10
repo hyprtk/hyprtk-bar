@@ -26,14 +26,25 @@ cp "$wallpaper" ~/.cache/current-wallpaper.png
 newwall=$(basename "$wallpaper")
 
 # ----------------------------------------------------- 
-# Set the new wallpaper
+# Set the new wallpaper (ensure the daemon is running first)
 # ----------------------------------------------------- 
-awww img "$wallpaper" \
-    --transition-bezier .43,1.19,1,.4 \
-    --transition-fps=60 \
-    --transition-type="random" \
-    --transition-duration=0.7 \
-    --transition-pos "$( hyprctl cursorpos )"
+if command -v awww >/dev/null 2>&1; then
+    pgrep -x awww-daemon >/dev/null 2>&1 || { setsid awww-daemon >/dev/null 2>&1 & sleep 0.4; }
+    awww img "$wallpaper" \
+        --transition-bezier .43,1.19,1,.4 \
+        --transition-fps=60 \
+        --transition-type="random" \
+        --transition-duration=0.7 \
+        --transition-pos "$( hyprctl cursorpos )"
+elif command -v swww >/dev/null 2>&1; then
+    pgrep -x swww-daemon >/dev/null 2>&1 || { setsid swww-daemon >/dev/null 2>&1 & sleep 0.4; }
+    swww img "$wallpaper" \
+        --transition-bezier .43,1.19,1,.4 \
+        --transition-fps=60 \
+        --transition-type="random" \
+        --transition-duration=0.7 \
+        --transition-pos "$( hyprctl cursorpos )"
+fi
 
 "$SCRIPT_DIR/change-icons.sh"
 

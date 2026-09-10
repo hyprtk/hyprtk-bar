@@ -58,6 +58,13 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Selecting a wallpaper (or Random) did nothing on a standalone install.**
+  `awww img` needs `awww-daemon` running, which the standalone setup never
+  started — so the call failed silently. `wallpaper-colors.sh` and
+  `updatewal-awww.sh` now start the daemon if it isn't running (awww, with a
+  swww fallback), and the installer's autostart block also starts
+  `awww-daemon`.
+
 - **Plasma "Computer" tab had dark, unreadable text.** `.plasma-place-label`
   set no `color`, so the places/content labels fell back to the GTK theme's text
   colour (dark, on a light theme) on the dark panel. They now use `@text`.
