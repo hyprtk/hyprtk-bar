@@ -39,7 +39,12 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .config import resolve_script, SCRIPTS_DIR  # noqa: E402
 from .popup import Popup, center_on_screen  # noqa: E402
-from .theme_import import find_installed_themes, import_theme, list_themes  # noqa: E402
+from .theme_import import (  # noqa: E402
+    find_installed_themes,
+    import_theme,
+    list_themes,
+    remove_theme,
+)
 from .widgets import Glyph, HoverButton  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.themer")
@@ -1447,11 +1452,21 @@ class ThemerDialog(Popup):
             self._bar_themes_box.pack_start(lbl, False, False, 0)
         else:
             for tname in themes:
+                row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
                 btn = Gtk.CheckButton(label=tname)
                 btn.set_active(source == "imported" and Path(name).name == tname)
                 btn.connect("toggled", self._on_bar_theme_toggled, tname)
                 self._bar_theme_buttons[tname] = btn
-                self._bar_themes_box.pack_start(btn, False, False, 0)
+                row.pack_start(btn, True, True, 0)
+                remove = Gtk.Button()
+                remove.set_relief(Gtk.ReliefStyle.NONE)
+                remove.set_tooltip_text(f"Remove {tname}")
+                trash = Glyph("\uf1f8", "mc-icon")  # fa-trash
+                trash.set_pixel_size(13)
+                remove.add(trash)
+                remove.connect("clicked", self._on_bar_theme_remove, tname)
+                row.pack_start(remove, False, False, 0)
+                self._bar_themes_box.pack_start(row, False, False, 0)
         self._bar_themes_box.show_all()
         self._update_bar_theme_state()
 
@@ -1499,6 +1514,54 @@ class ThemerDialog(Popup):
         self._update_bar_theme_state()
         if self._bar_ready:
             self._apply_bar_theme("imported", name)
+
+    def _on_bar_theme_remove(self, _btn, name: str):
+        self._confirm(
+            f"Remove imported theme \u201c{name}\u201d?",
+            "The theme's copied files will be deleted from the bar.",
+            lambda: self._remove_bar_theme(name),
+        )
+
+    def _remove_bar_theme(self, name: str):
+        if not remove_theme(name):
+            self._toast(f"Could not remove {name}")
+            return
+        was_active = (
+            self._active_bar_source() == "imported"
+            and Path(self._selected_bar_theme()).name == name
+        )
+        self._refresh_bar_themes()
+        if was_active:
+            # The active theme was removed — fall back to dynamic pywal.
+            for key, btn in self._bar_source_buttons.items():
+                btn.handler_block_by_func(self._on_bar_source_toggled)
+                btn.set_active(key == "pywal")
+                btn.handler_unblock_by_func(self._on_bar_source_toggled)
+            self._update_bar_theme_state()
+            if self._bar_ready:
+                self._apply_bar_theme("pywal", "")
+        self._toast(f"Removed theme: {name}")
+
+    def _confirm(self, text: str, secondary: str, on_confirm) -> None:
+        """A layer-shell confirmation dialog (normal dialogs sit behind the
+        Theme Manager, which is itself a layer surface)."""
+        dialog = Gtk.MessageDialog(
+            title="Confirm",
+            text=text,
+            secondary_text=secondary,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.OK_CANCEL,
+        )
+        GtkLayerShell.init_for_window(dialog)
+        center_on_screen(dialog, 460, 220)
+
+        def on_response(dlg, response):
+            dlg.destroy()
+            if response == Gtk.ResponseType.OK:
+                on_confirm()
+
+        dialog.connect("response", on_response)
+        dialog.show_all()
 
     def _apply_bar_theme(self, source: str, theme_name: str):
         msg = f"Bar theme: {source}"

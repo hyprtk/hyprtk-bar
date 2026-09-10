@@ -120,6 +120,27 @@ def find_installed_themes() -> list[tuple[str, Path]]:
     )
 
 
+def remove_theme(name: str) -> bool:
+    """Delete an imported theme folder from the bar's themes directory.
+
+    Refuses traversal-style names and anything resolving outside the themes
+    dir. Returns True on success.
+    """
+    theme_dir = _safe_theme_dir(name)
+    if theme_dir is None or not theme_dir.is_dir():
+        return False
+    try:
+        theme_dir.resolve().relative_to(find_themes_dir().resolve())
+    except ValueError:
+        return False
+    try:
+        shutil.rmtree(theme_dir)
+    except OSError as exc:
+        log.warning("could not remove theme %s: %s", name, exc)
+        return False
+    return True
+
+
 def import_theme(path) -> str | None:
     """Import a waybar theme folder (or a single style.css) into the bar.
 
