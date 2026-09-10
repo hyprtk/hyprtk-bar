@@ -1396,10 +1396,10 @@ class MenuWindow(Gtk.Window):
         left.pack_start(title, False, False, 0)
 
         self.settings_button = Gtk.Button()
-        self.settings_button.get_style_context().add_class("settings-btn")
+        self.settings_button.get_style_context().add_class("menu-settings-btn")
         self.settings_button.set_tooltip_text("Menu settings")
         cog = Gtk.Image.new_from_icon_name("preferences-system-symbolic", Gtk.IconSize.MENU)
-        cog.get_style_context().add_class("settings-icon")
+        cog.get_style_context().add_class("menu-settings-icon")
         self.settings_button.add(cog)
         self.settings_button.connect("clicked", self._open_settings)
         left.pack_start(self.settings_button, False, False, 0)

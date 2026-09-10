@@ -178,16 +178,16 @@
     border-top: none;
     background-color: transparent;
 }
-.layout-win11 .settings-btn,
-.layout-win11 .settings-btn,
+.layout-win11 .menu-settings-btn,
+.layout-win11 .menu-settings-btn,
 .layout-win11 .resize-grip {
     border-radius: 999px;
     padding: 4px 10px;
     background-color: alpha(@foreground, 0.06);
     border: 1px solid alpha(@foreground, 0.1);
 }
-.layout-win11 .settings-btn:hover,
-.layout-win11 .settings-btn:hover,
+.layout-win11 .menu-settings-btn:hover,
+.layout-win11 .menu-settings-btn:hover,
 .layout-win11 .resize-grip:hover {
     background-color: @win11_hover;
     border-color: @win11_accent;

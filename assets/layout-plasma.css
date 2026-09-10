@@ -196,15 +196,15 @@
     padding: 6px 8px;
     background-color: alpha(@color4, 0.06);
 }
-.layout-plasma .settings-btn,
-.layout-plasma .settings-btn,
+.layout-plasma .menu-settings-btn,
+.layout-plasma .menu-settings-btn,
 .layout-plasma .resize-grip {
     border-radius: 4px;
     background-color: alpha(@color4, 0.1);
     border: 1px solid alpha(@color4, 0.3);
 }
-.layout-plasma .settings-btn:hover,
-.layout-plasma .settings-btn:hover,
+.layout-plasma .menu-settings-btn:hover,
+.layout-plasma .menu-settings-btn:hover,
 .layout-plasma .resize-grip:hover {
     background-color: @plasma_hover;
     border-color: @plasma_blue;

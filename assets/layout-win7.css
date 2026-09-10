@@ -185,15 +185,15 @@
     font-size: 11px;
     font-style: italic;
 }
-.layout-win7 .settings-btn,
-.layout-win7 .settings-btn,
+.layout-win7 .menu-settings-btn,
+.layout-win7 .menu-settings-btn,
 .layout-win7 .resize-grip {
     border-radius: 3px;
     background-color: alpha(@color4, 0.18);
     border: 1px solid alpha(@color4, 0.4);
 }
-.layout-win7 .settings-btn:hover,
-.layout-win7 .settings-btn:hover,
+.layout-win7 .menu-settings-btn:hover,
+.layout-win7 .menu-settings-btn:hover,
 .layout-win7 .resize-grip:hover {
     background-color: @win7_blue;
     border-color: @win7_blue_dark;

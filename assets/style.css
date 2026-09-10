@@ -206,20 +206,20 @@ paned.horizontal > separator:hover {
     font-size: 12px;
     font-style: italic;
 }
-.settings-btn {
+.menu-settings-btn {
     border-radius: 8px;
     padding: 4px 10px;
     background-color: @input_bg;
     border: 1px solid @input_border;
 }
-.settings-btn:hover {
+.menu-settings-btn:hover {
     background-color: @selected_bg;
     border-color: @accent_alt;
 }
-.settings-icon {
+.menu-settings-icon {
     color: @accent_alt;
 }
-.settings-btn:hover .settings-icon {
+.menu-settings-btn:hover .menu-settings-icon {
     color: @selected_text;
 }
 

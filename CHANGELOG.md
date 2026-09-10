@@ -39,6 +39,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Start menu's settings (cog) button rendered unthemed.** The bar's global
+  CSS (loaded at a higher GTK provider priority) defined `.settings-btn` for its
+  own settings dialogue, which overrode the menu's `.settings-btn` and left the
+  cog button transparent with no border. The menu's classes are now
+  `menu-settings-btn` / `menu-settings-icon`, so the two no longer collide.
+
 - **Bar width/alignment did not work on smaller displays.** The width was
   applied to the pill, whose minimum width (~the modules' content, ~1388px)
   clamps it — so a percentage/px below that minimum was ignored, and on a small
