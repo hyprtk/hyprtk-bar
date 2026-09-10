@@ -41,6 +41,12 @@ if [[ "${1:-}" == "--uninstall" || "${1:-}" == "-u" ]]; then
     rm -f "$BIN_DIR/hyprtk-bar-clipboard-toggle.sh"
     rm -f "$APPS_DIR/$APP_NAME.desktop"
     update-desktop-database "$APPS_DIR" 2>/dev/null || true
+    # Remove any /usr/local/bin symlinks created when ~/.local/bin was off PATH.
+    if [ "$(id -u)" -eq 0 ]; then
+        rm -f /usr/local/bin/$APP_NAME /usr/local/bin/hyprtk-bar-*-toggle.sh 2>/dev/null || true
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo rm -f /usr/local/bin/$APP_NAME /usr/local/bin/hyprtk-bar-*-toggle.sh 2>/dev/null || true
+    fi
     echo ":: Done. $APP_NAME has been uninstalled."
     exit 0
 fi
@@ -220,7 +226,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
     fi
     case ":$PATH:" in
         *":$HOME/.local/bin:"*) echo ":: ~/.local/bin on PATH: yes" ;;
-        *) echo ":: ~/.local/bin on PATH: NO — add it to PATH or use the full path" ;;
+        *) echo ":: ~/.local/bin on PATH: NO — install will link into /usr/local/bin" ;;
     esac
     echo ":: WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-<unset>}"
     echo ":: HYPRLAND_INSTANCE_SIGNATURE: ${HYPRLAND_INSTANCE_SIGNATURE:-<unset>}"
@@ -334,10 +340,31 @@ fi
 rm -f "$INSTALL_DIR/self-test.err"
 echo ":: Environment check passed."
 
-case ":$PATH:" in
-    *":$BIN_DIR:"*) : ;;
-    *) echo ":: NOTE: $BIN_DIR is not on PATH — add it, or run $BIN_DIR/$APP_NAME" ;;
-esac
+# ── Make the launcher reachable ────────────────────────────────────────────
+# ~/.local/bin is not on PATH by default on a fresh Arch, and Hyprland's
+# autostart does not source shell rc files either. When it is missing, link
+# the launcher (and toggle scripts) into /usr/local/bin, which is always on
+# PATH — so `hyprtk-bar` works immediately and in `exec-once` too.
+on_path() {
+    case ":$PATH:" in *":$1:"*) return 0 ;; *) return 1 ;; esac
+}
+if ! on_path "$BIN_DIR"; then
+    linked=0
+    if [ "$(id -u)" -eq 0 ] || command -v sudo >/dev/null 2>&1; then
+        if run_root ln -sf "$BIN_DIR/$APP_NAME" "/usr/local/bin/$APP_NAME" 2>/dev/null; then
+            linked=1
+            for script in "$BIN_DIR"/hyprtk-bar-*-toggle.sh; do
+                [ -f "$script" ] || continue
+                run_root ln -sf "$script" "/usr/local/bin/$(basename "$script")" \
+                    2>/dev/null || true
+            done
+            echo ":: $BIN_DIR is not on PATH — linked $APP_NAME into /usr/local/bin"
+        fi
+    fi
+    if [ "$linked" -eq 0 ]; then
+        echo ":: NOTE: add $BIN_DIR to PATH, or run $BIN_DIR/$APP_NAME"
+    fi
+fi
 
 echo ":: Installed to $BIN_DIR/$APP_NAME"
 echo ":: Config: ~/.config/hyprtk-bar/config.json"

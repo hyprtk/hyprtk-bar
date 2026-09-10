@@ -41,6 +41,12 @@ Dates are in YYYY-MM-DD format.
   `gobject-introspection-runtime` is now in the dependency list and
   `xlib-2.0` is part of the probe.
 
+- **`hyprtk-bar: command not found` after install.** `~/.local/bin` is not on
+  PATH on a fresh Arch, and Hyprland's `exec-once` does not source shell rc
+  files, so the launcher was unreachable. When `~/.local/bin` is off PATH the
+  installer now symlinks `hyprtk-bar` and the toggle scripts into
+  `/usr/local/bin` (removed on `--uninstall`).
+
 ## [0.1.0] - 2026-09-09
 
 ### Added
