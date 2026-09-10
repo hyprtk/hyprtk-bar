@@ -41,6 +41,8 @@ if [[ "${1:-}" == "--uninstall" || "${1:-}" == "-u" ]]; then
     rm -f "$BIN_DIR/hyprtk-bar-clipboard-toggle.sh"
     rm -f "$APPS_DIR/$APP_NAME.desktop"
     update-desktop-database "$APPS_DIR" 2>/dev/null || true
+    rm -f "$HOME/.local/share/fonts/SymbolsNerdFont-Regular.ttf"
+    command -v fc-cache >/dev/null 2>&1 && fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
     # Remove any /usr/local/bin symlinks created when ~/.local/bin was off PATH.
     if [ "$(id -u)" -eq 0 ]; then
         rm -f /usr/local/bin/$APP_NAME /usr/local/bin/hyprtk-bar-*-toggle.sh 2>/dev/null || true
@@ -183,6 +185,27 @@ install_pkgs() {
     esac
 }
 
+install_yay() {
+    # Build yay from the AUR when no helper is present (Arch only). makepkg
+    # must run as a normal user, so refuse when running as root.
+    if [ "$(id -u)" -eq 0 ]; then
+        echo ":: NOTE: running as root — cannot build yay; install an AUR helper manually." >&2
+        return 1
+    fi
+    echo ":: No AUR helper found — building yay from the AUR ..."
+    install_pkgs pacman base-devel git || return 1
+    local tmp
+    tmp="$(mktemp -d)"
+    if git clone --depth=1 https://aur.archlinux.org/yay.git "$tmp/yay" \
+        && ( cd "$tmp/yay" && makepkg -si --noconfirm ); then
+        rm -rf "$tmp"
+        return 0
+    fi
+    rm -rf "$tmp"
+    echo ":: WARN: could not build yay — AUR extras will be skipped." >&2
+    return 1
+}
+
 install_extras() {
     local pm="$1"
     if [ -n "${EXTRAS[$pm]:-}" ]; then
@@ -194,6 +217,9 @@ install_extras() {
         local aur=""
         command -v yay >/dev/null 2>&1 && aur=yay
         [ -z "$aur" ] && command -v paru >/dev/null 2>&1 && aur=paru
+        if [ -z "$aur" ] && [ "$SKIP_DEPS" -eq 0 ]; then
+            install_yay && aur=yay
+        fi
         if [ -n "$aur" ]; then
             echo ":: Installing AUR extras via $aur ..."
             "$aur" -S --noconfirm --needed ${EXTRAS_AUR} || \
@@ -230,6 +256,16 @@ if [ "$DRY_RUN" -eq 1 ]; then
     esac
     echo ":: WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-<unset>}"
     echo ":: HYPRLAND_INSTANCE_SIGNATURE: ${HYPRLAND_INSTANCE_SIGNATURE:-<unset>}"
+    if [ -f "$SCRIPT_DIR/assets/fonts/SymbolsNerdFont-Regular.ttf" ]; then
+        echo ":: Bundled glyph font: assets/fonts/SymbolsNerdFont-Regular.ttf"
+    fi
+    if [ "$PM" = "pacman" ]; then
+        if command -v yay >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then
+            echo ":: AUR helper: present"
+        else
+            echo ":: AUR helper: none — install will build yay (needs base-devel + git)"
+        fi
+    fi
     if [ "$PM" != "none" ]; then
         echo ":: System packages that would be installed: ${DEPS[$PM]:-}"
     fi
@@ -268,6 +304,18 @@ fi
 echo ":: Installing $APP_NAME..."
 
 mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$APPS_DIR" "$CONFIG_DIR"
+
+# ── Nerd Font for the glyph icons ──────────────────────────────────────────
+# The bar draws its icons as Nerd Font glyphs (family "Symbols Nerd Font").
+# Install the bundled font so they render even without a system font package.
+if [ -f "$SCRIPT_DIR/assets/fonts/SymbolsNerdFont-Regular.ttf" ]; then
+    mkdir -p "$HOME/.local/share/fonts"
+    cp -f "$SCRIPT_DIR/assets/fonts/SymbolsNerdFont-Regular.ttf" "$HOME/.local/share/fonts/"
+    if command -v fc-cache >/dev/null 2>&1; then
+        fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
+    fi
+    echo ":: Installed Symbols Nerd Font (glyph icons)"
+fi
 
 # ── Preserve the user's live config across install/update ────────────────
 # An update must never reset the user's customisations. Back the live config

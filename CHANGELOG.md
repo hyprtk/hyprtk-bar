@@ -7,6 +7,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Added
 
+- **Bundled Nerd Font + AUR helper bootstrap in the installer.** The bar's
+  icons are Nerd Font glyphs, so `install.sh` now installs the bundled
+  `assets/fonts/SymbolsNerdFont-Regular.ttf` into `~/.local/share/fonts` and
+  refreshes the font cache — glyphs render without a system font package. On
+  Arch, when no AUR helper is present, it builds `yay` (installing `base-devel`
+  + `git`) before installing the AUR extras.
 - **`--dry-run` flag** — checks the required typelibs, Python/venv, `PATH` and
   Wayland/Hyprland environment and reports what is missing without changing
   anything.
@@ -32,6 +38,13 @@ Dates are in YYYY-MM-DD format.
   `~/hyprtk` assumptions.
 
 ### Fixed
+
+- **Bar width/alignment did not work on smaller displays.** The width was
+  applied to the pill, whose minimum width (~the modules' content, ~1388px)
+  clamps it — so a percentage/px below that minimum was ignored. Width is now
+  applied to the layer **surface** via left/right margins (percentages measured
+  against the monitor), so 20%/50%/px widths and left/center/right alignment all
+  work; content clips if the requested width is smaller than the modules need.
 
 - **Bar could not launch after a clean install on some systems.** Importing
   `Gtk` needs the `xlib-2.0` GObject-Introspection typelib (GDK pulls GdkX11

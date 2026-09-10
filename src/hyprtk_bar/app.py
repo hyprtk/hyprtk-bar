@@ -151,6 +151,8 @@ class BarWindow(Gtk.Window):
         self._border_base = ""
         self._palette_cache: dict | None = None
         self._theme_extra_cb = None
+        self._ls_ready = False
+        self._last_margins: tuple[int, int] | None = None
 
         self.set_title("hyprtk-bar")
         self.set_decorated(False)
@@ -405,6 +407,29 @@ class BarWindow(Gtk.Window):
             + gap_value(self._cfg, "gap_out", 6)
         )
 
+    def set_surface_width(self, px: int, total: int, align: str) -> None:
+        """Narrow the layer surface to *px* via left/right margins.
+
+        Applied to the surface rather than the pill because the pill has a
+        minimum width (~the modules' content) and cannot shrink below it — so
+        percentages/px smaller than that minimum failed on smaller displays.
+        The surface width is decided by the compositor, so any width works and
+        content clips when the user asks for less than the modules need.
+        """
+        if not self._ls_ready:
+            return
+        if 0 < px < total:
+            remaining = total - px
+            left = {"left": 0, "right": remaining}.get(align, remaining // 2)
+            right = remaining - left
+        else:
+            left = right = 0
+        if (left, right) == self._last_margins:
+            return
+        self._last_margins = (left, right)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, left)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.RIGHT, right)
+
     def _on_bar_position(self) -> None:
         """Re-anchor the layer surface when the bar moves top/bottom in settings."""
         edge = (
@@ -455,6 +480,9 @@ class BarWindow(Gtk.Window):
         GtkLayerShell.set_exclusive_zone(self, total_height)
         GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
         self.set_size_request(-1, total_height)
+        self._ls_ready = True
+        # Apply the configured width now that the surface exists.
+        self._bar._apply_width()
 
     # ── input shape: only the pill is clickable ─────────────────────
 

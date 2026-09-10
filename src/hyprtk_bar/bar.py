@@ -155,64 +155,62 @@ class Bar(Gtk.Box):
 
     def _width_px(self, total: int) -> int:
         width = self._width
-        if isinstance(width, str) and width.strip().endswith("%"):
+        if isinstance(width, str):
+            s = width.strip()
+            if s.endswith("%"):
+                try:
+                    frac = float(s.rstrip("%")) / 100.0
+                except ValueError:
+                    return 0
+                return int(total * max(0.0, min(1.0, frac)))
+            if s.endswith("px"):
+                s = s[:-2].strip()
             try:
-                frac = float(width.strip().rstrip("%")) / 100.0
+                return int(float(s))
             except ValueError:
                 return 0
-            return int(total * max(0.0, min(1.0, frac)))
         try:
             return int(width)
         except (TypeError, ValueError):
             return 0
 
-    def _apply_width(self, total: int | None = None) -> None:
-        """Constrain the pill to the configured width (px or %), aligned on the bar.
+    def _monitor_width(self) -> int:
+        """The bar monitor's width — the stable base for percentage widths.
 
-        GTK3 note: a non-FILL halign disables expansion entirely, so the pill
-        only gets the configured align when its width is constrained; at full
-        width it must use halign FILL to span the monitor. Because this GTK
-        build does not reliably re-allocate a resized child, the geometry is
-        re-applied until the pill's actual width matches the target (converges).
+        The bar's own allocation shrinks when the surface is narrowed, so it
+        must NOT be used as the percentage base (that would collapse: 50% of
+        50% of …). The Gdk monitor geometry stays constant.
         """
-        if total is None:
-            total = self.get_allocated_width()
-        px = self._width_px(total)
+        win = self.get_toplevel()
+        monitor = getattr(win, "monitor", None)
+        if monitor is not None:
+            try:
+                return monitor.get_geometry().width
+            except Exception:
+                pass
+        return self.get_allocated_width()
 
-        if px == self._last_width and self._pill_width_matches(px, total):
-            return
-        if px != self._last_width:
-            self._width_retries = 0
-        self._last_width = px
+    def _apply_width(self, total: int | None = None) -> None:
+        """Constrain the bar to the configured width (px or %), aligned.
 
-        if 0 < px < total:
-            self.pill.set_hexpand(False)
-            self.pill.set_halign(
-                {
-                    "left": Gtk.Align.START,
-                    "center": Gtk.Align.CENTER,
-                    "right": Gtk.Align.END,
-                }[self._align]
-            )
-            self.pill.set_size_request(px, -1)
-        else:
-            self.pill.set_hexpand(True)
-            self.pill.set_halign(Gtk.Align.FILL)
-            self.pill.set_size_request(-1, -1)
-        # Invalidate from the toplevel down so the new width/alignment is
-        # actually re-allocated (subtree-only invalidation is unreliable here).
-        # Cap the retries so a pathological window can never spin the CPU.
-        if self._width_retries < 25:
-            self._width_retries += 1
-            self.queue_resize()
-            toplevel = self.get_toplevel()
-            if toplevel is not None and toplevel is not self:
-                toplevel.queue_resize()
+        The width is applied to the layer SURFACE (via left/right margins), not
+        to the pill: the pill has a minimum width (~its content), so shrinking
+        it fails on displays narrower than that minimum. The surface width is
+        set by the compositor, so small widths work and content clips if the
+        user asks for less than the modules need.
+        """
+        monitor_w = self._monitor_width() or total or self.get_allocated_width()
+        px = self._width_px(monitor_w)
 
-    def _pill_width_matches(self, px: int, total: int) -> bool:
-        if not (0 < px < total):
-            return True  # full width: nothing to verify
-        return abs(self.pill.get_allocation().width - px) <= 2
+        toplevel = self.get_toplevel()
+        set_width = getattr(toplevel, "set_surface_width", None)
+        if set_width is not None:
+            set_width(px, monitor_w, self._align)
+
+        # The pill always fills the surface; the surface carries the width.
+        self.pill.set_hexpand(True)
+        self.pill.set_halign(Gtk.Align.FILL)
+        self.pill.set_size_request(-1, -1)
 
     # ── layout ──────────────────────────────────────────────────
 
