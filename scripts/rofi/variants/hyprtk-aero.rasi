@@ -1,0 +1,82 @@
+/*  -----------------------------------------------------
+    hyprtk-aero — Windows 7 Aero Glass (pywal accents)
+    -----------------------------------------------------  */
+window {
+    background-color:            rgba(24, 21, 20,0.70);
+    border-color:                rgba(255,255,255,0.20);
+}
+
+inputbar {
+    text-color:                  #ffffff;
+    border-color:                rgba(255,255,255,0.15);
+    background-color:            rgba(255,255,255,0.06);
+}
+
+textbox-prompt-colon {
+    background-color:            @color5;
+    text-color:                  #ffffff;
+}
+
+entry {
+    text-color:                  #ffffff;
+}
+
+mode-switcher {
+    text-color:                  #ffffff;
+}
+
+button {
+    background-color:            rgba(255,255,255,0.05);
+    text-color:                  #ffffff;
+    border-color:                rgba(255,255,255,0.15);
+}
+
+button selected {
+    background-color:            @color5;
+    text-color:                  #ffffff;
+    border-color:                rgba(255,255,255,0.30);
+}
+
+element {
+    background-color:            rgba(255,255,255,0.05);
+    border-color:                rgba(255,255,255,0.15);
+}
+
+element normal.normal,
+element normal.urgent,
+element normal.active {
+    text-color:                  #c5c4c4;
+}
+
+element selected.normal {
+    background-color:            @color5;
+    text-color:                  #ffffff;
+    border-color:                rgba(255,255,255,0.30);
+}
+
+element selected.urgent,
+element selected.active {
+    text-color:                  #c5c4c4;
+}
+
+element alternate.normal,
+element alternate.urgent,
+element alternate.active {
+    text-color:                  #c5c4c4;
+}
+
+message {
+    background-color:            rgba(255,255,255,0.06);
+    text-color:                  #ffffff;
+    border-color:                rgba(255,255,255,0.15);
+}
+
+textbox {
+    text-color:                  #ffffff;
+}
+
+error-message {
+    background-color:            rgba(220,80,80,0.30);
+    text-color:                  #ffffff;
+    border-color:                rgba(255,100,100,0.30);
+}

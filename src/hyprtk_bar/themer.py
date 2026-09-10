@@ -37,6 +37,7 @@ gi.require_version("GtkLayerShell", "0.1")
 
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell  # noqa: E402
 
+from .config import resolve_script, SCRIPTS_DIR  # noqa: E402
 from .popup import Popup  # noqa: E402
 from .theme_import import import_theme, list_themes  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
@@ -49,13 +50,13 @@ HYPRTK = HOME / "hyprtk"
 WAL_CACHE = HOME / ".cache" / "wal"
 BAR_CONFIG = HOME / ".config" / "hyprtk-bar" / "config.json"
 ROFI_CONFIG = HOME / ".config" / "rofi"
-ROFI_VARIANTS = ROFI_CONFIG / "variants"
+ROFI_VARIANTS = SCRIPTS_DIR / "rofi" / "variants" if (SCRIPTS_DIR / "rofi" / "variants").is_dir() else ROFI_CONFIG / "variants"
 ROFI_VARIANT_LINK = ROFI_CONFIG / "variant.rasi"
 SWAYLOCK_CONFIG = HOME / ".config" / "swaylock" / "config"
 MATUWALL_CONFIG = HOME / ".config" / "matuwall" / "config.json"
-WALLPAPER_COLORS_SH = HYPRTK / "hypr" / "scripts" / "wallpaper-colors.sh"
-CHANGE_ICONS_SH = HYPRTK / "configs" / "papirus-icons" / "scripts" / "change-icons.sh"
-SYNC_ROFI_SH = HYPRTK / "configs" / "rofi" / "scripts" / "sync-rofi-theme.sh"
+WALLPAPER_COLORS_SH = resolve_script("wallpaper-colors.sh", "hypr", "scripts", "wallpaper-colors.sh")
+CHANGE_ICONS_SH = resolve_script("change-icons.sh", "assets", "papirus-icons", "scripts", "change-icons.sh")
+SYNC_ROFI_SH = resolve_script("sync-rofi-theme.sh", "configs", "rofi", "scripts", "sync-rofi-theme.sh")
 SDDM_UPDATE_SH = HYPRTK / "configs" / "sddm" / "update.sh"
 ICON_THEME_DIR = HOME / ".local" / "share" / "icons" / "Papirus-Dark" / "48x48" / "places"
 PAPIRUS_FOLDERS = HOME / ".local" / "bin" / "papirus-folders"

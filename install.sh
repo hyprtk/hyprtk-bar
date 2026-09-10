@@ -174,6 +174,7 @@ fi
 
 cp -r "$SCRIPT_DIR/src" "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/assets" "$INSTALL_DIR/" 2>/dev/null || true
+cp -r "$SCRIPT_DIR/scripts" "$INSTALL_DIR/" 2>/dev/null || true
 cp "$SCRIPT_DIR/pyproject.toml" "$INSTALL_DIR/"
 
 python3 -m venv "$INSTALL_DIR/venv"

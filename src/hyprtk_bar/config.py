@@ -20,7 +20,23 @@ CONFIG_DIR = Path.home() / ".config" / "hyprtk-bar"
 CONFIG_PATH = CONFIG_DIR / "config.json"
 CONFIG_BAK_PATH = CONFIG_DIR / "config.json.bak"
 PYWAL_PATH = Path.home() / ".cache" / "wal" / "colors.json"
-ROFI_SYNC_SH = Path.home() / ".config" / "rofi" / "scripts" / "sync-rofi-theme.sh"
+
+# Bundled scripts live next to the bar's source (standalone installs); the full
+# hyprtk dotfiles are the fallback so both deployment modes work.
+INSTALL_DIR = Path(__file__).resolve().parents[2]
+SCRIPTS_DIR = INSTALL_DIR / "scripts"
+HYPRTK_DIR = Path.home() / "hyprtk"
+
+
+def resolve_script(name: str, *hyprtk_parts: str) -> Path:
+    """A bundled script (standalone), falling back to the full-dotfiles path."""
+    bundled = SCRIPTS_DIR / name
+    if bundled.is_file():
+        return bundled
+    return HYPRTK_DIR.joinpath(*hyprtk_parts)
+
+
+ROFI_SYNC_SH = resolve_script("sync-rofi-theme.sh", "configs", "rofi", "scripts", "sync-rofi-theme.sh")
 
 log = logging.getLogger("hyprtk_bar.config")
 
@@ -74,7 +90,7 @@ DEFAULT_LINKS = [
         "id": "apps",
         "label": "Apps menu",
         "icon": "\uf00a",  # nf-fa-bars
-        "command": "~/hyprtk/installer/scripts/appsmenu.sh",
+        "command": "~/.local/share/hyprtk-bar/scripts/appsmenu.sh",
     },
     {
         "id": "terminal",
@@ -99,7 +115,7 @@ DEFAULT_LINKS = [
         "label": "Wallpaper",
         "icon": "\uf03e",  # nf-fa-picture_o
         "command": "",  # opens the in-bar Theme Manager dialogue
-        "command_right": "~/hyprtk/installer/scripts/updatewal-awww.sh",
+        "command_right": "~/.local/share/hyprtk-bar/scripts/updatewal-awww.sh",
     },
     {
         "id": "cliphist",
