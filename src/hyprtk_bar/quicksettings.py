@@ -371,6 +371,38 @@ class QuickSettings(Popup):
         )
         self.content.pack_start(self._mic, False, False, 0)
 
+        self.content.show_all()
+
+    # ── lifecycle ─────────────────────────────────────────────────
+
+    def show_above(self, widget) -> None:
+        self.refresh()
+        self._start_poll()
+        super().show_above(widget)
+
+    def hide_popup(self) -> None:
+        self._stop_poll()
+        super().hide_popup()
+
+    def refresh(self) -> None:
+        self._ensure_brightness()
+        self._wifi.set_state(get_wifi())
+        self._bt.set_state(get_bt())
+        self._volume.refresh()
+        self._mic.refresh()
+        if self._brightness_row is not None:
+            self._brightness_row.refresh()
+
+    def _ensure_brightness(self) -> None:
+        """Build the brightness row lazily, the first time a backend is found.
+
+        The backend (kernel backlight, or hyprsunset for external monitors) may
+        not be available when the bar starts — hyprsunset can be launched after
+        it. Checking on each open means the slider appears as soon as a backend
+        is reachable, without a bar restart.
+        """
+        if self._brightness_row is not None:
+            return
         backlight = find_backlight()
         if backlight is not None:
             device, _cur, _mx = backlight
@@ -390,35 +422,15 @@ class QuickSettings(Popup):
                 "display-brightness-symbolic", None, "Brightness",
                 get_brightness, set_brightness,
             )
-            self.content.pack_start(self._brightness_row, False, False, 0)
         elif hyprsunset_available():
-            # No kernel backlight (external monitor) — use hyprsunset gamma.
             self._brightness_row = SliderRow(
                 "display-brightness-symbolic", None, "Brightness",
                 get_gamma, set_gamma, range_min=_GAMMA_MIN,
             )
-            self.content.pack_start(self._brightness_row, False, False, 0)
-
+        else:
+            return
+        self.content.pack_start(self._brightness_row, False, False, 0)
         self.content.show_all()
-
-    # ── lifecycle ─────────────────────────────────────────────────
-
-    def show_above(self, widget) -> None:
-        self.refresh()
-        self._start_poll()
-        super().show_above(widget)
-
-    def hide_popup(self) -> None:
-        self._stop_poll()
-        super().hide_popup()
-
-    def refresh(self) -> None:
-        self._wifi.set_state(get_wifi())
-        self._bt.set_state(get_bt())
-        self._volume.refresh()
-        self._mic.refresh()
-        if self._brightness_row is not None:
-            self._brightness_row.refresh()
 
     def _start_poll(self) -> None:
         if self._timer is None:
