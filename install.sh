@@ -267,6 +267,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
     if [ -f "$SCRIPT_DIR/assets/fonts/SymbolsNerdFont-Regular.ttf" ]; then
         echo ":: Bundled glyph font: assets/fonts/SymbolsNerdFont-Regular.ttf"
     fi
+    if [ -d "$SCRIPT_DIR/themes" ]; then
+        echo ":: Bundled bar themes: $(ls -d "$SCRIPT_DIR"/themes/*/ 2>/dev/null | wc -l)"
+    fi
     if [ "$PM" = "pacman" ]; then
         if command -v yay >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then
             echo ":: AUR helper: present"
@@ -323,6 +326,16 @@ if [ -f "$SCRIPT_DIR/assets/fonts/SymbolsNerdFont-Regular.ttf" ]; then
         fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
     fi
     echo ":: Installed Symbols Nerd Font (glyph icons)"
+fi
+
+# ── Bundled bar themes ─────────────────────────────────────────────────────
+# Ship the hyprtk* bar themes so a fresh install already has them available in
+# Theme Manager → Bar Themes (no manual importing). User-imported themes with
+# other names are left untouched; the hyprtk* ones are refreshed.
+if [ -d "$SCRIPT_DIR/themes" ]; then
+    mkdir -p "$CONFIG_DIR/themes"
+    cp -rf "$SCRIPT_DIR/themes/." "$CONFIG_DIR/themes/"
+    echo ":: Installed bundled bar themes into $CONFIG_DIR/themes"
 fi
 
 # ── Preserve the user's live config across install/update ────────────────

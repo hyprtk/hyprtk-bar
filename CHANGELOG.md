@@ -7,6 +7,11 @@ Dates are in YYYY-MM-DD format.
 
 ### Added
 
+- **Bundled bar themes.** The eight hyprtk bar themes (`hyprtk`, `hyprtk-aero`,
+  `hyprtk-clear`, `hyprtk-glass`, `hyprtk-inverse`, `hyprtk-light`,
+  `hyprtk-negative`, `hyprtk-reverse`) now ship in `themes/` and the installer
+  copies them into `~/.config/hyprtk-bar/themes/`, so Theme Manager → Bar Themes
+  has them available without importing by hand.
 - **Hyprland autostart is configured by the installer.** `install.sh` adds the
   bar to the user's Hyprland Lua config — `~/.config/hypr/autostart.lua` when it
   exists, otherwise `~/.config/hypr/hyprland.lua` — as an idempotent
