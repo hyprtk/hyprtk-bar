@@ -123,36 +123,37 @@ The bar reaches outside itself through three vectors:
 
 ## Plan
 
-### Phase 1 — vendor the A + B scripts into the bar
-- Add `scripts/` to the repo; `install.sh` copies it to
+> **Status: complete.** Phases 1–4 are done; only the "Not yet audited" closure
+> below remains as optional follow-up.
+
+### Phase 1 — vendor the A + B scripts into the bar ✅
+- Added `scripts/` to the repo; `install.sh` copies it to
   `~/.local/share/hyprtk-bar/scripts/`.
-- Vendor: `wallpaper-colors.sh`, `updatewal-awww.sh`, `change-icons.sh`,
-  `sync-rofi-theme.sh`, `appsmenu.sh`, `cliphist.sh`, `hyprtk-bar-menu-toggle.sh`,
-  `hyprtk-bar-arc-toggle.sh`.
-- Bundle the 3 rofi configs they need (apps-menu / cliphist / short) under
-  `assets/rofi/`.
-- Repoint `themer.py` `HYPRTK`-based constants and `config.py` defaults to the
-  bar install dir, keeping `~/hyprtk` as a **runtime fallback** (so the bar still
-  works when the full dotfiles are present).
+- Vendored `wallpaper-colors.sh`, `change-icons.sh`, `sync-rofi-theme.sh`,
+  `appsmenu.sh`, `updatewal-awww.sh` (+ the 3 toggle scripts + rofi variants +
+  `config-apps-menu.rasi` under `scripts/rofi/`). `cliphist.sh` was **replaced**
+  by the in-bar clipboard manager rather than vendored.
+- Repointed `themer.py` / `config.py` to resolve bundled scripts via
+  `SCRIPTS_DIR` / `resolve_script()`, keeping `~/hyprtk` as a runtime fallback.
 
-### Phase 2 — extend install.sh dependency install
-- Add the binary deps as a **feature-gated optional group** (`--with-extras`, or
-  auto "install optional tools for theming/clipboard/updates"), installed through
-  the existing package-manager detection.
-- Install `papirus-folders` + `papirus-icon-theme` (script + theme, no build).
-- Keep the core GTK typelibs as the only **required** set (the bar already degrades
-  gracefully when a feature tool is missing).
+### Phase 2 — extend install.sh dependency install ✅
+- `install.sh` now installs the feature binaries by default (`EXTRAS` map per
+  package manager + `EXTRAS_AUR` for `python-pywal16-git`/`papirus-folders` via
+  yay/paru), with `--no-extras` to skip and `--no-deps` implying `--no-extras`.
 
-### Phase 3 — decide C scripts explicitly
-- Keep `sddm/update.sh`, `updates.sh`, `installupdates.sh`, `ssdetect.sh`
-  (and their transitive deps `screenshot.sh`, `sshot.sh`, `library.sh`,
-  `update-TS-run.sh`) as **dotfiles-owned integrations**. The bar toasts "not
-  found" / shows `?` when they are absent — no crash.
-- Optionally vendor them too for a single blob, but they stay Arch/root/dotfiles-coupled.
+### Phase 3 — decide C scripts explicitly ✅
+- `sddm/update.sh`, `updates.sh`, `installupdates.sh`, `ssdetect.sh` (and their
+  transitives) stay **dotfiles-owned**. The bar toasts "not found" / shows `?`
+  when absent — no crash. Not vendored into the bar.
 
-### Phase 4 — verify + sync
-- Dry-run a standalone install into a fresh `$HOME` (no `~/hyprtk`), confirm every
-  feature path resolves and degrades gracefully, then sync merged / live / GitHub.
+### Phase 4 — verify + sync ✅
+- Verified (headless, simulated no-`~/hyprtk`):
+  - bundled scripts + rofi variants resolve via `SCRIPTS_DIR`;
+  - `resolve_script()` falls back to `~/hyprtk` when a bundled script is absent;
+  - `updates._allowed_script()` rejects an absent `updates.sh` → polling disabled;
+  - themer guards (`is_file()` → toast) cover wallpaper / change-icons / sddm /
+    papirus-folders / wal absence.
+- Synced merged / live / GitHub.
 
 ---
 
