@@ -32,6 +32,17 @@
     border-radius: 16px;
 }
 
+/* The GTK theme paints buttons/entries with its own background-image and
+   shadow, which sit ON TOP of any background-color we set — so buttons looked
+   light/off-theme (pinned tiles, plasma tabs, "All apps"/"More" pills). Reset
+   them inside the menu so only the palette colours show. */
+.menu button,
+.menu entry {
+    background-image: none;
+    box-shadow: none;
+    text-shadow: none;
+}
+
 /* Search entry */
 .search {
     margin: 12px 12px 4px 12px;
@@ -209,12 +220,6 @@ paned.horizontal > separator:hover {
 .menu-settings-btn {
     border-radius: 8px;
     padding: 4px 10px;
-    /* The GTK theme paints buttons with its own light background-image
-       (gradient), which sits on top of any background-color — reset it so the
-       menu palette shows instead of a GTK-coloured button. */
-    background-image: none;
-    box-shadow: none;
-    text-shadow: none;
     background-color: @input_bg;
     border: 1px solid @input_border;
 }
@@ -309,9 +314,6 @@ paned.horizontal > separator:hover {
     padding: 6px;
     min-width: 28px;
     min-height: 28px;
-    background-image: none;
-    box-shadow: none;
-    text-shadow: none;
     background-color: @surface;
     border: 1px solid alpha(@accent, 0.25);
 }

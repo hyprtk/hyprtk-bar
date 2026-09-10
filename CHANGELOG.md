@@ -46,11 +46,13 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
-- **Menu power/settings buttons showed the GTK theme's light background.** The
-  GTK theme paints buttons with its own `background-image` gradient, which sits
-  on top of the `background-color` the menu sets — so the buttons looked light
-  and off-theme. The menu's button rules now reset `background-image`/
-  `box-shadow`/`text-shadow` so the palette colour shows.
+- **Menu buttons/entries showed the GTK theme's light background.** The GTK
+  theme paints these with its own `background-image` gradient and shadow, which
+  sit on top of any `background-color` we set — so pinned tiles, plasma tabs,
+  the "All apps"/"More" pills, the power/settings buttons and the search box
+  looked light and off-theme. A menu-wide reset (`background-image`/
+  `box-shadow`/`text-shadow: none` inside `.menu`) makes only the palette
+  colours show.
 
 - **Start menu's settings (cog) button rendered unthemed.** The bar's global
   CSS (loaded at a higher GTK provider priority) defined `.settings-btn` for its
