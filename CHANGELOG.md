@@ -7,6 +7,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Added
 
+- **`--dry-run` flag** — checks the required typelibs, Python/venv, `PATH` and
+  Wayland/Hyprland environment and reports what is missing without changing
+  anything.
+- **Post-install self-test** — the installer now imports GTK + gtk-layer-shell
+  through the venv and fails loudly with the cause if the runtime is unusable,
+  instead of installing "successfully" and leaving a bar that cannot launch.
 - **Cross-distro installer** — `install.sh` now detects the system package
   manager (pacman, apt, dnf, zypper, xbps, apk, emerge, nix) and installs the
   GTK3 / gtk-layer-shell GObject-Introspection typelibs and Python tooling the
@@ -24,6 +30,16 @@ Dates are in YYYY-MM-DD format.
   model (GI typelibs vs. venv Python vs. subprocess tools), the distro support
   matrix, the per-distro package-name mapping, and the remaining Arch /
   `~/hyprtk` assumptions.
+
+### Fixed
+
+- **Bar could not launch after a clean install on some systems.** Importing
+  `Gtk` needs the `xlib-2.0` GObject-Introspection typelib (GDK pulls GdkX11
+  into the namespace). On Arch that ships in `gobject-introspection-runtime`,
+  which the installer did not install — and the probe only checked
+  `Gtk-3.0`/`GtkLayerShell-0.1`, so it skipped the dependency step entirely.
+  `gobject-introspection-runtime` is now in the dependency list and
+  `xlib-2.0` is part of the probe.
 
 ## [0.1.0] - 2026-09-09
 

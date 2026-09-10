@@ -2,6 +2,7 @@
 # hyprtk-bar installer for Hyprtk
 # Creates a venv, installs the app, and drops a launcher on PATH.
 # Usage: ./install.sh             — install (system deps + venv)
+#        ./install.sh --dry-run   — check requirements, install nothing
 #        ./install.sh --no-deps   — install without touching system packages
 #        ./install.sh --uninstall — remove everything
 #        ./install.sh --help      — show this message
@@ -17,8 +18,9 @@ CONFIG_DIR="$HOME/.config/$APP_NAME"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 
 usage() {
-    echo "Usage: $0 [--no-deps|--no-extras|--uninstall|--help]"
+    echo "Usage: $0 [--dry-run|--no-deps|--no-extras|--uninstall|--help]"
     echo "  (no args)     Install the bar with system deps + feature dependencies."
+    echo "  --dry-run     Check requirements and report what is missing; change nothing."
     echo "  --no-deps     Skip system package installation (assume typelibs present)."
     echo "  --no-extras   Skip the optional feature binaries (quick settings, monitor,"
     echo "                clipboard, theming, etc. — those features then degrade)."
@@ -41,6 +43,11 @@ if [[ "${1:-}" == "--uninstall" || "${1:-}" == "-u" ]]; then
     update-desktop-database "$APPS_DIR" 2>/dev/null || true
     echo ":: Done. $APP_NAME has been uninstalled."
     exit 0
+fi
+
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+    DRY_RUN=1
 fi
 
 SKIP_DEPS=0
@@ -76,13 +83,13 @@ is_musl() {
 # System runtime deps per package manager (GI typelibs + python tooling).
 # PyGObject/pycairo/dbus-next themselves are installed into the venv.
 declare -A DEPS
-DEPS[pacman]="gtk3 gtk-layer-shell gdk-pixbuf2 pango cairo python python-pip"
-DEPS[apt]="gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 gir1.2-gdkpixbuf-2.0 gir1.2-pango-1.0 gir1.2-cairo-1.0 python3-gi python3-gi-cairo python3-venv python3-pip"
-DEPS[dnf]="gtk3 gtk-layer-shell gdk-pixbuf2 pango cairo python3-gobject python3-pip"
+DEPS[pacman]="gtk3 gtk-layer-shell gdk-pixbuf2 pango cairo gobject-introspection-runtime python python-pip"
+DEPS[apt]="gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 gir1.2-gdkpixbuf-2.0 gir1.2-pango-1.0 gir1.2-cairo-1.0 gir1.2-xlib-2.0 python3-gi python3-gi-cairo python3-venv python3-pip"
+DEPS[dnf]="gtk3 gtk-layer-shell gdk-pixbuf2 pango cairo gobject-introspection python3-gobject python3-pip"
 DEPS[zypper]="typelib-1_0-Gtk-3_0 gtk-layer-shell typelib-1_0-GdkPixbuf-2_0 typelib-1_0-Pango-1_0 python3-gobject python3-gobject-Gdk python3-gobject-cairo python3-pip"
-DEPS[xbps]="gtk+3 gtk-layer-shell gdk-pixbuf pango cairo python3-gobject python3-pip"
-DEPS[apk]="gtk+3.0 gtk-layer-shell gdk-pixbuf pango cairo py3-gobject3 py3-pip py3-virtualenv"
-DEPS[emerge]="x11-libs/gtk+:3 gui-libs/gtk-layer-shell x11-libs/gdk-pixbuf x11-libs/pango x11-libs/cairo dev-python/pygobject"
+DEPS[xbps]="gtk+3 gtk-layer-shell gdk-pixbuf pango cairo gobject-introspection python3-gobject python3-pip"
+DEPS[apk]="gtk+3.0 gtk-layer-shell gdk-pixbuf pango cairo gobject-introspection py3-gobject3 py3-pip py3-virtualenv"
+DEPS[emerge]="x11-libs/gtk+:3 gui-libs/gtk-layer-shell x11-libs/gdk-pixbuf x11-libs/pango x11-libs/cairo dev-libs/gobject-introspection dev-python/pygobject"
 DEPS[nix]="gtk3 gtk-layer-shell gdk-pixbuf pango cairo gobject-introspection python3"
 
 # Build deps for building PyGObject/pycairo from source (musl / no wheel).
@@ -126,7 +133,13 @@ typelib_present() {
 }
 
 deps_ok() {
-    typelib_present "Gtk-3.0" && typelib_present "GtkLayerShell-0.1"
+    # `xlib-2.0` is required to import Gtk at all (PyGObject pulls GDK's
+    # GdkX11 into the namespace). On Arch it ships in gobject-introspection-
+    # runtime; checking it here stops the installer skipping that runtime when
+    # Gtk/gtk-layer-shell typelibs alone happen to be present.
+    typelib_present "Gtk-3.0" \
+        && typelib_present "GtkLayerShell-0.1" \
+        && typelib_present "xlib-2.0"
 }
 
 # Run a package-manager command with root (directly if already root, else sudo).
@@ -186,6 +199,41 @@ install_extras() {
 }
 
 PM="$(detect_pkg_manager)"
+
+# ── Dry run: report requirements without changing anything ─────────────────
+if [ "$DRY_RUN" -eq 1 ]; then
+    echo ":: Dry run — nothing will be installed or modified."
+    echo ":: Package manager: $PM"
+    echo ":: Required typelibs:"
+    for t in Gtk-3.0 GtkLayerShell-0.1 xlib-2.0; do
+        if typelib_present "$t"; then
+            printf '     OK       %s\n' "$t"
+        else
+            printf '     MISSING  %s\n' "$t"
+        fi
+    done
+    printf ':: python3: %s\n' "$(command -v python3 || echo MISSING)"
+    if python3 -c 'import venv' >/dev/null 2>&1; then
+        echo ":: venv module: OK"
+    else
+        echo ":: venv module: MISSING (install your distro's python venv package)"
+    fi
+    case ":$PATH:" in
+        *":$HOME/.local/bin:"*) echo ":: ~/.local/bin on PATH: yes" ;;
+        *) echo ":: ~/.local/bin on PATH: NO — add it to PATH or use the full path" ;;
+    esac
+    echo ":: WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-<unset>}"
+    echo ":: HYPRLAND_INSTANCE_SIGNATURE: ${HYPRLAND_INSTANCE_SIGNATURE:-<unset>}"
+    if [ "$PM" != "none" ]; then
+        echo ":: System packages that would be installed: ${DEPS[$PM]:-}"
+    fi
+    if deps_ok; then
+        echo ":: Result: core typelibs present."
+    else
+        echo ":: Result: core typelibs MISSING — the bar cannot start until installed."
+    fi
+    exit 0
+fi
 
 # ── System dependencies ─────────────────────────────────────────────────────
 if [ "$SKIP_DEPS" -eq 0 ]; then
@@ -269,6 +317,27 @@ if [ ! -f "$CONFIG_FILE" ] && [ -f "$CONFIG_DIR/config.json.bak" ]; then
     cp -f "$CONFIG_DIR/config.json.bak" "$CONFIG_FILE" 2>/dev/null || true
     echo ":: Restored config from backup"
 fi
+
+# ── Self-test: verify the venv can import GTK + gtk-layer-shell ────────────
+# The installer can succeed while the runtime is still unusable (e.g. GDK
+# needs the xlib typelib, which Arch ships in gobject-introspection-runtime).
+# Catch that here with a clear cause instead of a silent no-launch later.
+if ! "$INSTALL_DIR/venv/bin/python3" -c 'import gi; gi.require_version("Gtk", "3.0"); from gi.repository import Gtk; gi.require_version("GtkLayerShell", "0.1"); from gi.repository import GtkLayerShell' 2>"$INSTALL_DIR/self-test.err"; then
+    echo ":: ERROR: the bar cannot import GTK — the install is incomplete." >&2
+    sed 's/^/   /' "$INSTALL_DIR/self-test.err" >&2 || true
+    echo ":: On Arch this is usually fixed by:" >&2
+    echo "     sudo pacman -S gobject-introspection-runtime" >&2
+    echo "   (it provides the xlib/xfixes/xrandr typelibs GDK needs)." >&2
+    rm -f "$INSTALL_DIR/self-test.err"
+    exit 1
+fi
+rm -f "$INSTALL_DIR/self-test.err"
+echo ":: Environment check passed."
+
+case ":$PATH:" in
+    *":$BIN_DIR:"*) : ;;
+    *) echo ":: NOTE: $BIN_DIR is not on PATH — add it, or run $BIN_DIR/$APP_NAME" ;;
+esac
 
 echo ":: Installed to $BIN_DIR/$APP_NAME"
 echo ":: Config: ~/.config/hyprtk-bar/config.json"
