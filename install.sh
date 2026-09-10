@@ -43,6 +43,14 @@ if [[ "${1:-}" == "--uninstall" || "${1:-}" == "-u" ]]; then
     update-desktop-database "$APPS_DIR" 2>/dev/null || true
     rm -f "$HOME/.local/share/fonts/SymbolsNerdFont-Regular.ttf"
     command -v fc-cache >/dev/null 2>&1 && fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
+    # Remove the autostart block added to the Hyprland config.
+    for f in "$HOME/.config/hypr/autostart.lua" "$HOME/.config/hypr/hyprland.lua"; do
+        [ -f "$f" ] || continue
+        if grep -q -- "-- >>> hyprtk-bar autostart" "$f" 2>/dev/null; then
+            sed -i '/-- >>> hyprtk-bar autostart/,/-- <<< hyprtk-bar autostart <<</d' "$f"
+            echo ":: Removed hyprtk-bar autostart from $f"
+        fi
+    done
     # Remove any /usr/local/bin symlinks created when ~/.local/bin was off PATH.
     if [ "$(id -u)" -eq 0 ]; then
         rm -f /usr/local/bin/$APP_NAME /usr/local/bin/hyprtk-bar-*-toggle.sh 2>/dev/null || true
@@ -351,6 +359,37 @@ exec "$INSTALL_DIR/venv/bin/python3" -m hyprtk_bar "\$@"
 LAUNCHER
 chmod +x "$BIN_DIR/$APP_NAME"
 
+# ── Hyprland autostart ──────────────────────────────────────────────────────
+# Register the bar with the user's Hyprland Lua config so it starts on login.
+# Prefer a dedicated autostart.lua; some setups keep the autostart block inline
+# in hyprland.lua instead. Idempotent, and removed again on --uninstall.
+configure_autostart() {
+    local dir="$HOME/.config/hypr" target=""
+    if [ -f "$dir/autostart.lua" ]; then
+        target="$dir/autostart.lua"
+    elif [ -f "$dir/hyprland.lua" ]; then
+        target="$dir/hyprland.lua"
+    else
+        echo ":: NOTE: no ~/.config/hypr/autostart.lua or hyprland.lua — add the"
+        echo "   bar to autostart manually:"
+        echo "     hl.on(\"hyprland.start\", function() hl.exec_cmd(\"~/.local/bin/$APP_NAME &\") end)"
+        return 0
+    fi
+    if grep -q "hyprtk-bar" "$target" 2>/dev/null; then
+        echo ":: hyprtk-bar autostart already present in $target"
+        return 0
+    fi
+    cat >> "$target" <<'EOF'
+
+-- >>> hyprtk-bar autostart (added by install.sh) >>>
+hl.on("hyprland.start", function()
+    hl.exec_cmd("~/.local/bin/hyprtk-bar &")
+end)
+-- <<< hyprtk-bar autostart <<<
+EOF
+    echo ":: Added hyprtk-bar autostart to $target"
+}
+
 # Toggle scripts — Hyprland keybindings signal the bar through these
 # (SIGUSR1 menu / SIGUSR2 arc menu / SIGHUP clipboard). Installed on PATH so
 # a standalone install can bind them directly.
@@ -364,6 +403,8 @@ fi
 
 cp "$SCRIPT_DIR/$APP_NAME.desktop" "$APPS_DIR/"
 update-desktop-database "$APPS_DIR" 2>/dev/null || true
+
+configure_autostart
 
 # Restore the config if the live file is missing but a backup exists (the app
 # itself also auto-restores on load; this is belt-and-braces for installs).

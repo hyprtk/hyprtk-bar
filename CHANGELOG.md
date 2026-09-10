@@ -7,6 +7,10 @@ Dates are in YYYY-MM-DD format.
 
 ### Added
 
+- **Hyprland autostart is configured by the installer.** `install.sh` adds the
+  bar to the user's Hyprland Lua config — `~/.config/hypr/autostart.lua` when it
+  exists, otherwise `~/.config/hypr/hyprland.lua` — as an idempotent
+  `hl.on("hyprland.start", …)` block, and removes it again on `--uninstall`.
 - **Bundled Nerd Font + AUR helper bootstrap in the installer.** The bar's
   icons are Nerd Font glyphs, so `install.sh` now installs the bundled
   `assets/fonts/SymbolsNerdFont-Regular.ttf` into `~/.local/share/fonts` and
