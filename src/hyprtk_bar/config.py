@@ -161,7 +161,7 @@ DEFAULTS = {
         "start_button": True,
         "start_icon": "view-grid-symbolic",
         "start_glyph": "\uf015",
-        "start_command": "~/hyprtk/installer/scripts/hyprtk-bar-menu-toggle.sh",
+        "start_command": "~/.local/bin/hyprtk-bar-menu-toggle.sh",
         "pinned": DEFAULT_PINNED,
     },
     "workspaces": {
@@ -476,7 +476,7 @@ def validate(cfg: dict) -> dict:
 
     # ── command/script fields must always be strings ────────────────
     center = valid.get("center") or {}
-    center["start_command"] = _str_field(center.get("start_command"), "~/hyprtk/installer/scripts/hyprtk-bar-menu-toggle.sh")
+    center["start_command"] = _str_field(center.get("start_command"), "~/.local/bin/hyprtk-bar-menu-toggle.sh")
     center["pinned"] = _clean_command_list(center.get("pinned") or [], ("class", "command", "icon"))
 
     ql = valid.get("quicklinks") or {}

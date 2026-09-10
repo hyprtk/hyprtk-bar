@@ -110,6 +110,31 @@ exec-once = $HOME/.local/bin/hyprtk-bar
 
 The bar locks itself to a single instance: a second launch simply exits.
 
+### Keybindings (toggle scripts)
+
+The bar's in-process features (start menu, arc menu, clipboard history) are
+toggled by sending it a signal — Hyprland keybindings can't talk to the bar
+directly, so `install.sh` drops three tiny scripts on `~/.local/bin` that
+forward a signal to the running bar:
+
+| Script | Signal | Feature |
+|--------|--------|---------|
+| `hyprtk-bar-menu-toggle.sh` | `SIGUSR1` | start menu |
+| `hyprtk-bar-arc-toggle.sh` | `SIGUSR2` | arc menu |
+| `hyprtk-bar-clipboard-toggle.sh` | `SIGHUP` | clipboard history |
+
+Bind them in Hyprland (lua) like:
+
+```lua
+hl.bind("SUPER + SPACE", hl.dsp.exec_cmd("~/.local/bin/hyprtk-bar-menu-toggle.sh"))
+hl.bind("SUPER + CTRL + M", hl.dsp.exec_cmd("~/.local/bin/hyprtk-bar-arc-toggle.sh"))
+hl.bind("SUPER + CTRL + C", hl.dsp.exec_cmd("~/.local/bin/hyprtk-bar-clipboard-toggle.sh"))
+```
+
+The remaining features (quick settings, theme manager, system monitor,
+notification center, settings) are opened by clicking their glyphs in the bar
+and have no toggle script.
+
 ---
 
 ## Configuration
@@ -184,7 +209,7 @@ flags automatically.
   "start_button": true,
   "start_icon": "view-grid-symbolic",
   "start_glyph": "\uf015",
-  "start_command": "~/hyprtk/installer/scripts/hyprtk-bar-menu-toggle.sh",
+  "start_command": "~/.local/bin/hyprtk-bar-menu-toggle.sh",
   "pinned": [
     { "class": "firefox", "command": "firefox", "icon": "firefox" }
   ]
@@ -266,7 +291,7 @@ hyprtk-menu): search, category sidebar, pinned favorites, recently used, and a
 power bar, in four layouts — `whisker`, `win7`, `win11`, `plasma`.
 
 - **Open** — the start button, or `Super+Space` (a script signals the bar with
-  SIGUSR1: `installer/scripts/hyprtk-bar-menu-toggle.sh`).
+  SIGUSR1: `~/.local/bin/hyprtk-bar-menu-toggle.sh`).
 - **Follow hyprtk-bar** — with `menu.follow_bar` on (default) the menu anchors
   to the bar's edge and aligns horizontally to the bar pill (its width + align
   + gaps); off positions it at the chosen screen corner. It themes from the

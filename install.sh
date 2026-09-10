@@ -32,6 +32,9 @@ if [[ "${1:-}" == "--uninstall" || "${1:-}" == "-u" ]]; then
     echo ":: Uninstalling $APP_NAME..."
     rm -rf "$INSTALL_DIR"
     rm -f "$BIN_DIR/$APP_NAME"
+    rm -f "$BIN_DIR/hyprtk-bar-menu-toggle.sh"
+    rm -f "$BIN_DIR/hyprtk-bar-arc-toggle.sh"
+    rm -f "$BIN_DIR/hyprtk-bar-clipboard-toggle.sh"
     rm -f "$APPS_DIR/$APP_NAME.desktop"
     update-desktop-database "$APPS_DIR" 2>/dev/null || true
     echo ":: Done. $APP_NAME has been uninstalled."
@@ -192,6 +195,17 @@ cat > "$BIN_DIR/$APP_NAME" << LAUNCHER
 exec "$INSTALL_DIR/venv/bin/python3" -m hyprtk_bar "\$@"
 LAUNCHER
 chmod +x "$BIN_DIR/$APP_NAME"
+
+# Toggle scripts — Hyprland keybindings signal the bar through these
+# (SIGUSR1 menu / SIGUSR2 arc menu / SIGHUP clipboard). Installed on PATH so
+# a standalone install can bind them directly.
+if [ -d "$SCRIPT_DIR/scripts" ]; then
+    for script in "$SCRIPT_DIR"/scripts/hyprtk-bar-*-toggle.sh; do
+        [ -f "$script" ] || continue
+        cp "$script" "$BIN_DIR/"
+        chmod +x "$BIN_DIR/$(basename "$script")"
+    done
+fi
 
 cp "$SCRIPT_DIR/$APP_NAME.desktop" "$APPS_DIR/"
 update-desktop-database "$APPS_DIR" 2>/dev/null || true
