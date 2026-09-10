@@ -128,9 +128,14 @@ def _run_window() -> int:
             menu_win.toggle()
         return GLib.SOURCE_CONTINUE
 
+    def on_sighup(*_args):
+        _toggle_clipboard(windows)
+        return GLib.SOURCE_CONTINUE
+
     GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, on_sigterm, None)
     GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR2, on_sigusr2, None)
     GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, on_sigusr1, None)
+    GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGHUP, on_sighup, None)
 
     try:
         Gtk.main()
@@ -154,6 +159,28 @@ def _open_menu_settings(windows) -> None:
     """Open the bar settings dialogue on the Menu tab."""
     primary = next((w for w in windows if w.is_primary), windows[0])
     primary._bar.open_settings("menu")
+
+
+def _toggle_clipboard(windows) -> None:
+    """Toggle the in-bar clipboard history dialogue (SIGHUP).
+
+    Finds the cliphist quick-link button on the primary bar and toggles its
+    CliphistDialog — the same path the button's own click handler uses.
+    """
+    from .quicklinks import CliphistLinkButton
+
+    primary = next((w for w in windows if w.is_primary), windows[0])
+    quicklinks = primary._bar._widgets.get("quicklinks")
+    if quicklinks is None:
+        return
+    for button in getattr(quicklinks, "_buttons", []):
+        if isinstance(button, CliphistLinkButton):
+            popup = button._dialog()
+            if popup.get_visible():
+                popup.hide_popup()
+            else:
+                popup.show_above(button)
+            break
 
 
 def main(argv=None) -> int:
