@@ -98,6 +98,31 @@ def _contrast_fg(hex_color):
     return "#000000" if luminance > 140 else "#ffffff"
 
 
+def _rgb(hex_color):
+    """(r, g, b) ints from #rgb/#rrggbb; None when unparseable."""
+    try:
+        h = hex_color.lstrip("#")
+        if len(h) == 3:
+            h = "".join(c * 2 for c in h)
+        if len(h) < 6:
+            return None
+        return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def _blend(foreground, background, alpha):
+    """Composite ``foreground`` at ``alpha`` over ``background`` (both hex)."""
+    fg = _rgb(foreground)
+    bg = _rgb(background)
+    if fg is None:
+        return background
+    if bg is None:
+        bg = (0, 0, 0)
+    r, g, b = (round(fg[i] * alpha + bg[i] * (1 - alpha)) for i in range(3))
+    return "#%02x%02x%02x" % (r, g, b)
+
+
 def _rgba(color, alpha):
     """Convert a #rgb/#rrggbb/#rrggbbaa/rgba()/rgb() color to rgba() string."""
     color = color.strip()
@@ -209,7 +234,11 @@ def _palette_to_tokens(palette, pywal):
     accent = palette.get("accent", "#7aa2f7")
     fg = palette.get("foreground", "#c0caf5")
     bg = palette.get("background", "#1a1b26")
-    selected_fg = _contrast_fg(accent)
+    # The selected background is a translucent accent over the panel, so the
+    # selected text must contrast with the BLENDED colour — not the raw accent,
+    # which may be light and wrongly yield black text on the dark row.
+    selected_surface = _blend(accent, bg, 0.28)
+    selected_fg = _contrast_fg(selected_surface)
     border = palette.get("border_color") or _rgba(accent, 0.35)
     accent_alt = (pywal or {}).get("color6") or accent
     return {

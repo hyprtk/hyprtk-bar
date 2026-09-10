@@ -46,6 +46,13 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Selected/active app text was black and unreadable.** The menu chose the
+  selected-text colour by contrasting against the raw accent, but the selected
+  background is a *translucent* accent over the panel — so a light accent
+  (e.g. the default blue) produced black text on a dark row. The colour is now
+  contrasted against the accent blended over the background, so it stays
+  readable for light and dark palettes.
+
 - **Menu buttons/entries showed the GTK theme's light background.** The GTK
   theme paints these with its own `background-image` gradient and shadow, which
   sit on top of any `background-color` we set — so pinned tiles, plasma tabs,
