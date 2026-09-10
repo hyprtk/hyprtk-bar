@@ -46,6 +46,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Menu power/settings buttons showed the GTK theme's light background.** The
+  GTK theme paints buttons with its own `background-image` gradient, which sits
+  on top of the `background-color` the menu sets — so the buttons looked light
+  and off-theme. The menu's button rules now reset `background-image`/
+  `box-shadow`/`text-shadow` so the palette colour shows.
+
 - **Start menu's settings (cog) button rendered unthemed.** The bar's global
   CSS (loaded at a higher GTK provider priority) defined `.settings-btn` for its
   own settings dialogue, which overrode the menu's `.settings-btn` and left the
