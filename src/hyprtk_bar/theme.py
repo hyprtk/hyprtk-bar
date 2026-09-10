@@ -170,6 +170,9 @@ def resolve_palette(cfg: dict) -> dict:
     if pywal:
         palette["module_colors"] = _module_glyph_colors(pywal)
         palette["red"] = pywal.get("color1") or "#f87171"
+    # `red` is used unconditionally by the CSS (cliphist delete hover), so make
+    # sure it exists even without a pywal palette (e.g. a fresh system).
+    palette.setdefault("red", "#f87171")
 
     # The configured font (family + size) applies to every theme source.
     font_cfg = cfg.get("font") or {}

@@ -53,6 +53,11 @@ Dates are in YYYY-MM-DD format.
   the script is absent and only warns when a script is present but outside the
   allowlisted locations.
 
+- **Startup crash on a system without a wallpaper palette (`KeyError: 'red'`).**
+  `resolve_palette` only defined `red` when pywal colours were available, but
+  the CSS always renders the cliphist delete-hover rule, so a fresh install (no
+  `~/.cache/wal/colors.json`) crashed on launch. `red` now has a default.
+
 ## [0.1.0] - 2026-09-09
 
 ### Added
