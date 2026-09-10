@@ -47,6 +47,12 @@ Dates are in YYYY-MM-DD format.
   installer now symlinks `hyprtk-bar` and the toggle scripts into
   `/usr/local/bin` (removed on `--uninstall`).
 
+- **Spurious "refusing non-allowlisted script" warning on standalone installs.**
+  The updates module warned and disabled polling whenever its configured script
+  did not exist — the normal case without the dotfiles. It now stays quiet when
+  the script is absent and only warns when a script is present but outside the
+  allowlisted locations.
+
 ## [0.1.0] - 2026-09-09
 
 ### Added

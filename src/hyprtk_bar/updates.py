@@ -66,11 +66,21 @@ class Updates(HoverButton):
         u = cfg.get("updates") or {}
         self._interval = max(5, int(u.get("interval", 60)))
         # The timer-run script is allowlisted (never an arbitrary config path).
-        self._script = _allowed_script(os.path.expanduser(
+        configured = os.path.expanduser(
             u.get("script", "~/hyprtk/installer/scripts/updates.sh")
-        ) or "")
+        )
+        self._script = _allowed_script(configured or "")
         if not self._script:
-            log.warning("updates: refusing non-allowlisted script path; polling disabled")
+            if os.path.exists(configured):
+                # Present but outside the allowlist — a real misconfiguration.
+                log.warning(
+                    "updates: refusing non-allowlisted script %r; polling disabled",
+                    configured,
+                )
+            else:
+                # Not installed at all (standalone install without the dotfiles)
+                # — expected, so stay quiet and just show the module as "?".
+                log.info("updates: no script at %r; polling disabled", configured)
             self._interval = 3600
         self._install = u.get(
             "install_command",
