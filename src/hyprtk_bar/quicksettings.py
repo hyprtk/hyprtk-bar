@@ -1,9 +1,10 @@
 """Quick Settings flyout (Win11-style): wifi/bluetooth toggles, volume/brightness.
 
 Backed by the system session tools: `nmcli`, `bluetoothctl`, `wpctl`
-(WirePlumber) and `brightnessctl`. The brightness row only appears when a real
-backlight device exists. State is refreshed when the flyout opens and polled
-every few seconds while it is visible.
+(WirePlumber) and `brightnessctl`. Screen brightness prefers a kernel backlight
+(brightnessctl); on desktops with an external monitor it falls back to
+hyprsunset gamma over hyprctl. State is refreshed when the flyout opens and
+polled every few seconds while it is visible.
 """
 
 # ─────────────────────────────────────────────────────────────────
@@ -54,6 +55,53 @@ def find_backlight() -> tuple[str, int, int] | None:
         if maxval > 0:
             return device, current, maxval
     return None
+
+
+# ── brightness (screen gamma via hyprsunset) ───────────────────────
+# Desktops with an external monitor have no /sys backlight, so screen
+# brightness is done through hyprsunset's gamma (perceived brightness) over
+# hyprctl. A minimum of 30% is enforced — gamma 0 is a fully black screen.
+
+_GAMMA_MIN = 30
+_gamma_cache = {"value": 100}
+
+
+def hyprsunset_available() -> bool:
+    """True when the hyprsunset daemon answers `hyprctl hyprsunset profile`."""
+    try:
+        proc = subprocess.run(
+            ["hyprctl", "hyprsunset", "profile"],
+            capture_output=True, timeout=2,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return proc.returncode == 0 and bool(proc.stdout.strip())
+
+
+def get_gamma() -> int:
+    """Current gamma percent (0-100), read from hyprsunset when possible."""
+    try:
+        proc = subprocess.run(
+            ["hyprctl", "hyprsunset", "profile"],
+            capture_output=True, text=True, timeout=2,
+        )
+        out = proc.stdout or ""
+    except (subprocess.SubprocessError, OSError):
+        out = ""
+    m = re.search(r"gamma[:\s=]+([0-9]+)\s*%?", out, re.I)
+    if m:
+        try:
+            _gamma_cache["value"] = max(_GAMMA_MIN, min(int(m.group(1)), 100))
+        except ValueError:
+            pass
+    return _gamma_cache["value"]
+
+
+def set_gamma(pct: int) -> None:
+    """Set gamma percent, clamped to a safe minimum (never fully black)."""
+    value = max(_GAMMA_MIN, min(int(pct), 100))
+    _run(["hyprctl", "hyprsunset", "gamma", str(value)])
+    _gamma_cache["value"] = value
 
 
 # ── volume ───────────────────────────────────────────────────────
@@ -163,6 +211,7 @@ class SliderRow(Gtk.Box):
         set_pct,
         muted_get=None,
         mute_toggle=None,
+        range_min: int = 0,
     ):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         self._get_pct = get_pct
@@ -188,7 +237,7 @@ class SliderRow(Gtk.Box):
         lbl.set_size_request(52, -1)
         self.pack_start(lbl, False, False, 0)
 
-        self._scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        self._scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, range_min, 100, 1)
         self._scale.set_size_request(160, -1)
         self._scale.set_hexpand(True)
         self._scale.set_draw_value(False)
@@ -340,6 +389,13 @@ class QuickSettings(Popup):
             self._brightness_row = SliderRow(
                 "display-brightness-symbolic", None, "Brightness",
                 get_brightness, set_brightness,
+            )
+            self.content.pack_start(self._brightness_row, False, False, 0)
+        elif hyprsunset_available():
+            # No kernel backlight (external monitor) — use hyprsunset gamma.
+            self._brightness_row = SliderRow(
+                "display-brightness-symbolic", None, "Brightness",
+                get_gamma, set_gamma, range_min=_GAMMA_MIN,
             )
             self.content.pack_start(self._brightness_row, False, False, 0)
 
