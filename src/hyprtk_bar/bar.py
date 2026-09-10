@@ -79,6 +79,24 @@ class StartButton(HoverButton):
         return True
 
 
+class ClipBox(Gtk.Bin):
+    """Let the child be allocated smaller than its natural width.
+
+    A GTK box propagates its minimum size up to the window, so the bar's layer
+    surface could never be narrower than the modules' total — on a small display
+    it grew wider than the monitor and extended off the right edge. Reporting a
+    0 minimum lets the surface fit the monitor; the child still gets the full
+    surface width (so the pill background spans the bar) and simply overflows
+    (clipped by the surface) when the width is genuinely smaller than the
+    content.
+    """
+
+    def do_get_preferred_width(self):
+        child = self.get_child()
+        natural = child.get_preferred_width()[1] if child is not None else 0
+        return 0, natural
+
+
 class Bar(Gtk.Box):
     def __init__(self, cfg: dict, ipc, is_primary: bool = True, notif_ctrl=None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
@@ -98,8 +116,7 @@ class Bar(Gtk.Box):
         self._settings_win = None
         self._width = cfg.get("width", "100%")
         self._align = cfg.get("align", "center")
-        self._last_width = -1
-        self._width_retries = 0
+        self._max_total = 0
         self._pending_total: int | None = None
         self._width_idle: int | None = None
 
@@ -114,7 +131,11 @@ class Bar(Gtk.Box):
         self.pill.get_style_context().add_class("taskbar")
         self.pill.set_hexpand(True)
         self.pill.set_halign(Gtk.Align.FILL)
-        self.pack_start(self.pill, True, True, 0)
+        # ClipBox: the bar's surface may be narrower than the pill's content.
+        self.pill_clip = ClipBox()
+        self.pill_clip.set_hexpand(True)
+        self.pill_clip.add(self.pill)
+        self.pack_start(self.pill_clip, True, True, 0)
 
         for section_id in SECTION_ORDER:
             section = SectionBox(section_id, self)
@@ -198,8 +219,19 @@ class Bar(Gtk.Box):
         it fails on displays narrower than that minimum. The surface width is
         set by the compositor, so small widths work and content clips if the
         user asks for less than the modules need.
+
+        The percentage base is the MONITOR width, not the (shrinking) surface
+        allocation — using the allocation collapses it (50% of 50% of …) which
+        showed up as the bar flickering narrower on hover.
         """
-        monitor_w = self._monitor_width() or total or self.get_allocated_width()
+        observed = total if (total and total > 0) else self.get_allocated_width()
+        if observed > self._max_total:
+            self._max_total = observed
+        monitor_w = self._monitor_width()
+        if monitor_w <= 0:
+            monitor_w = self._max_total
+        if monitor_w <= 0:
+            monitor_w = observed
         px = self._width_px(monitor_w)
 
         toplevel = self.get_toplevel()
@@ -298,7 +330,6 @@ class Bar(Gtk.Box):
         cfg.update(fresh)
         self._width = str(cfg.get("width", "100%"))
         self._align = cfg.get("align", "center")
-        self._last_width = -1
         self.rebuild_layout()
         if self._theme_cb is not None:
             self._theme_cb()
@@ -412,7 +443,6 @@ class Bar(Gtk.Box):
             self._align = value
             cfg["align"] = value
             config_module.save(cfg)
-            self._last_width = -1  # force _apply_width to re-apply halign
             self._apply_width()
 
         def set_height(value) -> None:

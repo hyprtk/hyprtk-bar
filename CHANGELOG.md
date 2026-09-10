@@ -41,10 +41,14 @@ Dates are in YYYY-MM-DD format.
 
 - **Bar width/alignment did not work on smaller displays.** The width was
   applied to the pill, whose minimum width (~the modules' content, ~1388px)
-  clamps it — so a percentage/px below that minimum was ignored. Width is now
-  applied to the layer **surface** via left/right margins (percentages measured
-  against the monitor), so 20%/50%/px widths and left/center/right alignment all
-  work; content clips if the requested width is smaller than the modules need.
+  clamps it — so a percentage/px below that minimum was ignored, and on a small
+  monitor the surface grew wider than the screen and ran off the right edge.
+  Width is now applied to the layer **surface** via left/right margins
+  (percentages measured against the monitor, not the shrinking surface — that
+  caused a hover flicker), and the pill is wrapped in a clip container so its
+  content minimum no longer forces the surface wider than the monitor. 20%/50%/
+  px widths and left/center/right alignment all work; content clips if the
+  requested width is smaller than the modules need.
 
 - **Bar could not launch after a clean install on some systems.** Importing
   `Gtk` needs the `xlib-2.0` GObject-Introspection typelib (GDK pulls GdkX11

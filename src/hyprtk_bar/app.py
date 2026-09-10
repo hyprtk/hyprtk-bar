@@ -507,7 +507,7 @@ class BarWindow(Gtk.Window):
             region.union(rect)
 
         for child in self._bar.get_children():
-            if child is self._bar.pill:
+            if child is getattr(self._bar, "pill_clip", None):
                 # The pill's CSS margins inset it on all sides (gaps + rounded ends).
                 add(child, left_m, top_m, right_m, bottom_m)
         wnd.input_shape_combine_region(region, 0, 0)
