@@ -46,6 +46,10 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Plasma "Computer" tab had dark, unreadable text.** `.plasma-place-label`
+  set no `color`, so the places/content labels fell back to the GTK theme's text
+  colour (dark, on a light theme) on the dark panel. They now use `@text`.
+
 - **Selected/active app text was black and unreadable.** The menu chose the
   selected-text colour by contrasting against the raw accent, but the selected
   background is a *translucent* accent over the panel — so a light accent
