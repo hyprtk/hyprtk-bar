@@ -26,6 +26,51 @@ from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
 GAP = 6  # vertical gap between the bar and a popup
 
 
+def center_on_screen(window, width: int, height: int) -> None:
+    """Pin ``window`` to an exact size centred on the primary monitor.
+
+    Puts the window on the OVERLAY layer so it renders above other layer-shell
+    surfaces (the Theme Manager popup is itself layer TOP; a normal window
+    would be hidden behind it). Equal margins on all four anchored edges
+    centre the fixed-size surface.
+    """
+    display = Gdk.Display.get_default()
+    geo = None
+    if display is not None:
+        monitor = display.get_primary_monitor()
+        if monitor is not None:
+            geo = monitor.get_geometry()
+    if geo is not None:
+        monitor_w, monitor_h = geo.width, geo.height
+    else:
+        screen = Gdk.Screen.get_default()
+        monitor_w, monitor_h = screen.get_width(), screen.get_height()
+
+    GtkLayerShell.set_layer(window, GtkLayerShell.Layer.OVERLAY)
+    GtkLayerShell.set_exclusive_zone(window, -1)
+    GtkLayerShell.set_keyboard_mode(window, GtkLayerShell.KeyboardMode.ON_DEMAND)
+    window.set_size_request(width, height)
+    for edge in (
+        GtkLayerShell.Edge.TOP,
+        GtkLayerShell.Edge.BOTTOM,
+        GtkLayerShell.Edge.LEFT,
+        GtkLayerShell.Edge.RIGHT,
+    ):
+        GtkLayerShell.set_anchor(window, edge, True)
+    GtkLayerShell.set_margin(
+        window, GtkLayerShell.Edge.TOP, max(0, (monitor_h - height) // 2)
+    )
+    GtkLayerShell.set_margin(
+        window, GtkLayerShell.Edge.BOTTOM, max(0, (monitor_h - height) // 2)
+    )
+    GtkLayerShell.set_margin(
+        window, GtkLayerShell.Edge.LEFT, max(0, (monitor_w - width) // 2)
+    )
+    GtkLayerShell.set_margin(
+        window, GtkLayerShell.Edge.RIGHT, max(0, (monitor_w - width) // 2)
+    )
+
+
 class Popup(Gtk.Window):
     """A borderless, transparent layer-shell window that floats above the bar."""
 
@@ -200,6 +245,16 @@ class Popup(Gtk.Window):
         GtkLayerShell.set_margin(self, edge, offset)
         GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, x)
 
+        self.show_all()
+
+    def show_centered(self, width: int, height: int) -> None:
+        """Show as a fixed-size surface centred on the primary monitor.
+
+        Used for modal-ish panels (e.g. the theme import dialog) that must sit
+        ABOVE the Theme Manager popup, which is itself a layer-shell surface —
+        a normal Gtk.Window would render behind it.
+        """
+        center_on_screen(self, width, height)
         self.show_all()
 
     def hide_popup(self) -> None:

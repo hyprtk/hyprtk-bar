@@ -38,7 +38,7 @@ gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .config import resolve_script, SCRIPTS_DIR  # noqa: E402
-from .popup import Popup  # noqa: E402
+from .popup import Popup, center_on_screen  # noqa: E402
 from .theme_import import find_installed_themes, import_theme, list_themes  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
 
@@ -473,39 +473,47 @@ def _page_scroller(box: Gtk.Box) -> Gtk.ScrolledWindow:
     return scroller
 
 
-class BarThemeImportDialog(Gtk.Dialog):
+class BarThemeImportDialog(Popup):
     """Import a waybar-style theme: scan detected folders, or pick a path.
 
-    Uses a plain ``Gtk.Dialog`` (not ``Gtk.FileChooserNative``): the native
-    chooser goes through the desktop portal and cannot parent a layer-shell
-    window, so it silently never opened from the Theme Manager.
+    A layer-shell OVERLAY panel centred on screen — a normal ``Gtk.Window``
+    (or the old ``Gtk.FileChooserNative``, which goes through the desktop
+    portal and cannot parent a layer-shell window) would render behind the
+    Theme Manager popup.
     """
 
-    def __init__(self, parent, on_imported):
-        super().__init__(
-            title="Import Bar Theme",
-            transient_for=parent if isinstance(parent, Gtk.Window) else None,
-            flags=0,
-        )
-        self._on_imported = on_imported
-        self.set_default_size(620, 520)
-        self.set_border_width(6)
-        self.add_button("Close", Gtk.ResponseType.CLOSE)
-        self.connect("response", lambda dlg, _r: dlg.destroy())
+    SIZE = (640, 520)
 
-        content = self.get_content_area()
-        content.set_spacing(8)
-        content.set_margin_top(8)
-        content.set_margin_bottom(8)
-        content.set_margin_start(10)
-        content.set_margin_end(10)
+    def __init__(self, cfg, on_imported, style_cb=None):
+        super().__init__(cfg, cfg.get("position", "bottom"))
+        self._on_imported = on_imported
+        self.set_title("hyprtk-bar theme import")
+        self.set_accept_focus(True)
+        self.connect("key-press-event", self._on_import_key)
+
+        self.content.set_spacing(8)
+        self.content.set_margin_top(10)
+        self.content.set_margin_bottom(10)
+        self.content.set_margin_start(14)
+        self.content.set_margin_end(14)
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        title = Gtk.Label(label="Import Bar Theme", xalign=0)
+        title.get_style_context().add_class("mc-title")
+        header.pack_start(title, True, True, 0)
+        close = Gtk.Button(label="\u00d7")
+        close.get_style_context().add_class("mc-close")
+        close.set_relief(Gtk.ReliefStyle.NONE)
+        close.connect("clicked", lambda *_: self.destroy())
+        header.pack_start(close, False, False, 0)
+        self.content.pack_start(header, False, False, 0)
 
         self._search = Gtk.SearchEntry()
         self._search.set_placeholder_text("Search detected themes\u2026")
         self._search.connect("changed", self._refresh_list)
-        content.pack_start(self._search, False, False, 0)
+        self.content.pack_start(self._search, False, False, 0)
 
-        _add_section_title(content, "Themes found on this system")
+        _add_section_title(self.content, "Themes found on this system")
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroller.set_vexpand(True)
@@ -513,9 +521,9 @@ class BarThemeImportDialog(Gtk.Dialog):
         self._list.set_selection_mode(Gtk.SelectionMode.NONE)
         self._list.connect("row-activated", self._on_row_activated)
         scroller.add(self._list)
-        content.pack_start(scroller, True, True, 0)
+        self.content.pack_start(scroller, True, True, 0)
 
-        _add_section_title(content, "Or import a folder / style.css")
+        _add_section_title(self.content, "Or import a folder / style.css")
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._path_entry = Gtk.Entry()
         self._path_entry.set_hexpand(True)
@@ -529,15 +537,23 @@ class BarThemeImportDialog(Gtk.Dialog):
         imp.get_style_context().add_class("settings-apply")
         imp.connect("clicked", lambda *_: self._on_import_entry())
         row.pack_start(imp, False, False, 0)
-        content.pack_start(row, False, False, 0)
+        self.content.pack_start(row, False, False, 0)
 
         self._status = Gtk.Label(label="", xalign=0)
         self._status.set_opacity(0.8)
-        content.pack_start(self._status, False, False, 0)
+        self.content.pack_start(self._status, False, False, 0)
+
+        if style_cb is not None:
+            style_cb(self.content)
 
         self._detected: list[tuple[str, Path]] = []
         self._rescan()
-        self.show_all()
+
+    def _on_import_key(self, _window, event) -> bool:
+        if event.keyval == Gdk.KEY_Escape:
+            self.destroy()
+            return True
+        return False
 
     def _rescan(self):
         self._detected = find_installed_themes()
@@ -607,7 +623,6 @@ class BarThemeImportDialog(Gtk.Dialog):
     def _on_browse(self, _btn):
         chooser = Gtk.FileChooserDialog(
             title="Select Theme Folder",
-            transient_for=self,
             action=Gtk.FileChooserAction.SELECT_FOLDER,
         )
         chooser.add_buttons(
@@ -619,7 +634,11 @@ class BarThemeImportDialog(Gtk.Dialog):
             str(downloads if downloads.is_dir() else Path.home())
         )
         chooser.connect("response", self._on_browse_response)
-        chooser.show()
+        # The Theme Manager is a layer-shell surface, so a normal chooser would
+        # render behind it — float the chooser on the overlay layer instead.
+        GtkLayerShell.init_for_window(chooser)
+        center_on_screen(chooser, 820, 560)
+        chooser.show_all()
 
     def _on_browse_response(self, dialog, response):
         if response == Gtk.ResponseType.ACCEPT:
@@ -1512,8 +1531,6 @@ class ThemerDialog(Popup):
         self._restart_bar()
 
     def _on_bar_import(self, *_args):
-        parent = self.get_toplevel()
-
         def on_imported(name: str) -> None:
             self._bar_ready = True
             for key, btn in self._bar_source_buttons.items():
@@ -1525,8 +1542,10 @@ class ThemerDialog(Popup):
             self._apply_bar_theme("imported", name)
             self._toast(f"Imported theme: {name}")
 
-        dialog = BarThemeImportDialog(parent, on_imported)
-        dialog.present()
+        dialog = BarThemeImportDialog(
+            self._cfg, on_imported, style_cb=self._apply_theme_fg_class
+        )
+        dialog.show_centered(*BarThemeImportDialog.SIZE)
 
     def _on_restart_bar(self, btn=None):
         self._restart_bar()
