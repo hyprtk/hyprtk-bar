@@ -58,6 +58,68 @@ def list_themes() -> list[str]:
     )
 
 
+def find_installed_themes() -> list[tuple[str, Path]]:
+    """Scan common locations for importable waybar-style theme folders.
+
+    Returns ``(name, path)`` pairs sorted by name. Themes already imported
+    into the bar's own ``themes/`` directory are omitted so the list only
+    shows what can still be added.
+    """
+    home = Path.home()
+    bases = [
+        home / ".config" / "waybar",
+        home / ".config" / "waybar" / "themes",
+        home / "hyprtk" / "configs" / "waybar" / "themes",
+        home / ".config" / "waybar" / "themes",
+        home / ".local" / "share" / "waybar",
+        home / "Downloads",
+        home / "Documents" / "GitHub",
+    ]
+    found: dict[str, Path] = {}
+
+    def consider(path: Path) -> None:
+        try:
+            if path.is_dir() and (path / "style.css").is_file():
+                found.setdefault(path.name, path)
+        except OSError:
+            pass
+
+    seen: set[Path] = set()
+    for base in bases:
+        if base in seen:
+            continue
+        seen.add(base)
+        if not base.is_dir():
+            continue
+        consider(base)
+        try:
+            children = sorted(base.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            if not child.is_dir():
+                continue
+            consider(child)
+            # dotfiles repos: <repo>/waybar/themes or <repo>/configs/waybar/themes
+            for nested in (
+                child / "waybar" / "themes",
+                child / "configs" / "waybar" / "themes",
+            ):
+                if not nested.is_dir():
+                    continue
+                try:
+                    for theme in sorted(nested.iterdir()):
+                        consider(theme)
+                except OSError:
+                    pass
+
+    imported = set(list_themes())
+    return sorted(
+        ((name, path) for name, path in found.items() if name not in imported),
+        key=lambda item: item[0].lower(),
+    )
+
+
 def import_theme(path) -> str | None:
     """Import a waybar theme folder (or a single style.css) into the bar.
 
