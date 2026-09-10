@@ -3,6 +3,28 @@
 All notable changes to hyprtk-bar are documented in this file.
 Dates are in YYYY-MM-DD format.
 
+## [Unreleased]
+
+### Added
+
+- **Cross-distro installer** — `install.sh` now detects the system package
+  manager (pacman, apt, dnf, zypper, xbps, apk, emerge, nix) and installs the
+  GTK3 / gtk-layer-shell GObject-Introspection typelibs and Python tooling the
+  bar needs, instead of requiring a manual step. It probes for the `Gtk-3.0`
+  and `GtkLayerShell-0.1` typelibs first so it skips sudo when they are already
+  present.
+- **`--no-deps` and `--help` flags** — `--no-deps` installs without touching
+  system packages (for Gentoo/Nix or when deps are managed externally);
+  `--help` prints usage.
+- **musl / source-build handling** — when the libc is musl (Alpine, Void-musl)
+  there are no PyGObject/pycairo manylinux wheels, so the installer pre-installs
+  the compiler and header build deps; it also retries a failed venv pip build
+  with those deps on any distro.
+- **Portability documentation** — new `PORTABILITY.md` scopes the dependency
+  model (GI typelibs vs. venv Python vs. subprocess tools), the distro support
+  matrix, the per-distro package-name mapping, and the remaining Arch /
+  `~/hyprtk` assumptions.
+
 ## [0.1.0] - 2026-09-09
 
 ### Added

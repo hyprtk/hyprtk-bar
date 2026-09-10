@@ -46,18 +46,15 @@ all themed live from your pywal16 palette.
 - A Hyprland session (the bar talks to the compositor through `hyprctl` and
   the event socket).
 - Python ≥ 3.10.
-- `python-gobject` (PyGObject) with **GTK3**.
-- `gtk-layer-shell` (the GTK layer-shell protocol library).
-- `dbus-next` — installed automatically into the bar's virtualenv.
+- GTK3 and `gtk-layer-shell` (GObject-Introspection typelibs).
+- PyGObject, pycairo and `dbus-next` — installed automatically into the bar's
+  virtualenv.
 
-Arch packages:
-
-```
-sudo pacman -S python-gobject gtk3 gtk-layer-shell
-```
-
-The installer script creates a virtualenv and pulls the remaining Python
-dependencies (`pygobject`, `dbus-next`) itself.
+The installer handles the system packages for you: it detects your package
+manager and installs the right typelibs and Python tooling (e.g.
+`gir1.2-gtk-3.0` + `gir1.2-gtklayershell-0.1` on Debian/Ubuntu, `gtk3` +
+`gtk-layer-shell` on Arch). See `PORTABILITY.md` for the full per-distro
+mapping and remaining caveats.
 
 ---
 
@@ -71,10 +68,19 @@ Run the bundled installer:
 
 This:
 
-1. Creates `~/.local/share/hyprtk-bar/` with a virtualenv and the source.
-2. Installs the package and its dependencies.
-3. Drops a `hyprtk-bar` launcher on `~/.local/bin`.
-4. Installs a desktop entry (and optional GNOME autostart hint).
+1. Detects the package manager and installs any missing system dependencies
+   (skipped automatically when already present).
+2. Creates `~/.local/share/hyprtk-bar/` with a virtualenv and the source.
+3. Installs the package and its Python dependencies into the venv.
+4. Drops a `hyprtk-bar` launcher on `~/.local/bin`.
+5. Installs a desktop entry (and optional GNOME autostart hint).
+
+Skip the system-dependency step with `--no-deps` (e.g. on Gentoo/NixOS, or when
+you manage the typelibs yourself):
+
+```bash
+./install.sh --no-deps
+```
 
 Uninstall with:
 
