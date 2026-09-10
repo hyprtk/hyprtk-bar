@@ -456,39 +456,60 @@ menu separator {{
 .qs-title {{ font-weight: bold; padding-bottom: 6px; }}
 .qs-row {{ padding: 6px 8px; border-radius: 6px; }}
 .qs-row.hover {{ background-color: {hover}; }}
-.qs-switch {{
+/* Switches / scales: the GTK theme paints these with its own
+   ``background-image`` (SVG/gradient) assets, which sit ON TOP of any
+   ``background-color`` we set — so the control kept the GTK accent instead of
+   the pywal/imported palette. Reset the image/shadow and drive the colour. */
+.qs-switch, .settings-switch {{
   min-width: 34px;
   min-height: 18px;
   border-radius: 9px;
+  border: none;
+  box-shadow: none;
+  background-image: none;
   background-color: {_rgba(palette["foreground"], 0.22)};
 }}
-.qs-switch slider {{
+.qs-switch slider, .settings-switch slider {{
   min-width: 14px;
   min-height: 14px;
   border-radius: 7px;
   margin: 2px;
+  border: none;
+  box-shadow: none;
+  background-image: none;
   background-color: {fg};
 }}
-.qs-switch:checked {{
+.qs-switch:checked, .settings-switch:checked {{
+  background-image: none;
   background-color: {accent};
 }}
-.qs-switch:checked slider {{
+.qs-switch:checked slider, .settings-switch:checked slider {{
+  background-image: none;
   background-color: {_contrast_fg(accent)};
 }}
-.qs-scale trough {{
+.qs-scale trough, .settings-scale trough {{
   min-height: 4px;
   border-radius: 2px;
+  border: none;
+  box-shadow: none;
+  background-image: none;
   background-color: {_rgba(palette["foreground"], 0.22)};
 }}
-.qs-scale highlight {{
+.qs-scale highlight, .settings-scale highlight {{
   min-height: 4px;
   border-radius: 2px;
+  border: none;
+  box-shadow: none;
+  background-image: none;
   background-color: {accent};
 }}
-.qs-scale slider {{
+.qs-scale slider, .settings-scale slider {{
   min-width: 12px;
   min-height: 12px;
   border-radius: 6px;
+  border: none;
+  box-shadow: none;
+  background-image: none;
   background-color: {fg};
 }}
 .notif-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
@@ -574,15 +595,45 @@ menu separator {{
 .settings-btn:hover {{ background-color: {hover}; }}
 .settings-btn:active, .settings-btn:checked {{ color: {accent}; }}
 /* Inputs (spinbuttons / entries) — translucent fill so they read as inputs
-   without an opaque block; text follows the theme. */
+   without an opaque block; text follows the theme. The internal entry and the
+   up/down buttons of a spinbutton need their own rules: the GTK theme
+   hard-colours those nodes and teals the arrow when active. */
 .settings-input {{
   color: {fg}; background-color: {_rgba(palette["foreground"], 0.07)};
   border: 1px solid {_rgba(palette["foreground"], 0.18)}; border-radius: 5px;
 }}
-.settings-input:focus {{ border-color: {accent}; }}
-/* Check / radio accents follow the theme accent. */
+.settings-input entry {{
+  background-image: none;
+  background-color: {_rgba(palette["foreground"], 0.07)};
+  color: {fg};
+  border-color: {_rgba(palette["foreground"], 0.18)};
+}}
+.settings-input:focus, .settings-input entry:focus {{ border-color: {accent}; }}
+.settings-input button {{
+  background-image: none; background-color: transparent;
+  border: none; box-shadow: none; color: {fg};
+}}
+.settings-input image {{ color: {fg}; }}
+.settings-input image:hover, .settings-input image:active {{ color: {accent}; }}
+/* Check / radio indicators: the GTK theme draws these with its own PNG assets,
+   so they kept the theme colour. Recolour GTK's symbolic indicators with the
+   palette fg (unchecked) / accent (checked) instead. */
 .settings-check, .settings-radio {{
   color: {fg}; background-color: transparent;
+}}
+.settings-check check, .settings-radio radio {{
+  -gtk-icon-source: -gtk-icontheme('checkbox-symbolic');
+  background-image: none; border: none; box-shadow: none;
+  color: {_rgba(palette["foreground"], 0.6)};
+}}
+.settings-radio radio {{ -gtk-icon-source: -gtk-icontheme('radio-symbolic'); }}
+.settings-check:checked check {{
+  -gtk-icon-source: -gtk-icontheme('checkbox-checked-symbolic');
+  color: {accent};
+}}
+.settings-radio:checked radio {{
+  -gtk-icon-source: -gtk-icontheme('radio-checked-symbolic');
+  color: {accent};
 }}
 .settings-check:checked, .settings-radio:checked {{ color: {accent}; }}
 /* Arc Menu settings widgets — notebook tabs and colour buttons use the theme

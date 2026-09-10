@@ -413,6 +413,8 @@ class BarSettings(Gtk.Window):
                 ctx.add_class("settings-check")
             elif isinstance(w, Gtk.RadioButton):
                 ctx.add_class("settings-radio")
+            elif isinstance(w, Gtk.Switch):
+                ctx.add_class("settings-switch")
             elif isinstance(w, (Gtk.SpinButton, Gtk.Entry, Gtk.FontButton)):
                 # GTK hard-colours these; override text + fill so they read as
                 # themed inputs (no dark theme block on light themes).

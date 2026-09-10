@@ -40,6 +40,17 @@ Dates are in YYYY-MM-DD format.
   github.com/hyprtk`) after its docstring, unifying the project under the
   Hyprtk brand.
 
+### Fixed
+
+- **Theme colours on slider / option controls** — the GTK theme paints
+  `Gtk.Switch`, `Gtk.Scale`, check/radio indicators and the spinbutton up/down
+  arrows with its own `background-image` / `-gtk-icon-source` assets, which sat
+  on top of the palette colours, so those controls kept the GTK theme's accent
+  (e.g. Kripton's teal) instead of the pywal / imported theme. Switches and
+  scales now reset the theme image and take the palette accent; check/radio use
+  recoloured symbolic indicators; spinbutton entries and arrows follow the
+  palette fg/accent. Covers Quick Settings, Bar Settings and the Theme Manager.
+
 ## [0.1.0] - 2026-09-09
 
 ### Added
