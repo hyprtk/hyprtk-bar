@@ -169,6 +169,7 @@ def resolve_palette(cfg: dict) -> dict:
     pywal = load_pywal_colors()
     if pywal:
         palette["module_colors"] = _module_glyph_colors(pywal)
+        palette["red"] = pywal.get("color1") or "#f87171"
 
     # The configured font (family + size) applies to every theme source.
     font_cfg = cfg.get("font") or {}
@@ -520,6 +521,25 @@ menu separator {{
   color: {fg};
 }}
 .notif-clear {{ min-height: 22px; padding: 0 10px; border-radius: 6px; }}
+.cliphist-header {{ padding-bottom: 4px; }}
+.cliphist-search {{ border-radius: 6px; }}
+.cliphist-row {{
+  background-color: {_rgba(palette["foreground"], 0.05)};
+  border-radius: 8px;
+  padding: 4px 6px;
+}}
+.cliphist-row:hover {{ background-color: {hover}; }}
+.cliphist-preview {{ font-size: 12px; color: {fg}; }}
+.cliphist-del {{
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0 4px;
+  border-radius: 6px;
+  color: {fg};
+  background-color: transparent;
+}}
+.cliphist-del:hover {{ background-color: {_rgba(palette["red"], 0.22)}; }}
+.cliphist-empty {{ color: {_rgba(palette["foreground"], 0.55)}; font-size: 12px; }}
 .mc-title {{ font-weight: bold; font-size: 15px; }}
 .mc-close {{ min-width: 22px; min-height: 22px; padding: 0 4px; border-radius: 6px; color: {fg}; background-color: transparent; }}
 .mc-close:hover {{ background-color: {hover}; }}

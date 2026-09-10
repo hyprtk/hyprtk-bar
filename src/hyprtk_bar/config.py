@@ -105,9 +105,7 @@ DEFAULT_LINKS = [
         "id": "cliphist",
         "label": "Clipboard history",
         "icon": "\uf0ea",  # nf-fa-clipboard
-        "command": "sleep 0.1 && ~/hyprtk/installer/scripts/cliphist.sh",
-        "command_right": "sleep 0.1 && ~/hyprtk/installer/scripts/cliphist.sh d",
-        "command_middle": "sleep 0.1 && ~/hyprtk/installer/scripts/cliphist.sh w",
+        "command": "",  # opens the in-bar clipboard history dialogue
     },
     {
         "id": "screenshot",

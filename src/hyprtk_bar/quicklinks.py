@@ -23,6 +23,7 @@ gi.require_version("Gtk", "3.0")
 
 from gi.repository import Gio, Gtk  # noqa: E402
 
+from .clipboard import CliphistDialog  # noqa: E402
 from .config import DEFAULT_LINKS, icon_size_for  # noqa: E402
 from . import proc  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
@@ -150,6 +151,40 @@ class ThemerLinkButton(QuickLinkButton):
             self._popup.hide_popup()
 
 
+class CliphistLinkButton(QuickLinkButton):
+    """The clipboard quick link — opens the in-bar clipboard history dialogue.
+
+    Left-click toggles CliphistDialog (replacing the old external
+    cliphist.sh + rofi flow); there is no external command to spawn.
+    """
+
+    def __init__(self, cfg: dict, link: dict, icon_size: int):
+        link = dict(link)
+        link.setdefault("id", "cliphist")
+        link["label"] = "Clipboard history"
+        super().__init__(cfg, link, icon_size)
+        self._cfg = cfg
+        self._popup = None
+
+    def _dialog(self) -> "CliphistDialog":
+        if self._popup is None:
+            self._popup = CliphistDialog(self._cfg)
+        return self._popup
+
+    def _on_button_press(self, _widget, event):
+        if event.button == 1:
+            popup = self._dialog()
+            if popup.get_visible():
+                popup.hide_popup()
+            else:
+                popup.show_above(self)
+        return True
+
+    def shutdown(self) -> None:
+        if self._popup is not None and self._popup.get_visible():
+            self._popup.hide_popup()
+
+
 class QuickLinks(Gtk.Box):
     """The module: a horizontal row of QuickLinkButtons.
 
@@ -168,6 +203,8 @@ class QuickLinks(Gtk.Box):
             if link.get("id") == "wallpaper":
                 button = ThemerLinkButton(cfg, link, self._glyph_size(),
                                           restart_cb=restart_cb, theme_cb=theme_cb)
+            elif link.get("id") == "cliphist":
+                button = CliphistLinkButton(cfg, link, self._glyph_size())
             else:
                 button = QuickLinkButton(cfg, link, self._glyph_size())
             self._buttons.append(button)
