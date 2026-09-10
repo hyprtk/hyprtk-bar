@@ -41,6 +41,12 @@ all themed live from your pywal16 palette.
 
 ---
 
+## Screenshots
+
+See the [Showcase](SHOWCASE.md) for screenshots of every feature.
+
+---
+
 ## Requirements
 
 - A Hyprland session (the bar talks to the compositor through `hyprctl` and
