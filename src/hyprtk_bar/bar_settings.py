@@ -133,9 +133,10 @@ def _theme_dialog(dialog: Gtk.Dialog) -> None:
 
     The settings window and About window are frameless+transparent with a
     ``popup-box`` root, but a ``Gtk.Dialog`` paints the GTK theme's own
-    background by default. Make it transparent and give the content + action
-    areas the ``popup-box`` glass so the dialog matches the bar's theme instead
-    of the system GTK colours.
+    background by default. Make it transparent and give the content area the
+    ``popup-box`` glass so the dialog matches the bar's theme instead of the
+    system GTK colours. Only the content area gets ``popup-box`` — the buttons
+    live inside it, so there is a single bordered box (no double border).
     """
     dialog.get_style_context().add_class("settings-window")
     dialog.set_app_paintable(True)
@@ -143,9 +144,6 @@ def _theme_dialog(dialog: Gtk.Dialog) -> None:
     if visual:
         dialog.set_visual(visual)
     dialog.get_content_area().get_style_context().add_class("popup-box")
-    action = dialog.get_action_area()
-    if action is not None:
-        action.get_style_context().add_class("popup-box")
 
 
 class BarSettings(Gtk.Window):
@@ -1586,9 +1584,6 @@ class _ArcItemDialog(Gtk.Dialog):
         _theme_dialog(self)
         self._apps = _load_installed_apps()
 
-        self.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        self.add_button("Save", Gtk.ResponseType.OK)
-        self.set_default_response(Gtk.ResponseType.OK)
         self.connect("key-press-event", self._on_key_press)
 
         item = item or {"icon": "", "command": "", "tooltip": ""}
@@ -1655,7 +1650,23 @@ class _ArcItemDialog(Gtk.Dialog):
         )
         hint.set_margin_top(4)
         box.pack_start(hint, False, False, 0)
-        # Theme the dialog's widgets (content + action buttons) so it matches
+
+        # Buttons live in the content area (single popup-box), not the action
+        # area, so there is one bordered box — not two stacked ones.
+        btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_row.set_halign(Gtk.Align.END)
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.connect("clicked", lambda _b: self.response(Gtk.ResponseType.CANCEL))
+        save_btn = Gtk.Button(label="Save")
+        save_btn.get_style_context().add_class("settings-apply")
+        save_btn.set_can_default(True)
+        save_btn.grab_default()
+        save_btn.connect("clicked", lambda _b: self.response(Gtk.ResponseType.OK))
+        btn_row.pack_start(cancel_btn, False, False, 0)
+        btn_row.pack_start(save_btn, False, False, 0)
+        box.pack_start(btn_row, False, False, 0)
+
+        # Theme the dialog's widgets (content + buttons) so it matches
         # the bar settings dialogue's pywal/imported-theme look.
         if hasattr(parent, "_apply_theme_fg_class"):
             parent._apply_theme_fg_class(self)
@@ -1761,8 +1772,6 @@ class _QuicklinkPickerDialog(Gtk.Dialog):
         self._apps = _load_installed_apps()
         self._result = None
 
-        self.add_button("System default", Gtk.ResponseType.APPLY)
-        self.add_button("Cancel", Gtk.ResponseType.CANCEL)
         self.connect("key-press-event", self._on_key_press)
 
         box = self.get_content_area()
@@ -1790,6 +1799,18 @@ class _QuicklinkPickerDialog(Gtk.Dialog):
         scroll.set_size_request(420, 300)
         scroll.add(self._list)
         box.pack_start(scroll, True, True, 0)
+
+        # Buttons live in the content area (single popup-box), not the action
+        # area, so there is one bordered box — not two stacked ones.
+        btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_row.set_halign(Gtk.Align.END)
+        system_btn = Gtk.Button(label="System default")
+        system_btn.connect("clicked", lambda _b: self.response(Gtk.ResponseType.APPLY))
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.connect("clicked", lambda _b: self.response(Gtk.ResponseType.CANCEL))
+        btn_row.pack_start(system_btn, False, False, 0)
+        btn_row.pack_start(cancel_btn, False, False, 0)
+        box.pack_start(btn_row, False, False, 0)
 
         self._populate()
         if hasattr(parent, "_apply_theme_fg_class"):
