@@ -139,6 +139,7 @@ def _theme_dialog(dialog: Gtk.Dialog) -> None:
     live inside it, so there is a single bordered box (no double border).
     """
     dialog.get_style_context().add_class("settings-window")
+    dialog.set_decorated(False)
     dialog.set_app_paintable(True)
     visual = dialog.get_screen().get_rgba_visual()
     if visual:
@@ -1594,6 +1595,10 @@ class _ArcItemDialog(Gtk.Dialog):
         box.set_margin_top(12)
         box.set_margin_bottom(12)
 
+        title_label = Gtk.Label(label="Arc Menu Item", xalign=0)
+        title_label.get_style_context().add_class("mc-page-title")
+        box.pack_start(title_label, False, False, 0)
+
         def field(label: str, value: str) -> Gtk.Entry:
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
             lbl = Gtk.Label(label=label, xalign=0)
@@ -1780,6 +1785,10 @@ class _QuicklinkPickerDialog(Gtk.Dialog):
         box.set_margin_end(12)
         box.set_margin_top(12)
         box.set_margin_bottom(12)
+
+        title_label = Gtk.Label(label=f"Choose {title}", xalign=0)
+        title_label.get_style_context().add_class("mc-page-title")
+        box.pack_start(title_label, False, False, 0)
 
         hint = Gtk.Label(label=f"Current: {current or 'System default'}", xalign=0, wrap=True)
         hint.set_opacity(0.8)
