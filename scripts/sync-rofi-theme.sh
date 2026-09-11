@@ -17,8 +17,26 @@ symlink="$HOME/.config/rofi/variant.rasi"
 theme="hyprtk"
 
 if [ -f "$bar_config" ]; then
-    source=$(python3 -c "import json;d=json.load(open('$bar_config'));print(d.get('theme',{}).get('source',''))" 2>/dev/null)
-    theme_name=$(python3 -c "import json;d=json.load(open('$bar_config'));print(d.get('theme',{}).get('theme_name',''))" 2>/dev/null)
+    # Pass the config path as argv[1] (not string-interpolated into the Python
+    # source) so a home path with quotes can't break/inject the command.
+    source=$(python3 - "$bar_config" 2>/dev/null <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    d = {}
+print(d.get('theme', {}).get('source', ''))
+PY
+)
+    theme_name=$(python3 - "$bar_config" 2>/dev/null <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    d = {}
+print(d.get('theme', {}).get('theme_name', ''))
+PY
+)
     if [ "$source" = "pywal" ]; then
         theme="hyprtk-pywal"
     elif [ -n "$theme_name" ]; then
@@ -28,6 +46,13 @@ fi
 
 theme="${theme%-top}"
 theme="${theme%-bottom}"
+
+# The theme name reaches `ln -sf` below; allow only a safe identifier (no
+# ../, no separators) so a hand-edited config can't redirect the rofi variant
+# symlink outside the variants dir.
+case "$theme" in
+    ""|*[!A-Za-z0-9_.+-]*) theme="hyprtk" ;;
+esac
 
 if [ -f "$variant_dir/$theme.rasi" ]; then
     ln -sf "$variant_dir/$theme.rasi" "$symlink"

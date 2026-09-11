@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import socket
 import subprocess
 import threading
@@ -39,6 +40,7 @@ class HyprIPC:
         self._thread: threading.Thread | None = None
         self._handlers: dict[str, list] = {}
         self._connect_handlers: list = []
+        self._version: tuple[int, ...] | None = None
 
     @staticmethod
     def _find_socket(sig: str) -> Path:
@@ -87,20 +89,48 @@ class HyprIPC:
             log.warning("hyprctl dispatch %r: %s", lua, out.stderr.strip())
         return out.returncode == 0
 
+    def _hypr_version(self) -> tuple[int, ...]:
+        """Cached Hyprland version tuple (e.g. ``(0, 56, 2)``); ``()`` if unknown."""
+        if self._version is None:
+            self._version = ()
+            try:
+                out = subprocess.run(
+                    ["hyprctl", "version"], capture_output=True, text=True, timeout=5
+                )
+                m = re.search(r"(\d+)\.(\d+)\.(\d+)", out.stdout or "")
+                if m:
+                    self._version = tuple(int(x) for x in m.groups())
+            except (subprocess.SubprocessError, OSError):
+                pass
+        return self._version
+
+    @property
+    def _lua_dispatch(self) -> bool:
+        """True on Hyprland >=0.55, which uses the Lua dispatcher grammar."""
+        return self._hypr_version() >= (0, 55, 0)
+
     # High-level dispatcher actions (Hyprland Lua API).
     def focus_workspace(self, workspace) -> bool:
-        return self.dispatch(f"hl.dsp.focus({{ workspace = {workspace} }})")
+        if self._lua_dispatch:
+            return self.dispatch(f"hl.dsp.focus({{ workspace = {workspace} }})")
+        return self.dispatch(f"workspace {workspace}")
 
     def focus_window(self, address: str) -> bool:
-        return self.dispatch(f'hl.dsp.focus({{ window = "address:{address}" }})')
+        if self._lua_dispatch:
+            return self.dispatch(f'hl.dsp.focus({{ window = "address:{address}" }})')
+        return self.dispatch(f"focuswindow address:{address}")
 
     def move_window(self, workspace, address: str) -> bool:
-        return self.dispatch(
-            f'hl.dsp.window.move({{ workspace = "{workspace}", window = "address:{address}" }})'
-        )
+        if self._lua_dispatch:
+            return self.dispatch(
+                f'hl.dsp.window.move({{ workspace = "{workspace}", window = "address:{address}" }})'
+            )
+        return self.dispatch(f"movetoworkspace {workspace},address:{address}")
 
     def close_window(self, address: str) -> bool:
-        return self.dispatch(f'hl.dsp.window.close({{ window = "address:{address}" }})')
+        if self._lua_dispatch:
+            return self.dispatch(f'hl.dsp.window.close({{ window = "address:{address}" }})')
+        return self.dispatch(f"closewindow address:{address}")
 
     # ── event socket ─────────────────────────────────────────────
 

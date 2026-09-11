@@ -33,7 +33,7 @@ from dbus_next.service import ServiceInterface, method, signal  # noqa: E402
 from .config import icon_size_for  # noqa: E402
 from .popup import Popup, bind_hover_tooltip  # noqa: E402
 from .popup import Popup  # noqa: E402
-from .widgets import Glyph, HoverButton  # noqa: E402
+from .widgets import Glyph, HoverButton, safe_icon_name  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.notifications")
 
@@ -81,7 +81,10 @@ class Notification:
     ):
         self.id = nid
         self.app_name = (app_name or "")[:_MAX_APP_NAME]
-        self.app_icon = app_icon or ""
+        # app_icon is the one uncapped notification field; it reaches GTK's icon
+        # loader (which treats a `/`-containing name as a filesystem path), so
+        # sanitize it like the other bus-supplied strings.
+        self.app_icon = safe_icon_name(app_icon)
         self.summary = (summary or "")[:_MAX_SUMMARY]
         self.body = (body or "")[:_MAX_BODY]
         raw_actions = list(actions or [])[:_MAX_ACTIONS * 2]
@@ -525,6 +528,10 @@ class NotificationCenter(Popup):
     def __init__(self, cfg: dict, ctrl: NotificationController):
         super().__init__(cfg, cfg.get("position", "bottom"))
         self._ctrl = ctrl
+        # The center sits above toasts: both are layer-shell popups, but a toast
+        # (Layer.TOP) must never hide the panel the user just opened. Put the
+        # center on the OVERLAY layer so it always wins the z-order.
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         title = Gtk.Label(label="Notifications", xalign=0)

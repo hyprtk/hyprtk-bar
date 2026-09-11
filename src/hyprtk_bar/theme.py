@@ -11,6 +11,7 @@ import colorsys
 import logging
 import re
 
+from .colors import contrast_fg as _contrast_fg  # noqa: E402
 from .config import load_pywal_colors  # noqa: E402
 from .theme_import import parse_palette  # noqa: E402
 
@@ -35,19 +36,6 @@ def hue_rotate(hex_color: str, degrees: float) -> str:
     return "#{:02x}{:02x}{:02x}".format(
         int(round(r * 255)), int(round(g * 255)), int(round(b * 255))
     )
-
-
-def _contrast_fg(hex_color: str) -> str:
-    """Pick black or white text that contrasts with the given hex background."""
-    try:
-        hex_color = hex_color.lstrip("#")
-        if len(hex_color) == 3:
-            hex_color = "".join(c * 2 for c in hex_color)
-        r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
-    except ValueError:
-        return "#000000"
-    luminance = 0.299 * r + 0.587 * g + 0.114 * b
-    return "#000000" if luminance > 140 else "#ffffff"
 
 
 def _rgba(color: str, alpha: float) -> str:
@@ -170,9 +158,17 @@ def resolve_palette(cfg: dict) -> dict:
     if pywal:
         palette["module_colors"] = _module_glyph_colors(pywal)
         palette["red"] = pywal.get("color1") or "#f87171"
-    # `red` is used unconditionally by the CSS (cliphist delete hover), so make
-    # sure it exists even without a pywal palette (e.g. a fresh system).
+        palette["warn"] = pywal.get("color3") or "#facc15"
+        palette["green"] = pywal.get("color2") or "#34d399"
+        palette["sky"] = pywal.get("color6") or "#22d3ee"
+    # These semantic colours are used unconditionally by the CSS (warn/danger
+    # levels, drive/iface types), so make sure they exist even without a pywal
+    # palette (e.g. a fresh system) and follow the wallpaper palette otherwise.
     palette.setdefault("red", "#f87171")
+    palette.setdefault("warn", "#facc15")
+    palette.setdefault("high", palette["red"])
+    palette.setdefault("green", "#34d399")
+    palette.setdefault("sky", "#22d3ee")
 
     # The configured font (family + size) applies to every theme source.
     font_cfg = cfg.get("font") or {}
@@ -270,7 +266,10 @@ def build_css(palette: dict, cfg: dict) -> str:
     accent = palette["accent"]
     running = palette["running"]
     fg = palette["foreground"]
-    active_fg = _contrast_fg(accent)
+    warn = palette.get("warn", "#facc15")
+    danger = palette.get("high", palette.get("red", "#f87171"))
+    green = palette.get("green", "#34d399")
+    sky = palette.get("sky", "#22d3ee")
     dot_size = palette.get("dot_size", 6)
     font = palette.get("font")
     font_rule = f"  font-family: {font};\n" if font else ""
@@ -423,13 +422,13 @@ def build_css(palette: dict, cfg: dict) -> str:
 .sysmon {{ padding: 2px 8px; border-radius: {max(radius - 6, 4)}px; }}
 .sysmon.hover {{ background-color: {hover}; }}
 .sysmon-value {{ font-size: inherit; }}
-.sysmon-value.warn {{ color: #facc15; }}
-.sysmon-value.high {{ color: #f87171; }}
+.sysmon-value.warn {{ color: {warn}; }}
+.sysmon-value.high {{ color: {danger}; }}
 .updates {{ padding: 2px 8px; border-radius: {max(radius - 6, 4)}px; }}
 .updates.hover {{ background-color: {hover}; }}
 .updates-value {{ font-size: inherit; }}
-.updates-value.warn {{ color: #facc15; }}
-.updates-value.high {{ color: #f87171; }}
+.updates-value.warn {{ color: {warn}; }}
+.updates-value.high {{ color: {danger}; }}
 .popup-row {{ padding: 6px 8px; border-radius: 6px; }}
 .popup-row.hover {{ background-color: {hover}; }}
 .popup-title {{ font-weight: bold; padding-bottom: 4px; }}
@@ -519,7 +518,7 @@ menu separator {{
 .notif-button.hover {{ background-color: {hover}; }}
 .notif-dot {{
   background-color: {accent};
-  color: {active_fg};
+  color: {active_fg_final};
   font-size: 9px;
   font-weight: bold;
   min-width: 14px;
@@ -538,13 +537,13 @@ menu separator {{
 .notif-summary {{ font-weight: bold; }}
 .notif-body {{ font-size: 11px; opacity: 0.9; }}
 .notif-action {{
-  min-height: 20px;
+  min-height: 24px;
   padding: 0 8px;
   border-radius: 6px;
   background-color: {_rgba(palette["accent"], 0.18)};
   color: {fg};
 }}
-.notif-clear {{ min-height: 22px; padding: 0 10px; border-radius: 6px; }}
+.notif-clear {{ min-height: 24px; padding: 0 10px; border-radius: 6px; }}
 .cliphist-header {{ padding-bottom: 4px; }}
 .cliphist-search {{ border-radius: 6px; }}
 .cliphist-row {{
@@ -555,8 +554,8 @@ menu separator {{
 .cliphist-row:hover {{ background-color: {hover}; }}
 .cliphist-preview {{ font-size: 12px; color: {fg}; }}
 .cliphist-del {{
-  min-width: 20px;
-  min-height: 20px;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0 4px;
   border-radius: 6px;
   color: {fg};
@@ -565,7 +564,7 @@ menu separator {{
 .cliphist-del:hover {{ background-color: {_rgba(palette["red"], 0.22)}; }}
 .cliphist-empty {{ color: {_rgba(palette["foreground"], 0.55)}; font-size: 12px; }}
 .mc-title {{ font-weight: bold; font-size: 15px; }}
-.mc-close {{ min-width: 22px; min-height: 22px; padding: 0 4px; border-radius: 6px; color: {fg}; background-color: transparent; }}
+.mc-close {{ min-width: 24px; min-height: 24px; padding: 0 4px; border-radius: 6px; color: {fg}; background-color: transparent; }}
 .mc-close:hover {{ background-color: {hover}; }}
 .mc-sidebar {{ padding: 4px; border-radius: 8px; background-color: {_rgba(palette["foreground"], 0.05)}; }}
 .mc-sidebar-button {{ padding: 5px 8px; border-radius: 6px; }}
@@ -681,10 +680,21 @@ decoration {{
   border: none;
   border-radius: 0;
 }}
+/* Keyboard focus: a visible ring so tab-key navigation is not invisible.
+   The GTK theme suppresses the default focus outline, so redraw it with the
+   accent for every focusable control inside the bar's popups/dialogues. */
+.settings-btn:focus, .notif-action:focus, .notif-clear:focus, .cliphist-del:focus,
+.mc-close:focus, .mc-sidebar-button:focus, .qs-row:focus, .popup-row:focus,
+.wallpaper-thumb:focus, .settings-list row:focus {{
+  outline-style: solid;
+  outline-width: 2px;
+  outline-offset: -2px;
+  outline-color: {accent};
+}}
 .mc-graph-title {{ font-size: 11px; opacity: 0.85; }}
 .mc-graph-value {{ font-weight: bold; }}
-.mc-graph-value.warn {{ color: #facc15; }}
-.mc-graph-value.high {{ color: #f87171; }}
+.mc-graph-value.warn {{ color: {warn}; }}
+.mc-graph-value.high {{ color: {danger}; }}
 .mc-stat-label {{ font-size: 12px; opacity: 0.85; }}
 .mc-stat-value {{ font-weight: bold; font-size: 12px; }}
 .mc-core-bar trough {{ min-height: 6px; border-radius: 3px; background-color: {_rgba(palette["foreground"], 0.15)}; }}
@@ -702,9 +712,9 @@ decoration {{
 .drive-size {{ font-size: 11px; font-weight: bold; }}
 .drive-free {{ font-size: 10px; opacity: 0.75; }}
 .drive-card.nvme .mc-icon {{ color: {accent}; }}
-.drive-card.hdd .mc-icon {{ color: #facc15; }}
-.drive-card.ssd .mc-icon {{ color: #34d399; }}
-.drive-card.usb .mc-icon {{ color: #22d3ee; }}
+.drive-card.hdd .mc-icon {{ color: {warn}; }}
+.drive-card.ssd .mc-icon {{ color: {green}; }}
+.drive-card.usb .mc-icon {{ color: {sky}; }}
 .drive-card.reader .mc-icon {{ opacity: 0.45; }}
 .iface-row {{ padding: 3px 6px; border-radius: 6px; }}
 .iface-name {{ font-weight: bold; font-size: 11px; }}
@@ -712,10 +722,10 @@ decoration {{
 .iface-ip {{ font-size: 11px; }}
 .iface-rate {{ font-size: 11px; font-weight: bold; }}
 .iface-eth {{ color: {accent}; }}
-.iface-wifi {{ color: #22d3ee; }}
+.iface-wifi {{ color: {sky}; }}
 .iface-virt {{ color: {_rgba(palette["foreground"], 0.55)}; }}
-.iface-down {{ color: #22d3ee; }}
-.iface-up {{ color: #34d399; }}
+.iface-down {{ color: {sky}; }}
+.iface-up {{ color: {green}; }}
 .gpu-model {{ font-weight: bold; font-size: 13px; }}
 .mc-unavailable {{ font-size: 12px; opacity: 0.7; }}
 .mc-tree {{ background-color: transparent; }}

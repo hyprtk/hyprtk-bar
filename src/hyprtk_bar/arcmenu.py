@@ -29,6 +29,7 @@ gi.require_version("GtkLayerShell", "0.1")
 
 from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
 
+from .colors import contrast_fg as _contrast_fg  # noqa: E402
 from .config import load_pywal_colors  # noqa: E402
 from .hypr_animations import active_border_colors, border_animation, lerp_color  # noqa: E402
 from .widgets import Glyph, spawn  # noqa: E402
@@ -141,14 +142,6 @@ def _css_rgb(css_color: str) -> tuple[int, int, int] | None:
     if m:
         return int(m.group(1)), int(m.group(2)), int(m.group(3))
     return None
-
-
-def _contrast_fg(hex_color: str) -> str:
-    rgb = _css_rgb(hex_color)
-    if rgb is None:
-        return "#000000"
-    luminance = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
-    return "#000000" if luminance > 140 else "#ffffff"
 
 
 def _contrast_ok(fg_css: str, bg_css: str) -> bool:
@@ -494,15 +487,18 @@ class ArcMenu(Gtk.Fixed):
         .arc-fab .arc-glyph {{ color: {p["fab_icon_color"]}; }}
         .arc-item .arc-glyph {{ color: {p["item_icon_color"]}; }}
         """
-        provider = Gtk.CssProvider()
-        provider.load_from_data(css.encode())
+        provider = self._css_provider
         screen = Gdk.Screen.get_default()
-        if self._css_provider is not None:
-            Gtk.StyleContext.remove_provider_for_screen(screen, self._css_provider)
-        Gtk.StyleContext.add_provider_for_screen(
-            screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
-        self._css_provider = provider
+        if provider is None:
+            # Reuse a single provider and reload CSS in place — the border tick
+            # calls this every ~15fps while open, and remove/add churn over a
+            # screen-wide provider invalidates every surface each frame.
+            provider = Gtk.CssProvider()
+            Gtk.StyleContext.add_provider_for_screen(
+                screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+            self._css_provider = provider
+        provider.load_from_data(css.encode())
 
     # ── layout ───────────────────────────────────────────────────
 
@@ -592,6 +588,12 @@ class ArcMenu(Gtk.Fixed):
     def _start_border_animation(self) -> None:
         if self._border_timer is not None:
             return
+        # Respect the system reduced-motion preference.
+        try:
+            if not Gtk.Settings.get_default().get_property("gtk-enable-animations"):
+                return
+        except Exception:
+            pass
         anim = border_animation(self.cfg)
         if not anim:
             return

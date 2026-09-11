@@ -37,6 +37,7 @@ gi.require_version("GtkLayerShell", "0.1")
 
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell  # noqa: E402
 
+from .colors import contrast_fg as _contrast_fg  # noqa: E402
 from .config import resolve_script, SCRIPTS_DIR  # noqa: E402
 from .popup import Popup, center_layer_dialog  # noqa: E402
 from .theme_import import (  # noqa: E402
@@ -126,17 +127,6 @@ def _rgba_to_hex(red: float, green: float, blue: float, alpha: float = 1.0) -> s
     if a < 255:
         return f"#{r:02x}{g:02x}{b:02x}{a:02x}"
     return f"#{r:02x}{g:02x}{b:02x}"
-
-
-def _contrast_fg(hex_bg: str) -> str:
-    r, g, b = _hex_to_rgb(hex_bg)
-
-    def _linear(c: int) -> float:
-        s = c / 255
-        return s / 12.92 if s <= 0.04045 else ((s + 0.055) / 1.055) ** 2.4
-
-    luminance = 0.2126 * _linear(r) + 0.7152 * _linear(g) + 0.0722 * _linear(b)
-    return "#000000" if luminance > 0.179 else "#ffffff"
 
 
 def _is_valid_hex(value: str) -> bool:

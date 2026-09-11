@@ -55,6 +55,26 @@ def spawn(command: str) -> bool:
     return proc.spawn_command_line(command)
 
 
+_MAX_ICON_NAME_LEN = 256
+
+
+def safe_icon_name(name) -> str:
+    """Return *name* if it is a sane icon-theme name, else "".
+
+    Icon names from the D-Bus session bus (notifications, SNI tray, dbusmenu)
+    are attacker-influenced. GTK3 treats an icon name containing ``/`` as a
+    filesystem path and loads it directly, so a malicious name can point the
+    shared icon loader at an arbitrary file. Reject path-like names and cap the
+    length; empty means "use the generic icon".
+    """
+    if not isinstance(name, str):
+        return ""
+    name = name.strip()
+    if not name or len(name) > _MAX_ICON_NAME_LEN or "/" in name or "\\" in name:
+        return ""
+    return name
+
+
 class HoverButton(Gtk.EventBox):
     """An EventBox with a styled child box and a hover-highlight CSS class.
 

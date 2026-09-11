@@ -3,7 +3,11 @@
    injected by theme.py, plus semantic tokens below. The active waybar-theme
    profile overrides the tokens at the end of the generated CSS. */
 
-* {
+/* Scope the universal font + scrollbar rules to the menu root: this stylesheet
+   is registered screen-wide at APPLICATION priority, so an unqualified `*` /
+   `scrollbar` would leak Cantarell (and a restyled scrollbar) into the bar's
+   own windows and every other GTK app. */
+.menu-root * {
     font-family: "Cantarell", "Noto Sans", sans-serif;
 }
 
@@ -393,15 +397,15 @@ paned.horizontal > separator:hover {
 }
 
 /* Scrollbars */
-scrollbar {
+.menu-root scrollbar {
     background-color: transparent;
 }
-scrollbar slider {
+.menu-root scrollbar slider {
     background-color: alpha(@accent, 0.35);
     border-radius: 6px;
     min-width: 6px;
     min-height: 6px;
 }
-scrollbar slider:hover {
+.menu-root scrollbar slider:hover {
     background-color: @accent;
 }

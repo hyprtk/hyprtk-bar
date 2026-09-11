@@ -23,6 +23,8 @@ from gi.repository import GdkPixbuf, GLib, Gtk  # noqa: E402
 
 from dbus_next import Message, Variant  # noqa: E402
 
+from .widgets import safe_icon_name  # noqa: E402
+
 log = logging.getLogger("hyprtk_bar.dbusmenu")
 
 IFACE = "com.canonical.dbusmenu"
@@ -186,7 +188,9 @@ class DbusMenu:
         return item
 
     def _icon_image(self, props):
-        name = props.get("icon-name")
+        # icon-name is remote-controlled; sanitize so a path-like name can't
+        # reach GTK's icon loader (which opens it as a file).
+        name = safe_icon_name(props.get("icon-name"))
         if name:
             return Gtk.Image.new_from_icon_name(name, Gtk.IconSize.MENU)
         data = props.get("icon-data")

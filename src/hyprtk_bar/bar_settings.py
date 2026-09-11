@@ -386,7 +386,6 @@ class BarSettings(Gtk.Window):
 
         palette = resolve_palette(self._cfg)
         fg = palette.get("foreground", "#14141e")
-        bg = palette.get("background", "#ffffff")
 
         def _hex(color: str) -> str:
             m = re.search(r"rgba?\((\d+),\s*(\d+),\s*(\d+)", color)
@@ -441,13 +440,14 @@ class BarSettings(Gtk.Window):
             elif isinstance(w, Gtk.Switch):
                 ctx.add_class("settings-switch")
             elif isinstance(w, (Gtk.SpinButton, Gtk.Entry, Gtk.FontButton)):
-                # GTK hard-colours these; override text + fill so they read as
-                # themed inputs (no dark theme block on light themes).
+                # GTK hard-colours these; override only the TEXT so the themed
+                # `.settings-input` CSS class (translucent fill + accent border)
+                # supplies the background. Overriding the background on every
+                # state would paint an opaque block over the translucent fill.
                 ctx.add_class("settings-input")
                 for state in states:
                     try:
                         w.override_color(state, fg_rgba)
-                        w.override_background_color(state, _rgba(_hex(bg)))
                     except Exception:
                         pass
             if isinstance(w, Gtk.Container):
@@ -455,6 +455,12 @@ class BarSettings(Gtk.Window):
                     _apply(child)
 
         _apply(widget)
+
+    def _theme_fg(self) -> str:
+        """The resolved theme foreground (for tinting symbolic icons)."""
+        from .theme import resolve_palette
+
+        return resolve_palette(self._cfg).get("foreground", "#14141e")
 
     def _build_bar_tab(self, page: Gtk.Box) -> None:
         tab = page
@@ -983,7 +989,7 @@ class BarSettings(Gtk.Window):
             hbox.set_margin_start(6)
             hbox.set_margin_end(6)
             icon = _face_widget(
-                24, item.get("glyph", ""), item.get("icon", "application-x-executable"), "#000000"
+                24, item.get("glyph", ""), item.get("icon", "application-x-executable"), self._theme_fg()
             )
             hbox.pack_start(icon, False, False, 0)
             labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1583,6 +1589,7 @@ class _ArcItemDialog(Gtk.Window):
         self.set_title("Arc Menu Item")
         self.set_transient_for(parent)
         self.set_modal(True)
+        self._parent = parent
         self._result: dict | None = None
         self._finished = False
         _theme_dialog(self)
@@ -1712,6 +1719,7 @@ class _ArcItemDialog(Gtk.Window):
         for child in self._apps_list.get_children():
             self._apps_list.remove(child)
         query = self._search.get_text().strip().lower()
+        fg = self._parent._theme_fg()
         for app in self._apps:
             if query and query not in app["name"].lower() and query not in (app["comment"] or "").lower():
                 continue
@@ -1721,7 +1729,7 @@ class _ArcItemDialog(Gtk.Window):
             hbox.set_margin_bottom(4)
             hbox.set_margin_start(6)
             hbox.set_margin_end(6)
-            icon = load_icon_image(app["icon"], 24, "#000000")
+            icon = load_icon_image(app["icon"], 24, fg)
             hbox.pack_start(icon, False, False, 0)
             labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             title = Gtk.Label(label=app["name"], xalign=0)
@@ -1786,6 +1794,7 @@ class _QuicklinkPickerDialog(Gtk.Window):
         self.set_title(f"Choose {title}")
         self.set_transient_for(parent)
         self.set_modal(True)
+        self._parent = parent
         self._result = None
         self._finished = False
         _theme_dialog(self)
@@ -1867,6 +1876,7 @@ class _QuicklinkPickerDialog(Gtk.Window):
         for child in self._list.get_children():
             self._list.remove(child)
         query = self._search.get_text().strip().lower()
+        fg = self._parent._theme_fg()
         for app in self._apps:
             if query and query not in app["name"].lower() and query not in (app["comment"] or "").lower():
                 continue
@@ -1876,7 +1886,7 @@ class _QuicklinkPickerDialog(Gtk.Window):
             hbox.set_margin_bottom(4)
             hbox.set_margin_start(6)
             hbox.set_margin_end(6)
-            icon = load_icon_image(app["icon"], 24, "#000000")
+            icon = load_icon_image(app["icon"], 24, fg)
             hbox.pack_start(icon, False, False, 0)
             labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             title = Gtk.Label(label=app["name"], xalign=0)

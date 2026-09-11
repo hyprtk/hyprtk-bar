@@ -152,6 +152,9 @@ def import_theme(path) -> str | None:
     base = find_themes_dir()
     if path.is_dir():
         name = path.name
+        if not _safe_name(name):
+            log.warning("refusing unsafe theme name %r", name)
+            return None
         dest = base / name
         dest.mkdir(parents=True, exist_ok=True)
         for fname in ("style.css", "colors.css", "config"):
@@ -164,6 +167,9 @@ def import_theme(path) -> str | None:
         _absolutize_theme_files(dest, path)
     elif path.is_file() and path.suffix.lower() == ".css":
         name = path.stem
+        if not _safe_name(name):
+            log.warning("refusing unsafe theme name %r", name)
+            return None
         dest = base / name
         dest.mkdir(parents=True, exist_ok=True)
         try:
@@ -452,6 +458,11 @@ def _text_color(body: str, colors: dict[str, str]) -> str | None:
 # Theme names come from the (user-writable) bar config; refuse anything that
 # could escape the themes dir via ../.
 _THEME_NAME_RE = re.compile(r"^[A-Za-z0-9_.+-]+$")
+
+
+def _safe_name(name: str) -> bool:
+    """True when *name* is a sane theme dir name (no traversal / separators)."""
+    return bool(name) and _THEME_NAME_RE.fullmatch(name) is not None
 
 
 def _safe_theme_dir(theme_name: str):

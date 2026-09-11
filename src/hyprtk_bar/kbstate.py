@@ -39,10 +39,22 @@ _ICONS = (
     ("num", "\uf11c"),   # fa-keyboard
 )
 
+# The sysfs LED device paths are stable; resolve the globs once instead of
+# re-globbing /sys/class/leds every 500ms poll.
+_LED_PATHS: dict[str, list[str]] = {}
+
+
+def _led_paths(led_class: str) -> list[str]:
+    paths = _LED_PATHS.get(led_class)
+    if paths is None:
+        paths = glob.glob(_LED_GLOBS[led_class])
+        _LED_PATHS[led_class] = paths
+    return paths
+
 
 def _led_on(led_class: str) -> bool:
     """True when any keyboard LED of the given class is lit."""
-    for path in glob.glob(_LED_GLOBS[led_class]):
+    for path in _led_paths(led_class):
         try:
             with open(path, encoding="ascii") as f:
                 return f.read(1).strip() == "1"

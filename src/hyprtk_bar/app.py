@@ -29,6 +29,15 @@ from .theme_import import find_themes_dir  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.app")
 
+
+def _prefers_reduced_motion() -> bool:
+    """True when the system asks for reduced motion (GTK `enable-animations` off)."""
+    try:
+        settings = Gtk.Settings.get_default()
+        return not settings.get_property("gtk-enable-animations")
+    except Exception:
+        return False
+
 # Socket events that should trigger a taskbar refresh.
 REFRESH_EVENTS = (
     "openwindow",
@@ -263,6 +272,10 @@ class BarWindow(Gtk.Window):
         ):
             self._border_anim = None
             return
+        # Respect the system reduced-motion preference (GTK animations setting).
+        if _prefers_reduced_motion():
+            self._border_anim = None
+            return
         anim = border_animation(self._cfg)
         if not anim:
             self._border_anim = None
@@ -324,9 +337,18 @@ class BarWindow(Gtk.Window):
         this bar's config, so running it here makes rofi menus match whatever
         imported theme the bar is showing (and, on wallpaper changes, keeps the
         link in sync while the variant's ``@colorN`` refs track pywal live).
+
+        Only re-run when the source/theme actually change — a wallpaper re-tint
+        keeps the same variant symlink (its @colorN refs follow pywal live), so
+        re-spawning the script every re-theme is wasted subprocess work.
         """
         if not ROFI_SYNC_SH.is_file():
             return
+        theme = self._cfg.get("theme") or {}
+        key = (theme.get("source", "pywal"), theme.get("theme_name", ""))
+        if key == getattr(self, "_last_rofi_key", None):
+            return
+        self._last_rofi_key = key
         try:
             subprocess.Popen(["bash", str(ROFI_SYNC_SH)], start_new_session=True)
         except OSError:
@@ -539,27 +561,35 @@ class BarWindow(Gtk.Window):
         if clients is None:
             return GLib.SOURCE_REMOVE
         workspaces = self._ipc.query("workspaces") or []
-        active = self._ipc.query("activeworkspace") or {}
         focus = self._ipc.query("activewindow") or {}
-        global_id = active.get("id") if isinstance(active.get("id"), int) else 1
-        a_id = self._active_workspace_on_this_monitor(global_id)
+        monitors = self._ipc.query("monitors") or []
+        a_id = self._active_workspace_on_this_monitor(monitors)
         self._bar.update(
             clients, workspaces, a_id,
             focus.get("address"), focus.get("title"), focus.get("class"),
         )
         return GLib.SOURCE_REMOVE
 
-    def _active_workspace_on_this_monitor(self, fallback: int) -> int:
+    def _active_workspace_on_this_monitor(self, monitors: list) -> int:
         """The active workspace on THIS bar's monitor (each monitor has its own).
 
         Gdk Wayland monitors expose no connector name, so the monitor is matched
-        against `hyprctl monitors` by model name or geometry; falls back to the
-        global active workspace when it can't be identified (e.g. a special: one).
+        against the ``monitors`` result by model name or geometry. Falls back to
+        the first monitor's active workspace (the global active one on a typical
+        single-monitor setup) when this monitor can't be identified.
+
+        ``monitors`` is passed in (already fetched by ``_refresh``) so a refresh
+        does not re-spawn a separate ``hyprctl monitors`` per monitor.
         """
+        fallback = 1
+        for m in monitors:
+            aw = m.get("activeWorkspace") or {}
+            if isinstance(aw.get("id"), int):
+                fallback = aw["id"]
+                break
         if self.monitor is None:
             return fallback
         connector, model, geo = _monitor_identifiers(self.monitor)
-        monitors = self._ipc.query("monitors") or []
         for m in monitors:
             if not self._monitor_matches(m, connector, model, geo):
                 continue

@@ -411,16 +411,27 @@ configure_autostart() {
         echo ":: hyprtk-bar autostart already present in $target"
         return 0
     fi
-    cat >> "$target" <<'EOF'
-
--- >>> hyprtk-bar autostart (added by install.sh) >>>
-hl.on("hyprland.start", function()
-    hl.exec_cmd("awww-daemon &")
-    hl.exec_cmd("~/.local/share/hyprtk-bar/scripts/wal-watcher.sh &")
-    hl.exec_cmd("~/.local/bin/hyprtk-bar &")
-end)
--- <<< hyprtk-bar autostart <<<
-EOF
+    # The wallpaper daemon + watcher only make sense when a wallpaper backend is
+    # actually installed (awww is Arch-only; swww is the portable fallback).
+    # Skip them otherwise so a non-Arch install doesn't autostart a nonexistent
+    # daemon on every login.
+    local wall_daemon=""
+    command -v awww >/dev/null 2>&1 && wall_daemon="awww-daemon"
+    if [ -z "$wall_daemon" ] && command -v swww >/dev/null 2>&1; then
+        wall_daemon="swww-daemon"
+    fi
+    {
+        echo ""
+        echo "-- >>> hyprtk-bar autostart (added by install.sh) >>>"
+        echo 'hl.on("hyprland.start", function()'
+        if [ -n "$wall_daemon" ]; then
+            echo "    hl.exec_cmd(\"$wall_daemon &\")"
+            echo '    hl.exec_cmd("~/.local/share/hyprtk-bar/scripts/wal-watcher.sh &")'
+        fi
+        echo '    hl.exec_cmd("~/.local/bin/hyprtk-bar &")'
+        echo 'end)'
+        echo '-- <<< hyprtk-bar autostart <<<'
+    } >> "$target"
     echo ":: Added hyprtk-bar autostart to $target"
 }
 

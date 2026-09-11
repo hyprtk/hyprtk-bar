@@ -19,11 +19,12 @@ import re
 
 import gi
 
-gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
 
 from gi.repository import Gdk, Gtk
 
+from ..colors import contrast_fg as _contrast_fg
 from . import config as cfg
 from .theme_import import find_themes_dir, list_themes, parse_palette
 
@@ -83,19 +84,6 @@ FALLBACK = {
     "background": "#1e1e2e",
     "foreground": "#cdd6f4",
 }
-
-
-def _contrast_fg(hex_color):
-    """Pick black or white text that contrasts with the given hex background."""
-    try:
-        hex_color = hex_color.lstrip("#")
-        if len(hex_color) == 3:
-            hex_color = "".join(c * 2 for c in hex_color)
-        r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
-    except (ValueError, TypeError):
-        return "#ffffff"
-    luminance = 0.299 * r + 0.587 * g + 0.114 * b
-    return "#000000" if luminance > 140 else "#ffffff"
 
 
 def _rgb(hex_color):

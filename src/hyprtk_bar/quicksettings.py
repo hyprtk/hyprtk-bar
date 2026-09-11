@@ -114,6 +114,15 @@ def get_volume() -> tuple[float, bool] | None:
     return float(m.group(1)), "[MUTED]" in out
 
 
+def get_volume_state() -> tuple[int, bool] | None:
+    """(percent, muted) for the sink in one wpctl read (used by the slider)."""
+    vol = get_volume()
+    if vol is None:
+        return None
+    pct, muted = vol
+    return int(round(pct * 100)), muted
+
+
 def set_volume_pct(pct: int) -> None:
     _run(["wpctl", "set-volume", SINK, f"{max(0, min(pct, 100)) / 100:.2f}"])
     # Moving the slider re-enables a muted sink.
@@ -132,6 +141,15 @@ def get_mic_volume() -> tuple[float, bool] | None:
     if not m:
         return None
     return float(m.group(1)), "[MUTED]" in out
+
+
+def get_mic_state() -> tuple[int, bool] | None:
+    """(percent, muted) for the mic source in one wpctl read."""
+    vol = get_mic_volume()
+    if vol is None:
+        return None
+    pct, muted = vol
+    return int(round(pct * 100)), muted
 
 
 def set_mic_volume_pct(pct: int) -> None:
@@ -215,12 +233,14 @@ class SliderRow(Gtk.Box):
         set_pct,
         muted_get=None,
         mute_toggle=None,
+        get_state=None,
         range_min: int = 0,
     ):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         self._get_pct = get_pct
         self._set_pct = set_pct
         self._muted_get = muted_get
+        self._get_state = get_state
         self._mute_toggle = mute_toggle
         self._icon_name = icon_name          # the "on" (unmuted) icon
         self._icon_on = icon_on_name         # the "off" (muted) icon
@@ -256,16 +276,22 @@ class SliderRow(Gtk.Box):
 
     def refresh(self) -> None:
         muted = False
-        if self._muted_get is not None:
-            muted = bool(self._muted_get())
-        pct = self._get_pct()
+        if self._get_state is not None:
+            # A single getter returns (pct, muted) in one subprocess read, so a
+            # refresh doesn't call wpctl several times (get_pct + muted_get).
+            state = self._get_state()
+            pct, muted = state if state else (None, False)
+        else:
+            if self._muted_get is not None:
+                muted = bool(self._muted_get())
+            pct = self._get_pct()
         # A muted source shows 0 so the slider reads "off"; moving it unmutes.
         display = 0 if muted else (pct if pct is not None else 0)
         self._scale.handler_block_by_func(self._on_value_changed)
         self._scale.set_value(display)
         self._scale.handler_unblock_by_func(self._on_value_changed)
         self._pct.set_text(f"{int(round(display))}%")
-        if self._muted_get is not None:
+        if self._get_state is not None or self._muted_get is not None:
             self._update_icon(muted)
 
     def _update_icon(self, muted: bool) -> None:
@@ -362,10 +388,10 @@ class QuickSettings(Popup):
             "audio-volume-high-symbolic",
             "audio-volume-muted-symbolic",
             "Volume",
-            get_pct=lambda: int(round((get_volume() or (1.0, False))[0] * 100)),
+            get_pct=lambda: 100,
             set_pct=set_volume_pct,
-            muted_get=lambda: bool(get_volume() and get_volume()[1]),
             mute_toggle=toggle_mute,
+            get_state=get_volume_state,
         )
         self.content.pack_start(self._volume, False, False, 0)
 
@@ -373,10 +399,10 @@ class QuickSettings(Popup):
             "audio-input-microphone-symbolic",
             "audio-input-microphone-muted-symbolic",
             "Mic",
-            get_pct=lambda: int(round((get_mic_volume() or (1.0, False))[0] * 100)),
+            get_pct=lambda: 100,
             set_pct=set_mic_volume_pct,
-            muted_get=lambda: bool(get_mic_volume() and get_mic_volume()[1]),
             mute_toggle=toggle_mic_mute,
+            get_state=get_mic_state,
         )
         self.content.pack_start(self._mic, False, False, 0)
 

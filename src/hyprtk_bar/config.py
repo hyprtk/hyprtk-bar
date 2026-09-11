@@ -44,6 +44,14 @@ ROFI_SYNC_SH = resolve_script("sync-rofi-theme.sh", "configs", "rofi", "scripts"
 UPDATES_SH = resolve_script("updates.sh", "installer", "scripts", "updates.sh")
 INSTALL_UPDATES_SH = resolve_script("installupdates.sh", "installer", "scripts", "installupdates.sh")
 
+# Bundled toggle/quicklink scripts resolved the same way (standalone-first,
+# dotfiles fallback). The quicklink defaults and start button point at these so
+# a standalone install and a dotfiles deploy both work.
+MENU_TOGGLE_SH = resolve_script("hyprtk-bar-menu-toggle.sh", "installer", "scripts", "hyprtk-bar-menu-toggle.sh")
+APPSMENU_SH = resolve_script("appsmenu.sh", "installer", "scripts", "appsmenu.sh")
+UPDATEWAL_AWWW_SH = resolve_script("updatewal-awww.sh", "hypr", "scripts", "updatewal-awww.sh")
+SSDETECT_SH = resolve_script("ssdetect.sh", "installer", "scripts", "ssdetect.sh")
+
 log = logging.getLogger("hyprtk_bar.config")
 
 # Module ids and their positions. The bar builds its widgets from ``layout``;
@@ -96,7 +104,7 @@ DEFAULT_LINKS = [
         "id": "apps",
         "label": "Apps menu",
         "icon": "\uf00a",  # nf-fa-bars
-        "command": "~/.local/share/hyprtk-bar/scripts/appsmenu.sh",
+        "command": str(APPSMENU_SH),
     },
     {
         "id": "terminal",
@@ -121,7 +129,7 @@ DEFAULT_LINKS = [
         "label": "Wallpaper",
         "icon": "\uf03e",  # nf-fa-picture_o
         "command": "",  # opens the in-bar Theme Manager dialogue
-        "command_right": "~/.local/share/hyprtk-bar/scripts/updatewal-awww.sh",
+        "command_right": str(UPDATEWAL_AWWW_SH),
     },
     {
         "id": "cliphist",
@@ -133,7 +141,7 @@ DEFAULT_LINKS = [
         "id": "screenshot",
         "label": "Screenshot",
         "icon": "\uf083",  # nf-fa-camera
-        "command": "~/hyprtk/installer/scripts/ssdetect.sh",
+        "command": str(SSDETECT_SH),
     },
 ]
 
@@ -183,7 +191,7 @@ DEFAULTS = {
         "start_button": True,
         "start_icon": "view-grid-symbolic",
         "start_glyph": "\uf015",
-        "start_command": "~/.local/bin/hyprtk-bar-menu-toggle.sh",
+        "start_command": str(MENU_TOGGLE_SH),
         "pinned": DEFAULT_PINNED,
     },
     "workspaces": {
@@ -500,7 +508,7 @@ def validate(cfg: dict) -> dict:
 
     # ── command/script fields must always be strings ────────────────
     center = valid.get("center") or {}
-    center["start_command"] = _str_field(center.get("start_command"), "~/.local/bin/hyprtk-bar-menu-toggle.sh")
+    center["start_command"] = _str_field(center.get("start_command"), str(MENU_TOGGLE_SH))
     center["pinned"] = _clean_command_list(center.get("pinned") or [], ("class", "command", "icon"))
 
     ql = valid.get("quicklinks") or {}

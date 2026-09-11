@@ -40,7 +40,7 @@ from dbus_next.service import (  # noqa: E402
 from dbus_next import Message  # noqa: E402
 
 from .popup import bind_hover_tooltip  # noqa: E402
-from .widgets import HoverButton  # noqa: E402
+from .widgets import HoverButton, safe_icon_name  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.tray")
 
@@ -381,6 +381,10 @@ class SniItem:
                     except Exception:
                         pass
                     self._theme_paths_added = True
+            elif prop == "IconName":
+                # Icon names are remote-controlled; a name containing "/" makes
+                # GTK's icon loader open it as a filesystem path. Sanitize.
+                self.icon_name = safe_icon_name(value)
             else:
                 setattr(self, _to_snake(prop), value or "")
             self._ctrl.refresh_item(self.key)
@@ -913,7 +917,20 @@ class TrayController:
                 WATCHER_NAME, WATCHER_PATH, WATCHER_INTROSPECTION
             )
             iface = proxy.get_interface("org.kde.StatusNotifierWatcher")
-            for service in iface.get_registered_status_notifier_items_sync():
+        except Exception as exc:
+            log.debug("nothing to adopt: %s", exc)
+            return
+
+        def _got(items, err):
+            if err is not None:
+                return
+            for service in items or []:
                 self.register(service)
+
+        # Callback form, NOT `_sync`: this runs inside dbus-next's own dispatch
+        # (called from _on_name_reply / _on_name_owner_changed), and a sync
+        # getter nests a GLib.MainLoop there and deadlocks.
+        try:
+            iface.get_registered_status_notifier_items(_got)
         except Exception as exc:
             log.debug("nothing to adopt: %s", exc)

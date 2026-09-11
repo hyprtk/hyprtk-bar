@@ -423,16 +423,28 @@ def _netdev() -> dict[str, tuple[int, int]]:
     return out
 
 
+# IPs are re-read per interface per poll (1s); cache them briefly — addresses
+# change only on (re)connect, never second-to-second.
+_IP_TTL = 30.0
+_IP_CACHE: dict[str, tuple[str, float]] = {}
+
+
 def _iface_ip(iface: str) -> str:
+    now = time.monotonic()
+    cached = _IP_CACHE.get(iface)
+    if cached is not None and now - cached[1] < _IP_TTL:
+        return cached[0]
     try:
         out = subprocess.run(
             ["ip", "-4", "-o", "addr", "show", iface],
             capture_output=True, text=True, timeout=3,
         ).stdout
         m = re.search(r"inet\s+(\S+)", out)
-        return m.group(1).split("/")[0] if m else ""
+        ip = m.group(1).split("/")[0] if m else ""
     except (OSError, subprocess.SubprocessError):
-        return ""
+        ip = ""
+    _IP_CACHE[iface] = (ip, now)
+    return ip
 
 
 def iface_kind(name: str) -> tuple[str, str, str]:
@@ -474,8 +486,10 @@ class NetSampler:
                 continue
             if _read_text(f"/sys/class/net/{name}/operstate") == "up":
                 return name
-        if "enp7s0" in rates:
-            return "enp7s0"
+        # No traffic and nothing "up": fall back to any non-loopback interface.
+        for name in rates:
+            if name != "lo":
+                return name
         return next(iter(rates), "")
 
     def sample(self) -> dict:
@@ -565,6 +579,9 @@ _NVIDIA_QUERY = (
     "power.draw,fan.speed,clocks.sm,clocks.mem",
     "--format=csv,noheader,nounits",
 )
+
+# nvidia-smi cache (see GpuSampler._nvidia_sample).
+_NVIDIA_CACHE: dict = {"value": None, "t": 0.0}
 
 
 def _driver_of(dev: Path) -> str:
@@ -802,7 +819,15 @@ class GpuSampler:
 
     @staticmethod
     def _nvidia_sample() -> dict | None:
-        """Utilization/VRAM/temp/power/fan/clocks from one nvidia-smi query."""
+        """Utilization/VRAM/temp/power/fan/clocks from one nvidia-smi query.
+
+        nvidia-smi is slow (~100ms+); cache the result briefly so the 1s GPU
+        poll doesn't re-spawn it every tick.
+        """
+        now = time.monotonic()
+        cached = _NVIDIA_CACHE.get("value")
+        if cached is not None and now - _NVIDIA_CACHE["t"] < 2.0:
+            return cached
         try:
             out = subprocess.run(
                 _NVIDIA_QUERY, capture_output=True, text=True, timeout=3
@@ -824,7 +849,7 @@ class GpuSampler:
 
         util, mem_used, mem_total, temp = (num(f) for f in fields[:4])
         power, fan_pct, core, mem = (num(f) for f in fields[4:])
-        return {
+        result = {
             "util_pct": util,
             "vram_used_gb": (mem_used or 0) / 1024.0,
             "vram_total_gb": (mem_total or 0) / 1024.0,
@@ -839,6 +864,9 @@ class GpuSampler:
             "mem_max_mhz": None,
             "name": "",
         }
+        _NVIDIA_CACHE["value"] = result
+        _NVIDIA_CACHE["t"] = now
+        return result
 
     def _intel_sample(self, dev: Path) -> dict:
         def read_int(path: Path | None):
@@ -1097,12 +1125,22 @@ def _window_pids() -> set[int]:
         return set()
 
 
+# The previous poll's process sample, so top_processes() can diff against it
+# instead of sleeping for a second sample (keeps the caller's thread unblocked).
+_PROC_CACHE: dict = {}
+
+
 def top_processes(n: int = 15, window_pids: set[int] | None = None) -> list[dict]:
-    """Top-N processes by per-core CPU% (two /proc samples ~150ms apart).
+    """Top-N processes by per-core CPU% (diff of two /proc samples).
 
     Each row carries ``pid``, ``name`` (comm), ``cpu``, ``mem`` (GB), ``uid``
     (owner), ``cmdline`` (argv) and ``is_app`` (owns a compositor window). Pass
     ``window_pids`` from the caller to avoid a duplicate hyprctl query.
+
+    The previous poll's sample is cached (instead of ``sleep``-ing for a second
+    sample), so this never blocks the caller — the first call after import
+    returns ``[]`` (no baseline yet), and every subsequent call diffs against
+    the prior poll's sample.
     """
     ncpu = os.cpu_count() or 1
     if window_pids is None:
@@ -1129,9 +1167,12 @@ def top_processes(n: int = 15, window_pids: set[int] | None = None) -> list[dict
             pass
         return max(total, 1), pids
 
-    t1, p1 = sample()
-    time.sleep(0.15)
     t2, p2 = sample()
+    prev = _PROC_CACHE.get("sample")
+    _PROC_CACHE["sample"] = (t2, p2)
+    if prev is None:
+        return []
+    t1, p1 = prev
     delta = max(t2 - t1, 1)
 
     rows = []
@@ -1268,6 +1309,12 @@ def dimm_slots(use_cache: bool = True) -> list[dict] | None:
 
 # ── physical drives ──────────────────────────────────────────────
 
+# lsblk is spawned once per poll (1s) while the Disks page is open; cache its
+# result briefly so the per-second refresh doesn't re-spawn it every tick.
+_DRIVES_TTL = 5.0
+_DRIVES_CACHE: dict = {"value": None, "t": 0.0}
+
+
 def drives() -> list[dict]:
     """Per-physical-disk info (size, available, type) via ``lsblk -J``.
 
@@ -1277,6 +1324,9 @@ def drives() -> list[dict]:
     partitions (``mounted``). Empty USB readers report 0 bytes and ``mounted``
     False. Ordered by drive class (NVMe first, readers last).
     """
+    now = time.monotonic()
+    if _DRIVES_CACHE["value"] is not None and now - _DRIVES_CACHE["t"] < _DRIVES_TTL:
+        return _DRIVES_CACHE["value"]
     try:
         out = subprocess.run(
             ["lsblk", "-J", "-b", "-o",
@@ -1351,4 +1401,6 @@ def drives() -> list[dict]:
 
     order = {"nvme": 0, "hdd": 1, "ssd": 2, "usb": 3, "reader": 4}
     result.sort(key=lambda d: (order.get(d["type_key"], 9), d["name"]))
+    _DRIVES_CACHE["value"] = result
+    _DRIVES_CACHE["t"] = now
     return result
