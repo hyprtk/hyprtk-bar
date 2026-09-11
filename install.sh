@@ -90,34 +90,23 @@ detect_pkg_manager() {
     echo none
 }
 
-# True when the system libc is musl (Alpine, Void-musl, ...). musl has no
-# manylinux wheels for PyGObject/pycairo, so the venv pip step must build.
-is_musl() {
-    ldd --version 2>&1 | grep -qi musl
-}
-
-# System runtime deps per package manager (GI typelibs + python tooling).
-# PyGObject/pycairo/dbus-next themselves are installed into the venv.
+# System runtime deps per package manager (GI typelibs + Python GI bindings +
+# venv tooling). PyGObject and pycairo are installed HERE — not pip-installed —
+# because neither publishes binary wheels: a venv `pip install` would build them
+# from source on every distro, needing a C compiler + GI/cairo headers. The bar
+# therefore uses them through a `--system-site-packages` venv, and only the
+# pure-Python `dbus-next` is pip-installed.
 declare -A DEPS
-DEPS[pacman]="gtk3 gtk-layer-shell gdk-pixbuf2 pango cairo gobject-introspection-runtime python python-pip"
+DEPS[pacman]="gtk3 gtk-layer-shell gdk-pixbuf2 pango cairo gobject-introspection-runtime python python-gobject python-cairo python-pip"
 DEPS[apt]="gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 gir1.2-gdkpixbuf-2.0 gir1.2-pango-1.0 gir1.2-cairo-1.0 gir1.2-xlib-2.0 python3-gi python3-gi-cairo python3-venv python3-pip"
-DEPS[dnf]="gtk3 gtk-layer-shell gdk-pixbuf2 pango cairo gobject-introspection python3-gobject python3-pip"
-DEPS[zypper]="typelib-1_0-Gtk-3_0 gtk-layer-shell typelib-1_0-GdkPixbuf-2_0 typelib-1_0-Pango-1_0 python3-gobject python3-gobject-Gdk python3-gobject-cairo python3-pip"
-DEPS[xbps]="gtk+3 gtk-layer-shell gdk-pixbuf pango cairo gobject-introspection python3-gobject python3-pip"
-DEPS[apk]="gtk+3.0 gtk-layer-shell gdk-pixbuf pango cairo gobject-introspection py3-gobject3 py3-pip py3-virtualenv"
-DEPS[emerge]="x11-libs/gtk+:3 gui-libs/gtk-layer-shell x11-libs/gdk-pixbuf x11-libs/pango x11-libs/cairo dev-libs/gobject-introspection dev-python/pygobject"
+DEPS[dnf]="gtk3 gtk-layer-shell gdk-pixbuf2 pango cairo gobject-introspection python3-gobject python3-cairo python3-pip"
+DEPS[zypper]="typelib-1_0-Gtk-3_0 typelib-1_0-GtkLayerShell-0_1 typelib-1_0-GdkPixbuf-2_0 typelib-1_0-Pango-1_0 typelib-1_0-cairo-1_0 typelib-1_0-xlib-2_0 python3-gobject python3-gobject-Gdk python3-gobject-cairo python3-pip"
+# Void/Alpine ship the GI typelibs in the -devel/-dev subpackages, not the base
+# lib packages.
+DEPS[xbps]="gtk+3-devel gtk-layer-shell-devel gdk-pixbuf-devel pango-devel cairo-devel gobject-introspection python3-gobject python3-cairo python3-pip"
+DEPS[apk]="gtk+3.0-dev gtk-layer-shell-dev gdk-pixbuf-dev pango-dev cairo-dev gobject-introspection-dev py3-gobject3 py3-cairo py3-pip py3-virtualenv"
+DEPS[emerge]="x11-libs/gtk+:3 gui-libs/gtk-layer-shell x11-libs/gdk-pixbuf x11-libs/pango x11-libs/cairo dev-libs/gobject-introspection dev-python/pygobject dev-python/pycairo"
 DEPS[nix]="gtk3 gtk-layer-shell gdk-pixbuf pango cairo gobject-introspection python3"
-
-# Build deps for building PyGObject/pycairo from source (musl / no wheel).
-declare -A BUILD_DEPS
-BUILD_DEPS[pacman]="base-devel gobject-introspection cairo"
-BUILD_DEPS[apt]="gcc pkg-config libgirepository1.0-dev libcairo2-dev python3-dev"
-BUILD_DEPS[dnf]="gcc pkg-config gobject-introspection-devel cairo-devel python3-devel"
-BUILD_DEPS[zypper]="gcc pkg-config gobject-introspection-devel cairo-devel python3-devel"
-BUILD_DEPS[xbps]="gcc pkg-config gobject-introspection cairo-devel python3-devel"
-BUILD_DEPS[apk]="gcc musl-dev pkgconfig gobject-introspection-dev cairo-dev python3-dev"
-BUILD_DEPS[emerge]="dev-python/pycairo"
-BUILD_DEPS[nix]=""
 
 # Optional feature dependencies — the external binaries the bar shells out to
 # for quick settings, system monitor, clipboard, theming, etc. Installed by
@@ -156,6 +145,26 @@ deps_ok() {
     typelib_present "Gtk-3.0" \
         && typelib_present "GtkLayerShell-0.1" \
         && typelib_present "xlib-2.0"
+}
+
+# gtk-layer-shell version as "major.minor.micro", or "" when not importable.
+layer_shell_version() {
+    python3 -c 'import gi; gi.require_version("GtkLayerShell", "0.1"); from gi.repository import GtkLayerShell as G; print("%d.%d.%d" % (G.get_major_version(), G.get_minor_version(), G.get_micro_version()))' 2>/dev/null || echo ""
+}
+
+# 0 when gtk-layer-shell is importable AND >= 0.9; 1 otherwise. Older releases
+# lack the layer-shell API the bar anchors on (Debian <=12 0.8.0, Ubuntu <=24.04
+# 0.8.2, Fedora <=40, Leap 15.x, Alpine <=3.20).
+layer_shell_new_enough() {
+    python3 -c 'import sys, gi; gi.require_version("GtkLayerShell", "0.1"); from gi.repository import GtkLayerShell as G; sys.exit(0 if (G.get_major_version(), G.get_minor_version(), G.get_micro_version()) >= (0, 9, 0) else 1)' 2>/dev/null
+}
+
+warn_layershell() {
+    echo ":: WARN: gtk-layer-shell $(layer_shell_version) is below 0.9 — the bar" >&2
+    echo "   may misbehave (missing layer-shell API). Upgrade the distro release," >&2
+    echo "   or build a newer one from source:" >&2
+    echo "     git clone https://github.com/wmww/gtk-layer-shell" >&2
+    echo "     cd gtk-layer-shell && meson build && ninja -C build && sudo ninja -C build install" >&2
 }
 
 # Run a package-manager command with root (directly if already root, else sudo).
@@ -252,6 +261,15 @@ if [ "$DRY_RUN" -eq 1 ]; then
             printf '     MISSING  %s\n' "$t"
         fi
     done
+    v="$(layer_shell_version)"
+    if [ -n "$v" ]; then
+        echo ":: gtk-layer-shell version: $v (needs >= 0.9)"
+        if ! layer_shell_new_enough; then
+            echo "::   -> below 0.9; the bar may misbehave on this release."
+        fi
+    else
+        echo ":: gtk-layer-shell version: not importable"
+    fi
     printf ':: python3: %s\n' "$(command -v python3 || echo MISSING)"
     if python3 -c 'import venv' >/dev/null 2>&1; then
         echo ":: venv module: OK"
@@ -301,10 +319,11 @@ if [ "$SKIP_DEPS" -eq 0 ]; then
     else
         echo ":: Installing system dependencies via $PM ..."
         install_pkgs "$PM" ${DEPS[$PM]:-}
-        if is_musl; then
-            echo ":: musl libc detected — installing build deps for the venv step ..."
-            install_pkgs "$PM" ${BUILD_DEPS[$PM]:-}
-        fi
+    fi
+    # After the deps step, gtk-layer-shell should be importable; warn (don't
+    # fail) if it's present but below the 0.9 floor the bar expects.
+    if [ "$SKIP_DEPS" -eq 0 ] && [ "$PM" != "none" ] && ! layer_shell_new_enough; then
+        warn_layershell
     fi
 fi
 
@@ -365,18 +384,14 @@ cp -r "$SCRIPT_DIR/assets" "$INSTALL_DIR/" 2>/dev/null || true
 cp -r "$SCRIPT_DIR/scripts" "$INSTALL_DIR/" 2>/dev/null || true
 cp "$SCRIPT_DIR/pyproject.toml" "$INSTALL_DIR/"
 
-python3 -m venv "$INSTALL_DIR/venv"
-
-# Install the Python deps (pygobject, pycairo, dbus-next) into the venv.
-# If the build fails (no wheel for musl / uncommon arch), install the build
-# deps for the detected package manager and retry once.
-if ! "$INSTALL_DIR/venv/bin/pip" install -e "$INSTALL_DIR" --quiet 2>/dev/null; then
-    echo ":: pip install failed (no wheel?); retrying with build deps ..."
-    if [ "$SKIP_DEPS" -eq 0 ] && [ "$PM" != "none" ] && [ -n "${BUILD_DEPS[$PM]:-}" ]; then
-        install_pkgs "$PM" ${BUILD_DEPS[$PM]:-}
-    fi
-    "$INSTALL_DIR/venv/bin/pip" install -e "$INSTALL_DIR" --quiet
-fi
+# venv with --system-site-packages: PyGObject and pycairo ship no binary
+# wheels, so a plain venv pip-install would build them from source (needing a C
+# compiler + GI/cairo headers) on every distro. Use the distro's own
+# pygobject/pycairo (installed above via DEPS) and pip-install only the
+# pure-Python dbus-next; the bar itself is editable-installed with --no-deps.
+python3 -m venv --system-site-packages "$INSTALL_DIR/venv"
+"$INSTALL_DIR/venv/bin/pip" install --quiet "dbus-next>=0.2.3,<0.3"
+"$INSTALL_DIR/venv/bin/pip" install --quiet --no-deps -e "$INSTALL_DIR"
 
 # Main launcher
 cat > "$BIN_DIR/$APP_NAME" << LAUNCHER

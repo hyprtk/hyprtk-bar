@@ -25,13 +25,15 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gtk
 
 from ..colors import contrast_fg as _contrast_fg
+from ..config import INSTALL_DIR
 from . import config as cfg
 from .theme_import import find_themes_dir, list_themes, parse_palette
 
 # The bar project root holds the menu's assets (copied to the install dir by
-# install.sh). theme.py lives at <root>/src/hyprtk_bar/menu/theme.py, so four
-# parent hops reach the root where assets/ lives.
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# install.sh). Reuse the top-level config's INSTALL_DIR (which honours
+# HYPRTK_BAR_DATA_DIR for store-based installs) instead of walking four parent
+# hops from __file__.
+BASE_DIR = str(INSTALL_DIR)
 STYLE_CSS = os.path.join(BASE_DIR, "assets", "style.css")
 
 

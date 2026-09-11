@@ -23,7 +23,12 @@ PYWAL_PATH = Path.home() / ".cache" / "wal" / "colors.json"
 
 # Bundled scripts live next to the bar's source (standalone installs); the full
 # hyprtk dotfiles are the fallback so both deployment modes work.
-INSTALL_DIR = Path(__file__).resolve().parents[2]
+# ``HYPRTK_BAR_DATA_DIR`` lets a Nix/flatpak-style install point the bar at its
+# read-only data (assets/scripts/themes) in the store, instead of deriving the
+# location from ``__file__`` (which breaks once the package is unpacked into
+# site-packages).
+_DATA_DIR = os.environ.get("HYPRTK_BAR_DATA_DIR")
+INSTALL_DIR = Path(_DATA_DIR) if _DATA_DIR else Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = INSTALL_DIR / "scripts"
 HYPRTK_DIR = Path.home() / "hyprtk"
 
