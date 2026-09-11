@@ -53,14 +53,18 @@ See the [Showcase](SHOWCASE.md) for screenshots of every feature.
   the event socket).
 - Python ≥ 3.10.
 - GTK3 and `gtk-layer-shell` (GObject-Introspection typelibs).
-- PyGObject, pycairo and `dbus-next` — installed automatically into the bar's
-  virtualenv.
+- PyGObject and pycairo — installed from your package manager (they ship no
+  binary wheels, so the installer never pip-builds them).
+- `dbus-next` — installed into the bar's virtualenv (pure Python).
 
 The installer handles the system packages for you: it detects your package
-manager and installs the right typelibs and Python tooling (e.g.
-`gir1.2-gtk-3.0` + `gir1.2-gtklayershell-0.1` on Debian/Ubuntu, `gtk3` +
-`gtk-layer-shell` on Arch). See `PORTABILITY.md` for the full per-distro
-mapping and remaining caveats.
+manager and installs the right typelibs, Python GI bindings and venv tooling
+(e.g. `gir1.2-gtk-3.0` + `gir1.2-gtklayershell-0.1` + `python3-gi` on
+Debian/Ubuntu, `gtk3` + `gtk-layer-shell` + `python-gobject` on Arch). The bar
+runs in a `--system-site-packages` virtualenv, so the distro's own
+PyGObject/pycairo are used and no compiler is required. See `PORTABILITY.md` for
+the full per-distro mapping, the feature-availability matrix and remaining
+caveats.
 
 ---
 
@@ -76,13 +80,15 @@ This:
 
 1. Detects the package manager and installs any missing system dependencies
    (skipped automatically when already present).
-2. Creates `~/.local/share/hyprtk-bar/` with a virtualenv and the source.
-3. Installs the package and its Python dependencies into the venv.
+2. Creates `~/.local/share/hyprtk-bar/` with a `--system-site-packages`
+   virtualenv and the source.
+3. Pip-installs `dbus-next` into the venv and editable-installs the bar
+   (`--no-deps` — PyGObject/pycairo come from the system, not pip).
 4. Drops a `hyprtk-bar` launcher on `~/.local/bin`.
 5. Installs a desktop entry (and optional GNOME autostart hint).
 
-Skip the system-dependency step with `--no-deps` (e.g. on Gentoo/NixOS, or when
-you manage the typelibs yourself):
+Skip the system-dependency step with `--no-deps` (e.g. on Gentoo, or when you
+manage the typelibs yourself):
 
 ```bash
 ./install.sh --no-deps
@@ -93,6 +99,36 @@ Uninstall with:
 ```bash
 ./install.sh --uninstall
 ```
+
+### Cross-distro support
+
+`install.sh` detects pacman / apt / dnf / zypper / xbps / apk / emerge / nix and
+installs the right typelib + PyGObject/pycairo + venv packages for each (Void
+and Alpine need their `-devel`/`-dev` subpackages for the typelibs). It warns —
+but does not fail — when `gtk-layer-shell` is below 0.9 (older LTS releases ship
+0.5–0.8) and prints the source-build steps. The full per-distro mapping, the
+feature-availability matrix and the Arch/AUR-only "theming wall" are documented
+in `PORTABILITY.md`, and a container CI matrix
+(`.github/workflows/install-matrix.yml`) exercises the installer on seven distro
+families.
+
+### NixOS
+
+Use the flake:
+
+```bash
+nix run github:hyprtk/hyprtk-bar
+```
+
+or add it as an input:
+
+```nix
+inputs.hyprtk-bar.url = "github:hyprtk/hyprtk-bar";
+```
+
+The derivation (`derivation.nix`) installs the bar, its assets/scripts/themes and
+the bundled Nerd Font into the store and surfaces the data dir via
+`HYPRTK_BAR_DATA_DIR`. Config stays at `~/.config/hyprtk-bar/config.json`.
 
 ### Autostart with Hyprland
 
@@ -163,8 +199,8 @@ menu.
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `theme.source` | `"pywal"` | `pywal` (live palette), `waybar` (an imported waybar theme), or `manual` (colors below). |
-| `theme.waybar_theme` | `""` | Name of an imported waybar theme (used when source is `waybar`). |
+| `theme.source` | `"pywal"` | `pywal` (live palette), `imported` (an imported theme), or `manual` (colors below). |
+| `theme.theme_name` | `""` | Name of an imported theme (used when source is `imported`). |
 | `theme.background` / `foreground` / `accent` / `hover` / `running` | … | Manual palette (used when source is `manual`). |
 
 With `pywal` the bar reads `~/.cache/wal/colors.json` and tracks the whole
@@ -305,8 +341,8 @@ power bar, in four layouts — `whisker`, `win7`, `win11`, `plasma`.
 Opened from the bar's right-click menu. Every control applies live on *Apply*:
 
 - **Bar** — height, width (`NN%` or px), alignment.
-- **Theme** — source (pywal / waybar / manual), imported waybar theme, and
-  *Import…* to pull a waybar theme folder into the bar.
+- **Theme** — source (pywal / imported / manual), imported theme, and
+  *Import…* to pull a theme folder into the bar.
 - **Animations** — enable the pill border animation and pick its mode/speed.
 - **Arc Menu** — the FAB overlay: position, shape, sizes, colours, theming
   source, and its item list (add/edit/remove/reorder with installed-app search).

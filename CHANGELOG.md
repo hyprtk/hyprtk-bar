@@ -44,10 +44,17 @@ Dates are in YYYY-MM-DD format.
 - **`--no-deps` and `--help` flags** — `--no-deps` installs without touching
   system packages (for Gentoo/Nix or when deps are managed externally);
   `--help` prints usage.
-- **musl / source-build handling** — when the libc is musl (Alpine, Void-musl)
-  there are no PyGObject/pycairo manylinux wheels, so the installer pre-installs
-  the compiler and header build deps; it also retries a failed venv pip build
-  with those deps on any distro.
+- **No PyGObject/pycairo wheels → `--system-site-packages` venv.** PyGObject and
+  pycairo publish **no binary wheels at all** (verified: `pip download` fetches
+  `.tar.gz` source distributions), so a plain venv pip-install would build them
+  from source — needing a C compiler + GI/cairo headers — on *every* distro, not
+  just musl. The installer now installs the distro's own pygobject/pycairo via
+  the package manager and runs the bar in a `--system-site-packages` venv; only
+  the pure-Python `dbus-next` is pip-installed, so no compiler is required
+  anywhere.
+- **Corrected per-distro package maps.** Void ships the GI typelibs in its
+  `-devel` subpackages and Alpine in `-dev`; pycairo added to pacman/dnf/xbps/
+  apk/emerge; openSUSE uses the `typelib-1_0-*` names; `dbus-next` pinned `<0.3`.
 - **Portability documentation** — new `PORTABILITY.md` scopes the dependency
   model (GI typelibs vs. venv Python vs. subprocess tools), the distro support
   matrix, the per-distro package-name mapping, and the remaining Arch /
@@ -70,9 +77,29 @@ Dates are in YYYY-MM-DD format.
   terminal (env → GNOME/portal setting → candidates), file manager
   (`xdg-mime inode/directory`) and web browser (`xdg-settings`), so a fresh
   standalone install no longer hardcodes alacritty/thunar/brave.
+- **Nix flake.** `flake.nix` + `derivation.nix` package the bar for NixOS
+  (`buildPythonApplication` + `wrapGAppsHook` + `gobject-introspection`, data
+  files installed to `$out/share/hyprtk-bar` and surfaced via
+  `HYPRTK_BAR_DATA_DIR`); a dev shell ships the same deps.
+- **Cross-distro CI install matrix** (`.github/workflows/install-matrix.yml`) —
+  one container per distro family (Arch, Debian, Ubuntu, Fedora, openSUSE, Void,
+  Alpine) runs the installer dry-run, a real `--no-extras` install, and a
+  headless GTK import, so the per-distro package names stay honest.
+- **gtk-layer-shell version floor check** — `--dry-run` reports the installed
+  version and the installer warns (doesn't fail) when it is below 0.9, printing
+  the source-build steps (older LTS releases ship 0.5–0.8, Ubuntu 20.04 ships
+  0.1.0).
+- **Feature-availability matrix** (PORTABILITY.md) — every feature mapped to its
+  backing binary and its availability across the 8 distro families; the core
+  surface works everywhere, only the theming wall (wallpaper daemon / pywal /
+  folder colours) is Arch/AUR-centric and degrades to the built-in palette.
 
 ### Changed
 
+- **`HYPRTK_BAR_DATA_DIR`** — `config.py` honours this env var so a store-based
+  (Nix/flatpak) install can point the bar at its read-only data (assets, scripts,
+  themes); the menu's theme module reuses `config.INSTALL_DIR` instead of walking
+  four parent hops from `__file__`.
 - **Start menu power/settings icons are now Nerd Font glyphs.** The power
   buttons used bundled PNGs and the settings button a system symbolic icon
   (which rendered as a blank placeholder where the icon theme lacked it). Both
@@ -80,6 +107,32 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Security (code review).** Consolidated `_contrast_fg` into one WCAG
+  implementation (`colors.py`) shared by the bar, menu, arc menu and themer
+  (the four copies had diverged). Remote icon names from the session bus
+  (notifications/tray/dbusmenu) are sanitised via `safe_icon_name` so a
+  path-like name can't reach GTK's path loader; `sync-rofi-theme.sh` passes the
+  config path as argv (no string interpolation) and validates `theme_name`
+  before `ln -sf`; `import_theme` rejects unsafe theme names.
+- **Compatibility (code review).** Workspace/window dispatch falls back to the
+  classic Hyprland commands below 0.55 (cached version check); the tray adopts
+  foreign-watcher items via a callback (the sync getter deadlocked inside
+  dbus-next's dispatch); the wallpaper-daemon autostart is gated on `awww`/`swww`
+  being installed; hardcoded `~/hyprtk`/host paths in quicklinks, start-command
+  and the network monitor resolve via `resolve_script` (and the `enp7s0` NIC
+  hardcode is gone); `gi.require_version` ordering fixed in the menu modules.
+- **Design (code review).** The menu's `*` font-family + scrollbar rules are
+  scoped to `.menu-root` (they leaked screen-wide at APPLICATION priority);
+  warn/danger/drive/interface colours follow the pywal palette instead of
+  hardcoded hexes; settings icon tint uses the theme foreground (was `#000000`);
+  the notification center sits above toasts (OVERLAY layer); reduced-motion is
+  respected; keyboard focus rings and larger touch targets added.
+- **Performance (code review).** `top_processes` no longer sleeps (it diffs
+  against the previous poll's sample); the bar refresh makes one fewer
+  `hyprctl` call (shares the monitors query); `lsblk`/`ip`/`nvidia-smi` results
+  are TTL-cached; quick settings reads volume/mic once per refresh; the arc
+  menu reuses one CSS provider instead of churning screen-wide each frame;
+  keyboard-state globs resolve once; rofi sync only runs when the theme changes.
 - **Dialogs showed a double border.** The choose-app and arc-item dialogs were
   `Gtk.Dialog`s, whose internal `dialog-vbox` picks up GTK-theme chrome (a CSD
   decoration margin/shadow) that drew a second frame around the `popup-box`.
