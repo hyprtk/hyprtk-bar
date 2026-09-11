@@ -671,6 +671,16 @@ menu separator {{
   border: none; outline-style: none; outline-width: 0;
   box-shadow: none; background-color: transparent;
 }}
+/* GTK themes style the CSD ``decoration`` node with a margin + drop shadow
+   (e.g. Kripton: margin 10px, box-shadow). That draws a second frame around a
+   decorated/frameless dialog. The bar's windows never want it — neutralize it
+   so only the popup-box border shows. */
+decoration {{
+  margin: 0;
+  box-shadow: none;
+  border: none;
+  border-radius: 0;
+}}
 .mc-graph-title {{ font-size: 11px; opacity: 0.85; }}
 .mc-graph-value {{ font-weight: bold; }}
 .mc-graph-value.warn {{ color: #facc15; }}
