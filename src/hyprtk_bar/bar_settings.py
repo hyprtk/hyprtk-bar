@@ -128,6 +128,26 @@ def _radio_group(labels: list[tuple[str, str]]) -> dict[str, Gtk.RadioButton]:
     return buttons
 
 
+def _theme_dialog(dialog: Gtk.Dialog) -> None:
+    """Theme a plain ``Gtk.Dialog`` with the bar's pywal/imported palette.
+
+    The settings window and About window are frameless+transparent with a
+    ``popup-box`` root, but a ``Gtk.Dialog`` paints the GTK theme's own
+    background by default. Make it transparent and give the content + action
+    areas the ``popup-box`` glass so the dialog matches the bar's theme instead
+    of the system GTK colours.
+    """
+    dialog.get_style_context().add_class("settings-window")
+    dialog.set_app_paintable(True)
+    visual = dialog.get_screen().get_rgba_visual()
+    if visual:
+        dialog.set_visual(visual)
+    dialog.get_content_area().get_style_context().add_class("popup-box")
+    action = dialog.get_action_area()
+    if action is not None:
+        action.get_style_context().add_class("popup-box")
+
+
 class BarSettings(Gtk.Window):
     def __init__(self, cfg: dict, actions: dict, initial_page: str | None = None):
         super().__init__(title="hyprtk-bar settings")
@@ -1563,6 +1583,7 @@ class _ArcItemDialog(Gtk.Dialog):
 
     def __init__(self, parent, item: dict | None = None):
         super().__init__(title="Arc Menu Item", transient_for=parent, modal=True)
+        _theme_dialog(self)
         self._apps = _load_installed_apps()
 
         self.add_button("Cancel", Gtk.ResponseType.CANCEL)
@@ -1736,6 +1757,7 @@ class _QuicklinkPickerDialog(Gtk.Dialog):
 
     def __init__(self, parent, title: str, current: str):
         super().__init__(title=f"Choose {title}", transient_for=parent, modal=True)
+        _theme_dialog(self)
         self._apps = _load_installed_apps()
         self._result = None
 

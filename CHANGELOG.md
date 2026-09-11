@@ -80,6 +80,11 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **The "Choose app" and arc-menu item dialogs ignored the bar's theme.** They
+  are plain `Gtk.Dialog`s, which paint the GTK theme's own background. They now
+  use a shared `_theme_dialog()` helper — transparent window + `popup-box` glass
+  on the content/action areas — so they match the pywal/imported palette like
+  the settings and About windows.
 - **Re-enabling quicklinks didn't show the module until a reload.** Disabling
   quicklinks pops its widget from the module cache, so re-enabling rebuilt it
   fresh — but a freshly built widget is created hidden and `rebuild_layout`
