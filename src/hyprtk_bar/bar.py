@@ -554,6 +554,18 @@ class Bar(Gtk.Box):
             if self._menu_reload_cb is not None:
                 self._menu_reload_cb(block)
 
+        def set_quicklinks(block: dict) -> None:
+            cfg["quicklinks"] = block
+            config_module.save(cfg)
+            # Rebuild the module so the new links take effect (the cached widget
+            # still holds the old buttons).
+            old = self._widgets.pop("quicklinks", None)
+            if old is not None:
+                shutdown = getattr(old, "shutdown", None)
+                if shutdown is not None:
+                    shutdown()
+            self.rebuild_layout()
+
         def open_settings() -> None:
             self.open_settings()
 
@@ -581,6 +593,7 @@ class Bar(Gtk.Box):
             "open_about": open_about,
             "set_arcmenu": set_arcmenu,
             "set_menu": set_menu,
+            "set_quicklinks": set_quicklinks,
             "open_settings": open_settings,
         }
 

@@ -22,7 +22,12 @@ gi.require_version("Gdk", "3.0")
 
 from gi.repository import Gdk, Gtk, Pango  # noqa: E402
 
-from .config import DEFAULT_LAYOUT, MENU_LAYOUTS, MODULE_IDS, MODULE_LABELS  # noqa: E402
+from .config import DEFAULT_LAYOUT, DEFAULT_LINKS, MENU_LAYOUTS, MODULE_IDS, MODULE_LABELS  # noqa: E402
+from .sysapps import (  # noqa: E402
+    default_browser_command,
+    default_filemanager_command,
+    default_terminal_command,
+)
 from .theme_import import import_theme, list_themes  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
 
@@ -248,6 +253,7 @@ class BarSettings(Gtk.Window):
             ("animations", "\uf1fe", "Animations"),
             ("arcmenu", "\uf0e7", "Arc Menu"),
             ("menu", "\uf0ca", "Menu"),
+            ("quicklinks", "\uf0c1", "Quicklinks"),
             ("modules", "\uf009", "Modules"),
         ):
             sidebar.pack_start(self._build_page_button(key, glyph, label),
@@ -327,6 +333,8 @@ class BarSettings(Gtk.Window):
             self._build_arcmenu_tab(page)
         elif key == "menu":
             self._build_menu_tab(page)
+        elif key == "quicklinks":
+            self._build_quicklinks_tab(page)
         elif key == "modules":
             self._build_modules_tab(page)
         return page
@@ -336,7 +344,7 @@ class BarSettings(Gtk.Window):
         return {
             "bar": "Bar", "fonts": "Fonts", "themes": "Themes",
             "animations": "Animations", "arcmenu": "Arc Menu", "menu": "Menu",
-            "modules": "Modules",
+            "quicklinks": "Quicklinks", "modules": "Modules",
         }[key]
 
     def _tab_margins(self) -> Gtk.Box:
@@ -1178,6 +1186,102 @@ class BarSettings(Gtk.Window):
         )
         return menu
 
+    # ── quicklinks ───────────────────────────────────────────────
+
+    _QUICKLINK_APPS = (
+        ("terminal", "Terminal", default_terminal_command),
+        ("files", "File manager", default_filemanager_command),
+        ("web", "Web browser", default_browser_command),
+    )
+
+    def _build_quicklinks_tab(self, page: Gtk.Box) -> None:
+        ql = self._cfg.get("quicklinks") or {}
+        # Working copy of the links; edits accumulate until Apply.
+        links = ql.get("links") or DEFAULT_LINKS
+        self._quicklinks: list[dict] = [dict(l) for l in links if isinstance(l, dict)]
+        # Ensure the three app links exist so they can always be chosen.
+        for link_id, _label, _resolver in self._QUICKLINK_APPS:
+            self._ensure_quicklink(link_id)
+
+        hint = Gtk.Label(
+            label="Quick links launch your preferred apps. Choose an app, or "
+            "leave one on \"System default\" to follow the session's preferred "
+            "terminal, file manager and web browser.",
+            xalign=0, wrap=True,
+        )
+        hint.set_opacity(0.8)
+        page.pack_start(hint, False, False, 0)
+
+        self._quicklink_value_labels: dict[str, Gtk.Label] = {}
+        for link_id, label, _resolver in self._QUICKLINK_APPS:
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            lbl = Gtk.Label(label=label + ":", xalign=0)
+            lbl.set_size_request(120, -1)
+            value = Gtk.Label(xalign=0)
+            value.set_ellipsize(Pango.EllipsizeMode.END)
+            value.set_hexpand(True)
+            edit = Gtk.Button(label="Choose\u2026")
+            edit.connect("clicked", self._on_quicklink_edit, link_id)
+            row.pack_start(lbl, False, False, 0)
+            row.pack_start(value, True, True, 0)
+            row.pack_start(edit, False, False, 0)
+            page.pack_start(row, False, False, 0)
+            self._quicklink_value_labels[link_id] = value
+        self._refresh_quicklink_values()
+
+    def _ensure_quicklink(self, link_id: str) -> dict:
+        for link in self._quicklinks:
+            if link.get("id") == link_id:
+                return link
+        default = next((l for l in DEFAULT_LINKS if l.get("id") == link_id), {})
+        link = dict(default)
+        self._quicklinks.append(link)
+        return link
+
+    def _quicklink_link(self, link_id: str) -> dict | None:
+        for link in self._quicklinks:
+            if link.get("id") == link_id:
+                return link
+        return None
+
+    def _quicklink_resolver(self, link_id: str):
+        for id_, _label, resolver in self._QUICKLINK_APPS:
+            if id_ == link_id:
+                return resolver
+        return None
+
+    def _refresh_quicklink_values(self) -> None:
+        for link_id, label in self._quicklink_value_labels.items():
+            command = (self._quicklink_link(link_id) or {}).get("command", "")
+            if command:
+                label.set_text(command)
+                label.set_opacity(1.0)
+            else:
+                resolver = self._quicklink_resolver(link_id)
+                resolved = (resolver() or "") if resolver is not None else ""
+                label.set_text("System default" + (f" ({resolved})" if resolved else ""))
+                label.set_opacity(0.8)
+
+    def _on_quicklink_edit(self, _btn, link_id: str) -> None:
+        link = self._quicklink_link(link_id) or {}
+        title = next(lbl for id_, lbl, _ in self._QUICKLINK_APPS if id_ == link_id)
+        dialog = _QuicklinkPickerDialog(self, title, link.get("command", ""))
+        result = dialog.run_dialog()
+        if result is None:
+            return
+        command, name = result
+        link["command"] = command
+        if name:
+            link["label"] = name
+        else:
+            link.pop("label", None)
+        self._refresh_quicklink_values()
+
+    def _active_quicklinks_block(self) -> dict:
+        ql = dict(self._cfg.get("quicklinks") or {})
+        ql["links"] = self._quicklinks
+        return ql
+
     def _build_modules_tab(self, page: Gtk.Box) -> None:
         tab = page
         hint = Gtk.Label(
@@ -1333,6 +1437,9 @@ class BarSettings(Gtk.Window):
 
         # start menu
         self._actions["set_menu"](self._active_menu_block())
+
+        # quicklinks
+        self._actions["set_quicklinks"](self._active_quicklinks_block())
 
         # The theme actions above mutate the shared cfg and re-theme the bar,
         # but this window's widgets keep their build-time override colours.
@@ -1617,3 +1724,107 @@ class _ArcItemDialog(Gtk.Dialog):
         if command:
             item["command"] = command
         return item
+
+
+class _QuicklinkPickerDialog(Gtk.Dialog):
+    """Pick the app for a quick link, or reset it to the system default.
+
+    ``run_dialog()`` returns ``None`` on cancel, else a ``(command, name)``
+    tuple — ``command`` is the bare binary name (empty = system default) and
+    ``name`` the app's display name.
+    """
+
+    def __init__(self, parent, title: str, current: str):
+        super().__init__(title=f"Choose {title}", transient_for=parent, modal=True)
+        self._apps = _load_installed_apps()
+        self._result = None
+
+        self.add_button("System default", Gtk.ResponseType.APPLY)
+        self.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        self.connect("key-press-event", self._on_key_press)
+
+        box = self.get_content_area()
+        box.set_spacing(8)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+
+        hint = Gtk.Label(label=f"Current: {current or 'System default'}", xalign=0, wrap=True)
+        hint.set_opacity(0.8)
+        box.pack_start(hint, False, False, 0)
+
+        self._search = Gtk.SearchEntry()
+        self._search.set_placeholder_text("Type to search applications...")
+        self._search.connect("search-changed", lambda _e: self._populate())
+        self._search.connect("activate", lambda _e: self._select())
+        box.pack_start(self._search, False, False, 0)
+
+        self._list = Gtk.ListBox()
+        self._list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self._list.connect("row-activated", lambda _l, _r: self._select())
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_size_request(420, 300)
+        scroll.add(self._list)
+        box.pack_start(scroll, True, True, 0)
+
+        self._populate()
+        if hasattr(parent, "_apply_theme_fg_class"):
+            parent._apply_theme_fg_class(self)
+        self.show_all()
+
+    def run_dialog(self):
+        resp = self.run()
+        if resp == Gtk.ResponseType.APPLY:
+            result = ("", "")
+        elif resp == Gtk.ResponseType.OK:
+            result = self._result
+        else:
+            result = None
+        self.destroy()
+        return result
+
+    def _on_key_press(self, _widget, event) -> bool:
+        if event.keyval == Gdk.KEY_Escape:
+            self.destroy()
+            return True
+        return False
+
+    def _populate(self) -> None:
+        from .arcmenu import load_icon_image
+
+        for child in self._list.get_children():
+            self._list.remove(child)
+        query = self._search.get_text().strip().lower()
+        for app in self._apps:
+            if query and query not in app["name"].lower() and query not in (app["comment"] or "").lower():
+                continue
+            row = Gtk.ListBoxRow()
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            hbox.set_margin_top(4)
+            hbox.set_margin_bottom(4)
+            hbox.set_margin_start(6)
+            hbox.set_margin_end(6)
+            icon = load_icon_image(app["icon"], 24, "#000000")
+            hbox.pack_start(icon, False, False, 0)
+            labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            title = Gtk.Label(label=app["name"], xalign=0)
+            sub = Gtk.Label(label=app.get("comment") or app["exec"], xalign=0, width_chars=42, ellipsize=True)
+            sub.set_opacity(0.7)
+            labels.pack_start(title, False, False, 0)
+            labels.pack_start(sub, False, False, 0)
+            hbox.pack_start(labels, True, True, 0)
+            row.add(hbox)
+            row._app = app
+            self._list.add(row)
+        self._list.show_all()
+
+    def _select(self) -> None:
+        row = self._list.get_selected_row() or self._list.get_row_at_index(0)
+        app = getattr(row, "_app", None)
+        if app is None:
+            return
+        command = app["exec"].split()[0].rsplit("/", 1)[-1]
+        self._result = (command, app["name"])
+        self.response(Gtk.ResponseType.OK)

@@ -2,8 +2,10 @@
 
 Replaces the old waybar ``custom/updates`` module — a Nerd Font glyph with the
 pending-update count, colored by threshold (green/yellow/red), a hover tooltip,
-and a left-click that opens the update installer in a floating terminal. The
-count, CSS class and tooltip come from the script's waybar-style JSON output.
+and a left-click that runs the update installer (which self-launches in a
+detected terminal). Both scripts are distro-agnostic: they detect the package
+manager and query/apply updates accordingly. The count, CSS class and tooltip
+come from the script's waybar-style JSON output.
 """
 
 # ─────────────────────────────────────────────────────────────────
@@ -23,7 +25,7 @@ gi.require_version("Gtk", "3.0")
 
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from .config import icon_size_for  # noqa: E402
+from .config import icon_size_for, resolve_script, SCRIPTS_DIR  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
 from . import proc  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
@@ -38,6 +40,7 @@ _ALLOWED_SCRIPT_ROOTS = (
     os.path.expanduser("~/hyprtk/installer/scripts"),
     os.path.expanduser("~/.local/share/hyprtk-bar"),
     os.path.expanduser("~/.local/bin"),
+    str(SCRIPTS_DIR),
 )
 
 
@@ -66,8 +69,10 @@ class Updates(HoverButton):
         u = cfg.get("updates") or {}
         self._interval = max(5, int(u.get("interval", 60)))
         # The timer-run script is allowlisted (never an arbitrary config path).
+        # Defaults to the bundled distro-agnostic updates.sh, falling back to
+        # the full-dotfiles copy — so the module works standalone on any distro.
         configured = os.path.expanduser(
-            u.get("script", "~/hyprtk/installer/scripts/updates.sh")
+            u.get("script") or str(resolve_script("updates.sh", "installer", "scripts", "updates.sh"))
         )
         self._script = _allowed_script(configured or "")
         if not self._script:
@@ -84,8 +89,7 @@ class Updates(HoverButton):
             self._interval = 3600
         self._install = u.get(
             "install_command",
-            "alacritty -o window.dimensions.lines=45 window.dimensions.columns=90"
-            " --class floating -e ~/hyprtk/installer/scripts/installupdates.sh",
+            str(resolve_script("installupdates.sh", "installer", "scripts", "installupdates.sh")),
         ) or ""
         font_cfg = cfg.get("font") or {}
         self._glyph = Glyph(_GLYPH, "accent-icon")

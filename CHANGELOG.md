@@ -52,6 +52,24 @@ Dates are in YYYY-MM-DD format.
   model (GI typelibs vs. venv Python vs. subprocess tools), the distro support
   matrix, the per-distro package-name mapping, and the remaining Arch /
   `~/hyprtk` assumptions.
+- **Distro-agnostic `updates` module.** The package-update indicator no longer
+  assumes pacman. Two bundled scripts — `scripts/updates.sh` (pending count)
+  and `scripts/installupdates.sh` (apply) — detect the package manager (pacman,
+  apt, dnf, zypper, xbps, apk, emerge, nix) and run the matching query/upgrade.
+  The module's default `script` and `install_command` now resolve to these
+  bundled scripts (dotfiles copy as fallback), so the indicator works standalone
+  on any distro instead of showing `?` off Arch. `installupdates.sh` also
+  self-launches inside the first terminal emulator it finds (alacritty, kitty,
+  foot, wezterm, xfce4-terminal, gnome-terminal, konsole, terminator, xterm),
+  so the click no longer assumes alacritty.
+- **Quicklinks editor + system-preferred defaults.** The bar settings gained a
+  **Quicklinks** page where the terminal, file-manager and web-browser quick
+  links can each "Choose…" their app from the installed applications (or reset
+  to "System default"). When a link's command is empty, it resolves at click
+  time to the session's preferred app — new `sysapps.py` resolves the default
+  terminal (env → GNOME/portal setting → candidates), file manager
+  (`xdg-mime inode/directory`) and web browser (`xdg-settings`), so a fresh
+  standalone install no longer hardcodes alacritty/thunar/brave.
 
 ### Changed
 

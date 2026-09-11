@@ -38,6 +38,12 @@ def resolve_script(name: str, *hyprtk_parts: str) -> Path:
 
 ROFI_SYNC_SH = resolve_script("sync-rofi-theme.sh", "configs", "rofi", "scripts", "sync-rofi-theme.sh")
 
+# Distro-agnostic update scripts (bundled with the standalone bar, with the
+# full hyprtk dotfiles as the fallback). ``updates.sh`` counts pending updates
+# for whatever package manager is detected; ``installupdates.sh`` applies them.
+UPDATES_SH = resolve_script("updates.sh", "installer", "scripts", "updates.sh")
+INSTALL_UPDATES_SH = resolve_script("installupdates.sh", "installer", "scripts", "installupdates.sh")
+
 log = logging.getLogger("hyprtk_bar.config")
 
 # Module ids and their positions. The bar builds its widgets from ``layout``;
@@ -96,19 +102,19 @@ DEFAULT_LINKS = [
         "id": "terminal",
         "label": "Terminal",
         "icon": "\uf120",  # nf-fa-terminal
-        "command": "alacritty",
+        "command": "",  # resolves the session's preferred terminal
     },
     {
         "id": "files",
         "label": "File manager",
         "icon": "\uf07c",  # nf-fa-folder_open_o
-        "command": "thunar",
+        "command": "",  # resolves the session's preferred file manager
     },
     {
         "id": "web",
         "label": "Web browser",
         "icon": "\uf0ac",  # nf-fa-globe
-        "command": "",
+        "command": "",  # resolves the session's preferred web browser
     },
     {
         "id": "wallpaper",
@@ -203,8 +209,10 @@ DEFAULTS = {
     "updates": {
         "enabled": True,
         "interval": 60,         # seconds between update checks
-        "script": "~/hyprtk/installer/scripts/updates.sh",
-        "install_command": "alacritty -o window.dimensions.lines=45 window.dimensions.columns=90 --class floating -e ~/hyprtk/installer/scripts/installupdates.sh",
+        "script": str(UPDATES_SH),
+        # installupdates.sh self-launches in a detected terminal, so the click
+        # command is just the script itself (works on any distro/terminal).
+        "install_command": str(INSTALL_UPDATES_SH),
     },
     "window": {
         "enabled": True,
@@ -502,8 +510,8 @@ def validate(cfg: dict) -> dict:
         )
 
     upd = valid.get("updates") or {}
-    upd["script"] = _str_field(upd.get("script"), "~/hyprtk/installer/scripts/updates.sh")
-    upd["install_command"] = _str_field(upd.get("install_command"))
+    upd["script"] = _str_field(upd.get("script"), str(UPDATES_SH))
+    upd["install_command"] = _str_field(upd.get("install_command"), str(INSTALL_UPDATES_SH))
 
     # workspaces.max feeds range() at build time — clamp it to avoid absurd
     # chip counts from a hand-edited config.

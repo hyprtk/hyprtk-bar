@@ -45,8 +45,7 @@ The bar's dependencies split into three layers:
 | `lsblk`/`lspci`  | disks / GPU identity             |
 | `rocminfo`       | AMD GPU clocks                  |
 | `checkupdates`   | updates module (Arch-only)       |
-| `pkexec`         | SDDM/GRUB update, system kill    |
-| `xdg-settings`   | default-browser resolution       |
+| `pkexec`         | SDDM/GRUB update, system kill    || `xdg-settings`   | default-browser resolution       |
 | `gtk-update-icon-cache` | icon cache refresh         |
 | `update-desktop-database` | desktop entry install     |
 
@@ -95,12 +94,15 @@ reference for the rest:
   detects musl and installs those build deps first; it also retries with them
   if a pip build fails on any distro.
 
-### `updates` module is pacman-only
-- The default `updates.sh` polls `checkupdates` (pacman-contrib) and clicks
-  through to `installupdates.sh`. On non-Arch this is wrong.
-- Config is overridable (`updates.script` + `updates.install_command`), so each
-  distro needs its own updater script. Until then the module shows `?` when the
-  script is missing or not allowlisted.
+### `updates` module is distro-agnostic
+- The module's default `updates.sh` and `installupdates.sh` are now **bundled**
+  with the bar (`scripts/`), not the pacman-only dotfiles copies. Each script
+  detects the package manager (pacman, apt, dnf, zypper, xbps, apk, emerge,
+  nix) and runs the matching query/upgrade, so the indicator works standalone
+  on any distro.
+- Config stays overridable (`updates.script` + `updates.install_command`) for
+  anyone who wants a custom updater. `update.sh`/`installupdates.sh` resolve
+  bundled-first, dotfiles-copy as fallback.
 
 ### `~/hyprtk/...` assumptions
 Several paths assume the full hyprtk dotfiles are installed at `~/hyprtk`, not
@@ -121,8 +123,7 @@ reasonably current release (≥ 0.9) to avoid missing layer-shell API.
 
 ## Remaining work
 
-1. Non-Arch `updates.sh` per distro (dnf/apt/zypper/xbps/apk variants).
-2. Generalise the `~/hyprtk/...` paths into config, with graceful skips.
-3. NixOS: add a flake / derivation rather than runtime `nix-env` installs.
-4. `yum` (RHEL/CentOS 7) detection is currently folded into `dnf` — verify the
+1. Generalise the `~/hyprtk/...` paths into config, with graceful skips.
+2. NixOS: add a flake / derivation rather than runtime `nix-env` installs.
+3. `yum` (RHEL/CentOS 7) detection is currently folded into `dnf` — verify the
    older `yum` install flags if those systems matter.

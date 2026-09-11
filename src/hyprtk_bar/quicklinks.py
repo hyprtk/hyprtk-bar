@@ -16,17 +16,21 @@ from __future__ import annotations
 
 import logging
 import re
-import subprocess
 
 import gi
 gi.require_version("Gtk", "3.0")
 
-from gi.repository import Gio, Gtk  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
 from .clipboard import CliphistDialog  # noqa: E402
 from .config import DEFAULT_LINKS, icon_size_for  # noqa: E402
 from . import proc  # noqa: E402
 from .popup import bind_hover_tooltip  # noqa: E402
+from .sysapps import (  # noqa: E402
+    default_browser_command,
+    default_filemanager_command,
+    default_terminal_command,
+)
 from .themer import ThemerDialog  # noqa: E402
 from .widgets import Glyph, HoverButton  # noqa: E402
 
@@ -35,29 +39,13 @@ log = logging.getLogger("hyprtk_bar.quicklinks")
 # Shell operators that make a command require an explicit sh -c wrapper.
 _SHELL_OPS_RE = re.compile(r"(?:&&|\|\||;|\||`|\$\(|[<>])")
 
-
-def default_browser_command() -> str:
-    """Resolve the session's default web browser to a launchable command."""
-    try:
-        out = subprocess.run(
-            ["xdg-settings", "get", "default-web-browser"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-        ).stdout.strip()
-        if out.endswith(".desktop"):
-            try:
-                info = Gio.DesktopAppInfo.new(out)
-                line = info.get_commandline() if info is not None else None
-            except (TypeError, GLib.Error):
-                line = None
-            if line:
-                cmd = line.split()[0].rsplit("/", 1)[-1]
-                if cmd:
-                    return cmd
-    except (subprocess.SubprocessError, OSError):
-        pass
-    return "brave"
+# App-launcher quick links whose empty command resolves to the session's
+# preferred app at click time ("System default").
+_RESOLVERS = {
+    "terminal": default_terminal_command,
+    "files": default_filemanager_command,
+    "web": default_browser_command,
+}
 
 
 def _launch(command: str) -> bool:
@@ -97,8 +85,10 @@ class QuickLinkButton(HoverButton):
         command = self._link.get(
             {1: "command", 2: "command_middle", 3: "command_right"}.get(event.button, "command")
         ) or ""
-        if not command and self._link.get("id") == "web":
-            command = default_browser_command()
+        if not command:
+            resolver = _RESOLVERS.get(self._link.get("id"))
+            if resolver is not None:
+                command = resolver() or ""
         if command:
             if not _launch(command):
                 log.warning("failed to spawn quick link %r", command)
