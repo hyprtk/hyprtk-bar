@@ -80,6 +80,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Re-enabling quicklinks didn't show the module until a reload.** Disabling
+  quicklinks pops its widget from the module cache, so re-enabling rebuilt it
+  fresh — but a freshly built widget is created hidden and `rebuild_layout`
+  packs it into an already-shown box, so it stayed invisible. `_ensure_module`
+  now `show_all()`s a newly built widget, so any module re-enabled mid-session
+  appears immediately.
 - **Module tooltips appeared at the screen edge instead of above their module.**
   The tooltip x used the pill/widget's *surface-local* allocation as if it were
   *monitor-local*; with a constrained bar width (the surface is inset from the

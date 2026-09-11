@@ -266,6 +266,11 @@ class Bar(Gtk.Box):
         if widget is None:
             return None
         self._widgets[mid] = widget
+        # A freshly-built widget is created hidden; the initial build relies on
+        # the window's show_all(), but a mid-session rebuild (e.g. re-enabling a
+        # module) packs it into an already-shown box, so it must be shown here
+        # or it stays invisible until the next reload.
+        widget.show_all()
         return widget
 
     def _build_widget(self, mid: str) -> Gtk.Widget | None:
