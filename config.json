@@ -14,8 +14,8 @@
   },
   "center": {
     "start_button": true,
-    "start_icon": "go-home-symbolic",
-    "start_command": "hyprtk-menu",
+    "start_glyph": "\uf015",
+    "start_command": "~/.local/bin/hyprtk-bar-menu-toggle.sh",
     "pinned": [
       {
         "class": "Brave",

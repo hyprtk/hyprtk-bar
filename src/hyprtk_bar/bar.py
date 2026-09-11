@@ -50,7 +50,7 @@ class StartButton(HoverButton):
         center = cfg.get("center") or {}
         self._ipc = ipc
         self._bar = bar
-        self._command = center.get("start_command", "hyprtk-menu")
+        self._command = center.get("start_command", "~/.local/bin/hyprtk-bar-menu-toggle.sh")
         font_cfg = cfg.get("font") or {}
         glyph = Glyph(center.get("start_glyph", "\uf015"), "accent-icon")
         glyph.set_pixel_size(
