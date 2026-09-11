@@ -128,23 +128,21 @@ def _radio_group(labels: list[tuple[str, str]]) -> dict[str, Gtk.RadioButton]:
     return buttons
 
 
-def _theme_dialog(dialog: Gtk.Dialog) -> None:
-    """Theme a plain ``Gtk.Dialog`` with the bar's pywal/imported palette.
+def _theme_dialog(win: Gtk.Window) -> None:
+    """Theme a plain ``Gtk.Window`` with the bar's pywal/imported palette.
 
-    The settings window and About window are frameless+transparent with a
-    ``popup-box`` root, but a ``Gtk.Dialog`` paints the GTK theme's own
-    background by default. Make it transparent and give the content area the
-    ``popup-box`` glass so the dialog matches the bar's theme instead of the
-    system GTK colours. Only the content area gets ``popup-box`` — the buttons
-    live inside it, so there is a single bordered box (no double border).
+    The dialogs use a frameless+transparent ``Gtk.Window`` (like the About
+    window) with a ``popup-box`` root — not ``Gtk.Dialog``, whose internal
+    ``dialog-vbox`` picks up GTK-theme chrome that draws a second frame. Each
+    dialog adds ``popup-box`` to its own root box.
     """
-    dialog.get_style_context().add_class("settings-window")
-    dialog.set_decorated(False)
-    dialog.set_app_paintable(True)
-    visual = dialog.get_screen().get_rgba_visual()
+    win.get_style_context().add_class("settings-window")
+    win.set_decorated(False)
+    win.set_keep_above(True)
+    win.set_app_paintable(True)
+    visual = win.get_screen().get_rgba_visual()
     if visual:
-        dialog.set_visual(visual)
-    dialog.get_content_area().get_style_context().add_class("popup-box")
+        win.set_visual(visual)
 
 
 class BarSettings(Gtk.Window):
@@ -1576,24 +1574,30 @@ class BarSettings(Gtk.Window):
         chooser.connect("response", on_response)
         chooser.show()
 
-class _ArcItemDialog(Gtk.Dialog):
+class _ArcItemDialog(Gtk.Window):
     """Add/edit a single arc menu item (icon, command, tooltip), with an
     embedded application search panel."""
 
     def __init__(self, parent, item: dict | None = None):
-        super().__init__(title="Arc Menu Item", transient_for=parent, modal=True)
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.set_title("Arc Menu Item")
+        self.set_transient_for(parent)
+        self.set_modal(True)
+        self._result: dict | None = None
+        self._finished = False
         _theme_dialog(self)
         self._apps = _load_installed_apps()
 
         self.connect("key-press-event", self._on_key_press)
 
         item = item or {"icon": "", "command": "", "tooltip": ""}
-        box = self.get_content_area()
-        box.set_spacing(8)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.get_style_context().add_class("popup-box")
         box.set_margin_start(12)
         box.set_margin_end(12)
         box.set_margin_top(12)
         box.set_margin_bottom(12)
+        self.add(box)
 
         title_label = Gtk.Label(label="Arc Menu Item", xalign=0)
         title_label.get_style_context().add_class("mc-page-title")
@@ -1656,19 +1660,19 @@ class _ArcItemDialog(Gtk.Dialog):
         hint.set_margin_top(4)
         box.pack_start(hint, False, False, 0)
 
-        # Buttons live in the content area (single popup-box), not the action
+        # Buttons live in the content area (single popup-box), not an action
         # area, so there is one bordered box — not two stacked ones.
         btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         btn_row.set_halign(Gtk.Align.END)
         cancel_btn = Gtk.Button(label="Cancel")
-        cancel_btn.connect("clicked", lambda _b: self.response(Gtk.ResponseType.CANCEL))
+        cancel_btn.connect("clicked", lambda _b: self._finish(None))
         save_btn = Gtk.Button(label="Save")
         save_btn.get_style_context().add_class("settings-apply")
         save_btn.set_can_default(True)
-        save_btn.grab_default()
-        save_btn.connect("clicked", lambda _b: self.response(Gtk.ResponseType.OK))
+        save_btn.connect("clicked", lambda _b: self._finish(self.get_item()))
         btn_row.pack_start(cancel_btn, False, False, 0)
         btn_row.pack_start(save_btn, False, False, 0)
+        save_btn.grab_default()
         box.pack_start(btn_row, False, False, 0)
 
         # Theme the dialog's widgets (content + buttons) so it matches
@@ -1678,12 +1682,18 @@ class _ArcItemDialog(Gtk.Dialog):
         self.show_all()
 
     def run_dialog(self) -> dict | None:
-        if self.run() == Gtk.ResponseType.OK:
-            item = self.get_item()
-            self.destroy()
-            return item
+        # Block like Gtk.Dialog.run(): a nested main loop that quits on _finish.
+        Gtk.main()
+        result = self._result
         self.destroy()
-        return None
+        return result
+
+    def _finish(self, result: dict | None) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        self._result = result
+        Gtk.main_quit()
 
     def _show_app_search(self) -> None:
         self._search.set_visible(True)
@@ -1742,7 +1752,7 @@ class _ArcItemDialog(Gtk.Dialog):
 
     def _on_key_press(self, _widget, event) -> bool:
         if event.keyval == Gdk.KEY_Escape:
-            self.destroy()
+            self._finish(None)
             return True
         return False
 
@@ -1763,7 +1773,7 @@ class _ArcItemDialog(Gtk.Dialog):
         return item
 
 
-class _QuicklinkPickerDialog(Gtk.Dialog):
+class _QuicklinkPickerDialog(Gtk.Window):
     """Pick the app for a quick link, or reset it to the system default.
 
     ``run_dialog()`` returns ``None`` on cancel, else a ``(command, name)``
@@ -1772,19 +1782,24 @@ class _QuicklinkPickerDialog(Gtk.Dialog):
     """
 
     def __init__(self, parent, title: str, current: str):
-        super().__init__(title=f"Choose {title}", transient_for=parent, modal=True)
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.set_title(f"Choose {title}")
+        self.set_transient_for(parent)
+        self.set_modal(True)
+        self._result = None
+        self._finished = False
         _theme_dialog(self)
         self._apps = _load_installed_apps()
-        self._result = None
 
         self.connect("key-press-event", self._on_key_press)
 
-        box = self.get_content_area()
-        box.set_spacing(8)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.get_style_context().add_class("popup-box")
         box.set_margin_start(12)
         box.set_margin_end(12)
         box.set_margin_top(12)
         box.set_margin_bottom(12)
+        self.add(box)
 
         title_label = Gtk.Label(label=f"Choose {title}", xalign=0)
         title_label.get_style_context().add_class("mc-page-title")
@@ -1809,14 +1824,14 @@ class _QuicklinkPickerDialog(Gtk.Dialog):
         scroll.add(self._list)
         box.pack_start(scroll, True, True, 0)
 
-        # Buttons live in the content area (single popup-box), not the action
+        # Buttons live in the content area (single popup-box), not an action
         # area, so there is one bordered box — not two stacked ones.
         btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         btn_row.set_halign(Gtk.Align.END)
         system_btn = Gtk.Button(label="System default")
-        system_btn.connect("clicked", lambda _b: self.response(Gtk.ResponseType.APPLY))
+        system_btn.connect("clicked", lambda _b: self._finish(("", "")))
         cancel_btn = Gtk.Button(label="Cancel")
-        cancel_btn.connect("clicked", lambda _b: self.response(Gtk.ResponseType.CANCEL))
+        cancel_btn.connect("clicked", lambda _b: self._finish(None))
         btn_row.pack_start(system_btn, False, False, 0)
         btn_row.pack_start(cancel_btn, False, False, 0)
         box.pack_start(btn_row, False, False, 0)
@@ -1827,19 +1842,22 @@ class _QuicklinkPickerDialog(Gtk.Dialog):
         self.show_all()
 
     def run_dialog(self):
-        resp = self.run()
-        if resp == Gtk.ResponseType.APPLY:
-            result = ("", "")
-        elif resp == Gtk.ResponseType.OK:
-            result = self._result
-        else:
-            result = None
+        # Block like Gtk.Dialog.run(): a nested main loop that quits on _finish.
+        Gtk.main()
+        result = self._result
         self.destroy()
         return result
 
+    def _finish(self, result) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        self._result = result
+        Gtk.main_quit()
+
     def _on_key_press(self, _widget, event) -> bool:
         if event.keyval == Gdk.KEY_Escape:
-            self.destroy()
+            self._finish(None)
             return True
         return False
 
@@ -1878,5 +1896,4 @@ class _QuicklinkPickerDialog(Gtk.Dialog):
         if app is None:
             return
         command = app["exec"].split()[0].rsplit("/", 1)[-1]
-        self._result = (command, app["name"])
-        self.response(Gtk.ResponseType.OK)
+        self._finish((command, app["name"]))

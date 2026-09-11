@@ -80,6 +80,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **Dialogs showed a double border.** The choose-app and arc-item dialogs were
+  `Gtk.Dialog`s, whose internal `dialog-vbox` picks up GTK-theme chrome (a CSD
+  decoration margin/shadow) that drew a second frame around the `popup-box`.
+  They are now frameless `Gtk.Window`s with a single `popup-box` root (like the
+  About window), using a nested main loop for the modal behaviour — one bordered
+  box, no second frame.
 - **The "Choose app" and arc-menu item dialogs ignored the bar's theme.** They
   are plain `Gtk.Dialog`s, which paint the GTK theme's own background. They now
   use a shared `_theme_dialog()` helper — transparent window + `popup-box` glass
