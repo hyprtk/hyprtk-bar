@@ -259,7 +259,7 @@ DEFAULTS = {
         "item_size": 48,
         "animation_time": 300,      # ms
         "fab_icon": "view-grid-symbolic",
-        "fab_glyph": "\uf00a",
+        "fab_glyph": "\uf00a",     # matches the apps quicklink (rofi launcher) glyph
         "glyph_size": 0,           # glyph px (0 = auto: half the button size)
         "fab_color": "#c084fc",     # mauve / color5 accent
         "item_color": "#22d3ee",    # sky / color6 accent
