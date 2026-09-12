@@ -21,6 +21,11 @@ Dates are in YYYY-MM-DD format.
   Running / Hover / Border) that write straight into the config's `theme` block
   on Apply. Manual mode now also draws the same 2px border as pywal, coloured
   from the (new) `theme.border_color` setting, falling back to the accent.
+- **`hyprtk-liquid-glass` rofi variant.** A matching Rofi variant (cool-tinted
+  translucent glass + bright specular border, pywal accents) pairs with the bar's
+  Liquid Glass theme. It is auto-discovered by the Theme Manager's Rofi page and
+  linked by `sync-rofi-theme.sh` when the bar uses the `hyprtk-liquid-glass`
+  imported theme.
 
 ### Changed
 
