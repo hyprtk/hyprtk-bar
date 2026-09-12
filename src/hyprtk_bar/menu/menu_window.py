@@ -545,6 +545,10 @@ class MenuWindow(Gtk.Window):
         self.app_list.set_activate_on_single_click(True)
         self.app_list.connect("row-activated", self._on_app_activated)
         self.app_list.connect("button-press-event", self._on_app_button)
+        # A fresh listbox means the old rows (and any cached rows) are gone —
+        # the previous app_list was destroyed when its parent was rebuilt on a
+        # layout/theme switch. Drop the cache so _refresh_apps builds new rows.
+        self._app_rows = {}
         scroll.add(self.app_list)
         return scroll
 
