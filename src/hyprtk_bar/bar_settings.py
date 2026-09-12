@@ -678,7 +678,13 @@ class BarSettings(Gtk.Window):
         theme_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         theme_label = Gtk.Label(label="Imported theme:", xalign=0)
         theme_label.set_size_request(-1, -1)
-        self._themes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self._themes_box = Gtk.FlowBox()
+        self._themes_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._themes_box.set_column_spacing(8)
+        self._themes_box.set_row_spacing(2)
+        self._themes_box.set_max_children_per_line(2)
+        self._themes_box.set_min_children_per_line(2)
+        self._themes_box.set_homogeneous(True)
         themes_scroller = Gtk.ScrolledWindow()
         themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         themes_scroller.set_min_content_height(120)
@@ -1607,14 +1613,16 @@ class BarSettings(Gtk.Window):
         if not self._themes:
             label = Gtk.Label(label="No themes imported yet — use Import…", xalign=0)
             label.set_opacity(0.7)
-            self._themes_box.pack_start(label, False, False, 0)
+            self._themes_box.add(label)
         else:
             for name in self._themes:
                 btn = Gtk.CheckButton(label=name)
                 btn.set_active(name == select)
+                btn.set_hexpand(True)
+                btn.set_halign(Gtk.Align.FILL)
                 btn.connect("toggled", self._on_theme_toggled, name)
                 self._theme_buttons[name] = btn
-                self._themes_box.pack_start(btn, False, False, 0)
+                self._themes_box.add(btn)
         self._themes_box.show_all()
         self._update_source_state()
 
