@@ -63,7 +63,7 @@
 }
 .search selection {
     background-color: @accent;
-    color: #000000;
+    color: @selected_text;
 }
 
 /* Sidebar */

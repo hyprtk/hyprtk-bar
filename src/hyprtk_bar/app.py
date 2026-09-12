@@ -10,6 +10,7 @@ from __future__ import annotations
 import cairo
 import logging
 import subprocess
+import threading
 import time
 
 import gi
@@ -557,17 +558,24 @@ class BarWindow(Gtk.Window):
 
     def _refresh(self) -> bool:
         self._refresh_id = None
-        clients = self._ipc.query("clients")
-        if clients is None:
-            return GLib.SOURCE_REMOVE
-        workspaces = self._ipc.query("workspaces") or []
-        focus = self._ipc.query("activewindow") or {}
-        monitors = self._ipc.query("monitors") or []
-        a_id = self._active_workspace_on_this_monitor(monitors)
-        self._bar.update(
-            clients, workspaces, a_id,
-            focus.get("address"), focus.get("title"), focus.get("class"),
-        )
+        # The four hyprctl queries run on a worker thread so a focus/move burst
+        # never stalls the GTK main loop (each spawn can block up to 5s). Results
+        # are marshalled back to the main thread via idle_add.
+        def _work() -> None:
+            clients = self._ipc.query("clients")
+            if clients is None:
+                return
+            workspaces = self._ipc.query("workspaces") or []
+            focus = self._ipc.query("activewindow") or {}
+            monitors = self._ipc.query("monitors") or []
+            a_id = self._active_workspace_on_this_monitor(monitors)
+            GLib.idle_add(
+                self._bar.update,
+                clients, workspaces, a_id,
+                focus.get("address"), focus.get("title"), focus.get("class"),
+            )
+
+        threading.Thread(target=_work, daemon=True).start()
         return GLib.SOURCE_REMOVE
 
     def _active_workspace_on_this_monitor(self, monitors: list) -> int:

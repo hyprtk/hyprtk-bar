@@ -67,6 +67,24 @@ SDDM_UPDATE_SH = HYPRTK / "configs" / "sddm" / "update.sh"
 ICON_THEME_DIR = HOME / ".local" / "share" / "icons" / "Papirus-Dark" / "48x48" / "places"
 PAPIRUS_FOLDERS = HOME / ".local" / "bin" / "papirus-folders"
 PAPIRUS_FOLDERS_SH = HOME / ".local" / "share" / "icons" / "papirus-folders.sh"
+
+
+def _root_script_safe(path) -> bool:
+    """True when *path* is user-owned and not writable by group/other.
+
+    ``update.sh`` runs as root via pkexec; if it (or its parent dir) were
+    writable by another user, a local attacker could plant a root payload that
+    runs on the next "Update SDDM & GRUB" click. Refuse that case.
+    """
+    uid = os.getuid()
+    for p in (path, path.parent):
+        try:
+            st = p.stat()
+        except OSError:
+            return False
+        if st.st_uid != uid or (st.st_mode & 0o022):
+            return False
+    return True
 ICON_CACHE_THEME_DIRS = [
     HOME / ".local" / "share" / "icons" / "Papirus-Dark",
     HOME / ".local" / "share" / "icons" / "Papirus",
@@ -2085,6 +2103,10 @@ class ThemerDialog(Popup):
     def _on_sddm_update(self, btn):
         if not SDDM_UPDATE_SH.is_file():
             self._toast("update.sh not found")
+            return
+        if not _root_script_safe(SDDM_UPDATE_SH):
+            log.warning("SDDM/GRUB: refusing to run writable/foreign update.sh as root")
+            self._toast("update.sh is not safely owned — refusing to run as root")
             return
         # Ensure the file reflects the current wallpaper before copying it.
         self._refresh_sddm_preview()

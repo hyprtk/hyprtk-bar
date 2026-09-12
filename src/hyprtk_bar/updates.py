@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shlex
 import threading
 
 import gi
@@ -91,6 +92,24 @@ class Updates(HoverButton):
             "install_command",
             str(resolve_script("installupdates.sh", "installer", "scripts", "installupdates.sh")),
         ) or ""
+        # The install command also comes from user config; allowlist its
+        # executable the same way as the timer script so a synced/malicious
+        # config can't get arbitrary shell on left-click. Empty stays empty
+        # (disabled), a non-allowlisted command falls back to the bundled
+        # installer.
+        if self._install:
+            try:
+                prog = shlex.split(self._install)[0]
+            except ValueError:
+                prog = ""
+            if not _allowed_script(os.path.expanduser(prog)):
+                log.warning(
+                    "updates: refusing non-allowlisted install command %r; using bundled installer",
+                    self._install,
+                )
+                self._install = str(
+                    resolve_script("installupdates.sh", "installer", "scripts", "installupdates.sh")
+                ) or ""
         font_cfg = cfg.get("font") or {}
         self._glyph = Glyph(_GLYPH, "accent-icon")
         self._glyph.set_pixel_size(

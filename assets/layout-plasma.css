@@ -2,12 +2,12 @@
    Breeze translucent: bluish surface, subtle borders, KDE feel.
    Scoped under .layout-plasma. */
 
-@define-color plasma_blue alpha(@color4, 0.85);
-@define-color plasma_hover alpha(@color4, 0.12);
+@define-color plasma_blue alpha(@accent, 0.85);
+@define-color plasma_hover alpha(@accent, 0.12);
 
 .layout-plasma .menu {
     border-radius: 16px;
-    border: 2px solid alpha(@color4, 0.3);
+    border: 2px solid alpha(@accent, 0.3);
 }
 
 /* ── Search ── */
@@ -16,7 +16,7 @@
     padding: 8px 14px;
     margin: 8px 10px 4px 10px;
     background-color: alpha(@foreground, 0.05);
-    border: 1px solid alpha(@color4, 0.3);
+    border: 1px solid alpha(@accent, 0.3);
 }
 .layout-plasma .search:focus {
     border-color: @plasma_blue;
@@ -26,7 +26,7 @@
 /* ── Tab row ── */
 .layout-plasma .plasma-tabs {
     padding: 4px 8px 0 8px;
-    border-bottom: 1px solid alpha(@color4, 0.2);
+    border-bottom: 1px solid alpha(@accent, 0.2);
 }
 .layout-plasma .plasma-tab {
     border-radius: 4px 4px 0 0;
@@ -38,11 +38,11 @@
     font-size: 12px;
 }
 .layout-plasma .plasma-tab:hover {
-    background-color: alpha(@color4, 0.10);
+    background-color: alpha(@accent, 0.10);
 }
 .layout-plasma .plasma-tab.active {
-    background-color: alpha(@color4, 0.14);
-    border: 1px solid alpha(@color4, 0.3);
+    background-color: alpha(@accent, 0.14);
+    border: 1px solid alpha(@accent, 0.3);
     border-bottom: 2px solid @plasma_blue;
     color: @selected_text;
 }
@@ -81,7 +81,7 @@
 
 /* ── Applications tab (sidebar + app list) ── */
 .layout-plasma .sidebar-scroll {
-    background-color: alpha(@color4, 0.06);
+    background-color: alpha(@accent, 0.06);
 }
 .layout-plasma .cat-row {
     border-radius: 4px;
@@ -90,7 +90,7 @@
 }
 .layout-plasma .cat-row.selected {
     background-color: @plasma_hover;
-    border: 1px solid alpha(@color4, 0.45);
+    border: 1px solid alpha(@accent, 0.45);
 }
 .layout-plasma .app-row {
     border-radius: 4px;
@@ -99,13 +99,13 @@
 }
 .layout-plasma .app-row:selected {
     background-color: @plasma_hover;
-    border: 1px solid alpha(@color4, 0.45);
+    border: 1px solid alpha(@accent, 0.45);
 }
 
 /* ── Computer tab (in-menu file browser) ── */
 .layout-plasma .plasma-nav {
     padding: 4px 10px;
-    border-bottom: 1px solid alpha(@color4, 0.2);
+    border-bottom: 1px solid alpha(@accent, 0.2);
 }
 .layout-plasma .plasma-nav-btn {
     padding: 2px 6px;
@@ -122,7 +122,7 @@
     padding: 0 6px;
 }
 .layout-plasma .plasma-trash-restore {
-    color: @color6;
+    color: @accent_alt;
     font-size: 11px;
 }
 .layout-plasma .plasma-trash-restore:disabled {
@@ -138,7 +138,7 @@
 }
 .layout-plasma .plasma-places-paned .plasma-places {
     background-color: transparent;
-    border-right: 1px solid alpha(@color4, 0.15);
+    border-right: 1px solid alpha(@accent, 0.15);
 }
 .layout-plasma .plasma-place-row {
     padding: 6px 14px;
@@ -149,7 +149,7 @@
     background-color: @plasma_hover;
 }
 .layout-plasma .plasma-place-icon {
-    color: @color4;
+    color: @accent;
 }
 .layout-plasma .plasma-place-dir .plasma-place-icon {
     color: @color3;
@@ -173,7 +173,7 @@
 
 /* ── Footer ── */
 .layout-plasma .plasma-footer {
-    border-top: 1px solid alpha(@color4, 0.2);
+    border-top: 1px solid alpha(@accent, 0.2);
 }
 .layout-plasma .menu-user {
     padding: 4px 8px;
@@ -195,14 +195,14 @@
     border-radius: 0;
     border-top: none;
     padding: 6px 8px;
-    background-color: alpha(@color4, 0.06);
+    background-color: alpha(@accent, 0.06);
 }
 .layout-plasma .menu-settings-btn,
 .layout-plasma .menu-settings-btn,
 .layout-plasma .resize-grip {
     border-radius: 4px;
-    background-color: alpha(@color4, 0.1);
-    border: 1px solid alpha(@color4, 0.3);
+    background-color: alpha(@accent, 0.1);
+    border: 1px solid alpha(@accent, 0.3);
 }
 .layout-plasma .menu-settings-btn:hover,
 .layout-plasma .menu-settings-btn:hover,
@@ -212,8 +212,8 @@
 }
 .layout-plasma .power-btn {
     border-radius: 4px;
-    background-color: alpha(@color4, 0.1);
-    border: 1px solid alpha(@color4, 0.3);
+    background-color: alpha(@accent, 0.1);
+    border: 1px solid alpha(@accent, 0.3);
 }
 .layout-plasma .power-btn:hover {
     background-color: @plasma_hover;
@@ -229,8 +229,8 @@
 
 /* ── Scrollbar overrides ── */
 .layout-plasma scrollbar slider {
-    background-color: alpha(@color4, 0.35);
+    background-color: alpha(@accent, 0.35);
 }
 .layout-plasma scrollbar slider:hover {
-    background-color: @color4;
+    background-color: @accent;
 }

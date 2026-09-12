@@ -548,6 +548,7 @@ class SysMonitorDialog(Popup):
             ),
         }
         self._built_pages = set(self._pages_enabled())
+        self._refresh_busy = False
 
         self._refresh_colors(force=True)
 
@@ -1011,9 +1012,10 @@ class SysMonitorDialog(Popup):
         self._stat_vals["swap_used"].set_text(f"{data['swap_used_gb']:.2f} GB")
         self._stat_vals["swap_total"].set_text(f"{data['swap_total_gb']:.2f} GB")
 
-    def _update_disks(self, data: dict) -> None:
+    def _update_disks(self, data: dict, drives: list[dict] | None = None) -> None:
         grid = getattr(self, "_drive_grid", None)
-        drives = monitor_data.drives()
+        if drives is None:
+            drives = monitor_data.drives()
         if grid is not None:
             grid.update(drives)
 
@@ -1206,9 +1208,17 @@ class SysMonitorDialog(Popup):
             return set()
 
     def _update_apps(self) -> None:
+        # Collect process rows off the GTK thread (the /proc walk + hyprctl
+        # spawn are the slow part), then apply to the stores on the main thread.
+        def _work() -> None:
+            rows = monitor_data.top_processes(APP_ROWS, window_pids=self._window_pids())
+            GLib.idle_add(self._apply_apps_rows, rows)
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _apply_apps_rows(self, rows: list[dict]) -> bool:
         if not getattr(self, "_apps_stores", None):
-            return
-        rows = monitor_data.top_processes(APP_ROWS, window_pids=self._window_pids())
+            return GLib.SOURCE_REMOVE
         buckets = {
             "user-apps": [], "system-apps": [],
             "user-procs": [], "system-procs": [],
@@ -1229,24 +1239,56 @@ class SysMonitorDialog(Popup):
             for r in buckets[key]:
                 mem = monitor_data.fmt_bytes(r["mem"]) if r["mem"] > 0 else "--"
                 store.append([r["pid"], r["name"], f"{r['cpu']:.1f}", mem])
+        return GLib.SOURCE_REMOVE
 
     # ── refresh ───────────────────────────────────────────────────
 
     def refresh(self) -> None:
         self._refresh_colors()
         built = self._built_pages
-        if "cpu" in built:
-            self._update_cpu(self._samplers["cpu"].sample())
-        if "memory" in built:
-            self._update_memory(monitor_data.memory())
-        if "disks" in built:
-            self._update_disks(self._samplers["disk"].sample())
-        if "network" in built:
-            self._update_network(self._samplers["net"].sample())
-        if "gpu" in built:
-            self._update_gpu(monitor_data.gpu())
-        if self._active == "apps" and "apps" in built:
-            self._update_apps()
+        if self._refresh_busy:
+            return
+        self._refresh_busy = True
+
+        # Collect all samples off the GTK thread: drives()/gpu()/top_processes()
+        # spawn subprocesses (lsblk / nvidia-smi / hyprctl) that would stall the
+        # UI on a 1s poll. Widget updates are applied back on the main thread.
+        def _work() -> None:
+            data = {}
+            if "cpu" in built:
+                data["cpu"] = self._samplers["cpu"].sample()
+            if "memory" in built:
+                data["memory"] = monitor_data.memory()
+            if "disks" in built:
+                data["disk"] = self._samplers["disk"].sample()
+                data["drives"] = monitor_data.drives()
+            if "network" in built:
+                data["net"] = self._samplers["net"].sample()
+            if "gpu" in built:
+                data["gpu"] = monitor_data.gpu()
+            if self._active == "apps" and "apps" in built:
+                data["apps"] = monitor_data.top_processes(
+                    APP_ROWS, window_pids=self._window_pids()
+                )
+            GLib.idle_add(self._apply_refresh, data)
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _apply_refresh(self, data: dict) -> bool:
+        self._refresh_busy = False
+        if "cpu" in data:
+            self._update_cpu(data["cpu"])
+        if "memory" in data:
+            self._update_memory(data["memory"])
+        if "disks" in data:
+            self._update_disks(data["disk"], data.get("drives"))
+        if "network" in data:
+            self._update_network(data["net"])
+        if "gpu" in data:
+            self._update_gpu(data["gpu"])
+        if "apps" in data:
+            self._apply_apps_rows(data["apps"])
+        return GLib.SOURCE_REMOVE
 
     # ── lifecycle ─────────────────────────────────────────────────
 

@@ -23,7 +23,7 @@ gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, Pango
 
 from . import apps, config as cfg, theme
-from .hypr_animations import active_border_colors, border_period_ms, lerp_color
+from ..hypr_animations import active_border_colors, border_period_ms, lerp_color
 from .theme import apply_border_color, apply_css, build_css
 from ..widgets import Glyph
 from ..popup import center_layer_dialog
@@ -235,6 +235,7 @@ class MenuWindow(Gtk.Window):
         self.pinned = set(self.config.get("favorites", []))
         self.recents = list(self.config.get("recents", []))
         self.current_category = "All"
+        self._app_rows = {}  # entry id -> ListBoxRow (rows cached so icons load once)
 
         self.set_title("hyprtk-menu")
         width = int(self.config.get("width", 920))
@@ -1843,11 +1844,17 @@ class MenuWindow(Gtk.Window):
     def _refresh_apps(self):
         if not hasattr(self, "app_list"):
             return
-        for child in self.app_list.get_children():
+        # Cache rows per entry so icons load once instead of once per keystroke.
+        # Rows are reparented (remove + add), never destroyed, so search just
+        # reshuffles existing widgets rather than reloading every app icon.
+        for child in list(self.app_list.get_children()):
             self.app_list.remove(child)
-            child.destroy()
         for entry in self._visible_apps():
-            self.app_list.add(self._make_row(entry))
+            row = self._app_rows.get(entry.id)
+            if row is None:
+                row = self._make_row(entry)
+                self._app_rows[entry.id] = row
+            self.app_list.add(row)
         self.app_list.show_all()
         if self.app_list.get_children():
             self.app_list.select_row(self.app_list.get_row_at_index(0))

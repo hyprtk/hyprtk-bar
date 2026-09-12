@@ -3,26 +3,26 @@
    All colors come from the pywal palette + semantic tokens.
    Scoped under .layout-win7. */
 
-@define-color win7_blue @color4;
-@define-color win7_blue_dark alpha(@color4, 0.6);
+@define-color win7_blue @accent;
+@define-color win7_blue_dark alpha(@accent, 0.6);
 
 /* ── Overall panel ── */
 .layout-win7 .menu {
     border-radius: 16px;
-    border: 2px solid alpha(@color4, 0.5);
+    border: 2px solid alpha(@accent, 0.5);
 }
 
 /* ── Left pane: user + apps ── */
 .layout-win7 .win7-left {
     background-color: alpha(@background, 0.45);
-    border-right: 1px solid alpha(@color4, 0.35);
+    border-right: 1px solid alpha(@accent, 0.35);
 }
 
 /* User profile bar */
 .layout-win7 .win7-profile {
     padding: 10px 12px;
-    border-bottom: 1px solid alpha(@color4, 0.25);
-    background-color: alpha(@color4, 0.06);
+    border-bottom: 1px solid alpha(@accent, 0.25);
+    background-color: alpha(@accent, 0.06);
 }
 .layout-win7 .win7-avatar {
     -gtk-icon-style: regular;
@@ -50,7 +50,7 @@
     padding: 3px;
 }
 .layout-win7 .fav-btn:hover {
-    background-color: alpha(@color4, 0.15);
+    background-color: alpha(@accent, 0.15);
     border-color: transparent;
 }
 
@@ -67,7 +67,7 @@
     margin: 0;
 }
 .layout-win7 .app-row:hover {
-    background-color: alpha(@color4, 0.12);
+    background-color: alpha(@accent, 0.12);
 }
 .layout-win7 .app-row:selected {
     background-color: @win7_blue;
@@ -88,11 +88,11 @@
 
 /* All Programs row */
 .layout-win7 .win7-allprograms {
-    border-top: 1px solid alpha(@color4, 0.2);
+    border-top: 1px solid alpha(@accent, 0.2);
     padding: 6px 12px;
 }
 .layout-win7 .win7-allprograms:hover {
-    background-color: alpha(@color4, 0.12);
+    background-color: alpha(@accent, 0.12);
 }
 .layout-win7 .win7-allprograms-label {
     color: @foreground;
@@ -102,7 +102,7 @@
 
 /* ── Right pane: places + search ── */
 .layout-win7 .win7-right {
-    background-color: alpha(@color4, 0.08);
+    background-color: alpha(@accent, 0.08);
 }
 
 /* Places list */
@@ -115,7 +115,7 @@
     margin: 0;
 }
 .layout-win7 .win7-place-row:hover {
-    background-color: alpha(@color4, 0.18);
+    background-color: alpha(@accent, 0.18);
 }
 .layout-win7 .win7-place-icon {
     -gtk-icon-style: regular;
@@ -131,8 +131,8 @@
     margin: 0;
     border-radius: 0;
     background-color: alpha(@background, 0.55);
-    border: 1px solid alpha(@color4, 0.5);
-    border-top: 1px solid alpha(@color4, 0.35);
+    border: 1px solid alpha(@accent, 0.5);
+    border-top: 1px solid alpha(@accent, 0.35);
     color: @foreground;
     padding: 8px 12px;
     font-size: 13px;
@@ -148,8 +148,8 @@
 
 /* ── Power bar (bottom) ── */
 .layout-win7 .win7-bottom {
-    background-color: alpha(@color4, 0.10);
-    border-top: 1px solid alpha(@color4, 0.35);
+    background-color: alpha(@accent, 0.10);
+    border-top: 1px solid alpha(@accent, 0.35);
 }
 .layout-win7 .menu-footer,
 .layout-win7 .win7-footer {
@@ -162,7 +162,7 @@
 }
 .layout-win7 .menu-user:hover,
 .layout-win7 .win7-user:hover {
-    background-color: alpha(@color4, 0.18);
+    background-color: alpha(@accent, 0.18);
 }
 .layout-win7 .menu-avatar,
 .layout-win7 .win7-avatar {
@@ -189,8 +189,8 @@
 .layout-win7 .menu-settings-btn,
 .layout-win7 .resize-grip {
     border-radius: 3px;
-    background-color: alpha(@color4, 0.18);
-    border: 1px solid alpha(@color4, 0.4);
+    background-color: alpha(@accent, 0.18);
+    border: 1px solid alpha(@accent, 0.4);
 }
 .layout-win7 .menu-settings-btn:hover,
 .layout-win7 .menu-settings-btn:hover,
@@ -200,8 +200,8 @@
 }
 .layout-win7 .power-btn {
     border-radius: 3px;
-    background-color: alpha(@color4, 0.18);
-    border: 1px solid alpha(@color4, 0.4);
+    background-color: alpha(@accent, 0.18);
+    border: 1px solid alpha(@accent, 0.4);
 }
 .layout-win7 .power-btn:hover {
     background-color: @win7_blue;

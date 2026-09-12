@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+import threading
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -285,6 +286,10 @@ class SliderRow(Gtk.Box):
             if self._muted_get is not None:
                 muted = bool(self._muted_get())
             pct = self._get_pct()
+        self.apply_state(pct, muted)
+
+    def apply_state(self, pct, muted: bool) -> None:
+        """Apply an already-fetched (percent, muted) state (no subprocess)."""
         # A muted source shows 0 so the slider reads "off"; moving it unmutes.
         display = 0 if muted else (pct if pct is not None else 0)
         self._scale.handler_block_by_func(self._on_value_changed)
@@ -421,12 +426,36 @@ class QuickSettings(Popup):
 
     def refresh(self) -> None:
         self._ensure_brightness()
-        self._wifi.set_state(get_wifi())
-        self._bt.set_state(get_bt())
-        self._volume.refresh()
-        self._mic.refresh()
-        if self._brightness_row is not None:
-            self._brightness_row.refresh()
+        # Collect state off the GTK thread — nmcli/bluetoothctl/wpctl/
+        # brightnessctl are subprocesses that would stall the flyout on open.
+        def _work() -> None:
+            data = {
+                "wifi": get_wifi(),
+                "bt": get_bt(),
+                "volume": get_volume_state(),
+                "mic": get_mic_state(),
+                "brightness": None,
+            }
+            br = self._brightness_row
+            if br is not None:
+                try:
+                    data["brightness"] = br._get_pct()
+                except Exception:
+                    data["brightness"] = None
+            GLib.idle_add(self._apply_refresh, data)
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _apply_refresh(self, data: dict) -> bool:
+        self._wifi.set_state(data["wifi"])
+        self._bt.set_state(data["bt"])
+        vol = data["volume"]
+        self._volume.apply_state(*vol) if vol else self._volume.apply_state(None, False)
+        mic = data["mic"]
+        self._mic.apply_state(*mic) if mic else self._mic.apply_state(None, False)
+        if self._brightness_row is not None and data["brightness"] is not None:
+            self._brightness_row.apply_state(data["brightness"], False)
+        return GLib.SOURCE_REMOVE
 
     def _ensure_brightness(self) -> None:
         """Build the brightness row lazily, the first time a backend is found.

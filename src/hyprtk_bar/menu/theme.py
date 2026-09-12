@@ -13,9 +13,7 @@ the menu's semantic tokens (panel_bg, text, accent, ...) that the base
 # ─────────────────────────────────────────────────────────────────
 
 
-import colorsys
 import os
-import re
 
 import gi
 
@@ -24,10 +22,10 @@ gi.require_version("Gdk", "3.0")
 
 from gi.repository import Gdk, Gtk
 
-from ..colors import contrast_fg as _contrast_fg
+from ..colors import blend, contrast_fg as _contrast_fg, hover_color, rgba
 from ..config import INSTALL_DIR
+from ..theme_import import find_themes_dir, list_themes, parse_palette
 from . import config as cfg
-from .theme_import import find_themes_dir, list_themes, parse_palette
 
 # The bar project root holds the menu's assets (copied to the install dir by
 # install.sh). Reuse the top-level config's INSTALL_DIR (which honours
@@ -36,25 +34,6 @@ from .theme_import import find_themes_dir, list_themes, parse_palette
 BASE_DIR = str(INSTALL_DIR)
 STYLE_CSS = os.path.join(BASE_DIR, "assets", "style.css")
 
-
-def hue_rotate(hex_color: str, degrees: float) -> str:
-    """Rotate a ``#rrggbb`` color's hue by ``degrees`` (loop-friendly)."""
-    hex_color = (hex_color or "").strip()
-    h = hex_color.lstrip("#")
-    if len(h) == 3:
-        h = "".join(c * 2 for c in h)
-    if len(h) != 6:
-        return hex_color
-    try:
-        r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
-    except ValueError:
-        return hex_color
-    hue, lum, sat = colorsys.rgb_to_hls(r, g, b)
-    hue = (hue + (degrees / 360.0)) % 1.0
-    r, g, b = colorsys.hls_to_rgb(hue, lum, sat)
-    return "#{:02x}{:02x}{:02x}".format(
-        int(round(r * 255)), int(round(g * 255)), int(round(b * 255))
-    )
 
 LAYOUT_ICONS = {
     "whisker": "\uf0ca",
@@ -86,59 +65,6 @@ FALLBACK = {
     "background": "#1e1e2e",
     "foreground": "#cdd6f4",
 }
-
-
-def _rgb(hex_color):
-    """(r, g, b) ints from #rgb/#rrggbb; None when unparseable."""
-    try:
-        h = hex_color.lstrip("#")
-        if len(h) == 3:
-            h = "".join(c * 2 for c in h)
-        if len(h) < 6:
-            return None
-        return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    except (ValueError, TypeError, AttributeError):
-        return None
-
-
-def _blend(foreground, background, alpha):
-    """Composite ``foreground`` at ``alpha`` over ``background`` (both hex)."""
-    fg = _rgb(foreground)
-    bg = _rgb(background)
-    if fg is None:
-        return background
-    if bg is None:
-        bg = (0, 0, 0)
-    r, g, b = (round(fg[i] * alpha + bg[i] * (1 - alpha)) for i in range(3))
-    return "#%02x%02x%02x" % (r, g, b)
-
-
-def _rgba(color, alpha):
-    """Convert a #rgb/#rrggbb/#rrggbbaa/rgba()/rgb() color to rgba() string."""
-    color = color.strip()
-    m = re.fullmatch(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})", color)
-    if m:
-        h = m.group(1)
-        if len(h) == 3:
-            h = "".join(c * 2 for c in h)
-        return f"rgba({int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}, {alpha:.2f})"
-    m = re.search(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)", color, re.I)
-    if m:
-        return f"rgba({int(m.group(1))}, {int(m.group(2))}, {int(m.group(3))}, {alpha:.2f})"
-    m = re.search(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", color, re.I)
-    if m:
-        return f"rgba({int(m.group(1))}, {int(m.group(2))}, {int(m.group(3))}, {alpha:.2f})"
-    return color
-
-
-def _hover_color(color):
-    """Return a translucent hover color, preserving the source's alpha."""
-    color = color.strip()
-    if color.startswith("#"):
-        return _rgba(color, 0.12)
-    if color.lower().startswith("rgb"):
-        return color
-    return "rgba(255, 255, 255, 0.12)"
 
 
 # ── palette resolution (mirrors hyprtk-bar) ─────────────────────
@@ -192,7 +118,7 @@ def resolve_palette():
                 palette["background"] = pywal.get("background") or palette["background"]
                 palette["foreground"] = pywal.get("foreground") or palette["foreground"]
                 palette["accent"] = pywal.get("color5") or pywal.get("color4") or palette["accent"]
-                palette["hover"] = _rgba(palette["foreground"], 0.08)
+                palette["hover"] = rgba(palette["foreground"], 0.08)
                 palette["border_color"] = palette["accent"]
     return palette
 
@@ -212,7 +138,7 @@ def _own_palette():
         "background": pywal.get("background") or FALLBACK.get("background", "#1e1e2e"),
         "foreground": pywal.get("foreground") or FALLBACK.get("foreground", "#cdd6f4"),
         "accent": accent,
-        "hover": _rgba(pywal.get("foreground", "#cdd6f4"), 0.08),
+        "hover": rgba(pywal.get("foreground", "#cdd6f4"), 0.08),
         "border_color": accent,
     }
 
@@ -227,23 +153,23 @@ def _palette_to_tokens(palette, pywal):
     # The selected background is a translucent accent over the panel, so the
     # selected text must contrast with the BLENDED colour — not the raw accent,
     # which may be light and wrongly yield black text on the dark row.
-    selected_surface = _blend(accent, bg, 0.28)
+    selected_surface = blend(accent, bg, 0.28)
     selected_fg = _contrast_fg(selected_surface)
-    border = palette.get("border_color") or _rgba(accent, 0.35)
+    border = palette.get("border_color") or rgba(accent, 0.35)
     accent_alt = (pywal or {}).get("color6") or accent
     return {
-        "panel_bg": _rgba(bg, 0.92),
+        "panel_bg": rgba(bg, 0.92),
         "panel_border": border,
         "text": fg,
-        "muted": _rgba(fg, 0.6),
+        "muted": rgba(fg, 0.6),
         "selected_text": selected_fg,
         "accent": accent,
         "accent_alt": accent_alt,
-        "surface": _rgba(accent, 0.07),
-        "selected_bg": _rgba(accent, 0.28),
-        "selected_border": _rgba(accent, 0.5),
-        "input_bg": _rgba(accent, 0.08),
-        "input_border": _rgba(accent, 0.25),
+        "surface": rgba(accent, 0.07),
+        "selected_bg": rgba(accent, 0.28),
+        "selected_border": rgba(accent, 0.5),
+        "input_bg": rgba(accent, 0.08),
+        "input_border": rgba(accent, 0.25),
     }
 
 

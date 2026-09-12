@@ -120,6 +120,36 @@ def border_animation(cfg: dict | None = None) -> dict | None:
     return None
 
 
+def _load_bar_config() -> dict:
+    """Read the bar config file (best effort) into a dict."""
+    import json
+
+    try:
+        data = json.loads((Path.home() / ".config" / "hyprtk-bar" / "config.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def border_period_ms(cfg: dict | None = None) -> int | None:
+    """Bar border-animation period in ms, or None when border animation is off.
+
+    Mirrors ``border_animation`` but returns the loop period Hyprland uses
+    (``speed * 100`` ms per loop, clamped to a 200 ms floor). When ``cfg`` is
+    omitted the bar config file is read. Returns None when animations are
+    disabled, ``theme.border_animation`` is off, or the preset/custom speed is
+    unavailable.
+    """
+    if cfg is None:
+        cfg = _load_bar_config()
+    if not (cfg.get("theme") or {}).get("border_animation", True):
+        return None
+    info = border_animation(cfg)
+    if info is None or not info.get("speed"):
+        return None
+    return max(200, int(info["speed"] * 100))
+
+
 def _file_border_animation(name: str) -> dict | None:
     """Border mirror config from a specific ``animations-<name>.lua`` file."""
     d = _find_hypr_dir()

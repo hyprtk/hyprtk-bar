@@ -4,8 +4,8 @@
    Scoped under .layout-win11. */
 
 @define-color win11_bg alpha(@background, 0.78);
-@define-color win11_accent alpha(@color6, 0.85);
-@define-color win11_hover alpha(@color6, 0.12);
+@define-color win11_accent alpha(@accent_alt, 0.85);
+@define-color win11_hover alpha(@accent_alt, 0.12);
 
 .layout-win11 .menu {
     border-radius: 16px;
@@ -49,7 +49,7 @@
     border-radius: 999px;
     padding: 3px 12px;
     font-size: 11px;
-    color: @color6;
+    color: @accent_alt;
     background-color: transparent;
     border: none;
 }
@@ -104,7 +104,7 @@
     border-radius: 999px;
     padding: 3px 12px;
     font-size: 11px;
-    color: @color6;
+    color: @accent_alt;
     background-color: transparent;
     border: none;
 }
@@ -123,7 +123,7 @@
 }
 .layout-win11 .recents-list .app-row:selected {
     background-color: @win11_hover;
-    border: 1px solid alpha(@color6, 0.4);
+    border: 1px solid alpha(@accent_alt, 0.4);
 }
 
 /* ── Win11 app list (search / "All apps") ── */
@@ -140,7 +140,7 @@
 }
 .layout-win11 .win11-app-list .app-row:selected {
     background-color: @win11_hover;
-    border: 1px solid alpha(@color6, 0.4);
+    border: 1px solid alpha(@accent_alt, 0.4);
 }
 .layout-win11 .win11-app-list .app-desc {
     color: alpha(@text, 0.6);
@@ -211,8 +211,8 @@
 
 /* ── Scrollbar overrides ── */
 .layout-win11 scrollbar slider {
-    background-color: alpha(@color6, 0.3);
+    background-color: alpha(@accent_alt, 0.3);
 }
 .layout-win11 scrollbar slider:hover {
-    background-color: @color6;
+    background-color: @accent_alt;
 }

@@ -135,14 +135,10 @@ def load_bar_theme() -> dict:
 
 
 def load_pywal_colors() -> dict | None:
-    """Read ~/.cache/wal/colors.json into a ``{name: hex}`` map, or None."""
-    try:
-        with open(PYWAL_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return None
-    out = dict(data.get("colors") or {})
-    special = data.get("special") or {}
-    out["background"] = special.get("background")
-    out["foreground"] = special.get("foreground")
-    return out or None
+    """Read ~/.cache/wal/colors.json into a ``{name: hex}`` map, or None.
+
+    Delegates to the top-level config's reader so the two never diverge.
+    """
+    from .. import config as _bar_config
+
+    return _bar_config.load_pywal_colors()

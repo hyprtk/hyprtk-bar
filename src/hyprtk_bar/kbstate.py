@@ -81,6 +81,7 @@ class KbState(HoverButton):
             self.box.pack_start(img, False, False, 0)
             self._icons[key] = img
         self._tip = ""
+        self._last = None  # last (caps, num) state — skip no-op style churn
         self._update()
         self._tick_id = GLib.timeout_add(self._interval, self._tick)
         bind_hover_tooltip(self, cfg, lambda: self._tip)
@@ -102,6 +103,11 @@ class KbState(HoverButton):
 
     def _update(self) -> None:
         states = {key: _led_on(key) for key, _name in _ICONS}
+        # Skip the style-context add/remove-class churn when nothing changed —
+        # keyboard LED state is idle 99.9% of the time.
+        if states == self._last:
+            return
+        self._last = dict(states)
         for key, on in states.items():
             ctx = self._icons[key].get_style_context()
             if on:

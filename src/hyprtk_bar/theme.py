@@ -7,68 +7,13 @@
 
 from __future__ import annotations
 
-import colorsys
 import logging
-import re
 
-from .colors import contrast_fg as _contrast_fg  # noqa: E402
+from .colors import contrast_fg as _contrast_fg, hover_color, rgba  # noqa: E402
 from .config import load_pywal_colors  # noqa: E402
 from .theme_import import parse_palette  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.theme")
-
-
-def hue_rotate(hex_color: str, degrees: float) -> str:
-    """Rotate a ``#rrggbb`` color's hue by ``degrees`` (loop-friendly)."""
-    hex_color = (hex_color or "").strip()
-    h = hex_color.lstrip("#")
-    if len(h) == 3:
-        h = "".join(c * 2 for c in h)
-    if len(h) != 6:
-        return hex_color
-    try:
-        r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
-    except ValueError:
-        return hex_color
-    hue, lum, sat = colorsys.rgb_to_hls(r, g, b)
-    hue = (hue + (degrees / 360.0)) % 1.0
-    r, g, b = colorsys.hls_to_rgb(hue, lum, sat)
-    return "#{:02x}{:02x}{:02x}".format(
-        int(round(r * 255)), int(round(g * 255)), int(round(b * 255))
-    )
-
-
-def _rgba(color: str, alpha: float) -> str:
-    """Convert a #rgb/#rrggbb/#rrggbbaa/rgba()/rgb() color to an rgba() string."""
-    color = color.strip()
-    m = re.fullmatch(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})", color)
-    if m:
-        h = m.group(1)
-        if len(h) == 3:
-            h = "".join(c * 2 for c in h)
-        return f"rgba({int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}, {alpha:.2f})"
-    m = re.search(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)", color, re.I)
-    if m:
-        r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        return f"rgba({r}, {g}, {b}, {alpha:.2f})"
-    m = re.search(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", color, re.I)
-    if m:
-        return f"rgba({int(m.group(1))}, {int(m.group(2))}, {int(m.group(3))}, {alpha:.2f})"
-    return color
-
-
-def _hover_color(color: str) -> str:
-    """Return a translucent hover color, preserving the source's alpha.
-
-    Hex colors get a subtle default alpha; rgba()/rgb() values are kept as-is so
-    imported-theme hover colors (already translucent) are not made opaque.
-    """
-    color = color.strip()
-    if color.startswith("#"):
-        return _rgba(color, 0.12)
-    if color.lower().startswith("rgb"):
-        return color
-    return "rgba(255, 255, 255, 0.12)"
 
 
 # Per-module glyph colors, drawn from the pywal palette so each module icon has
@@ -261,8 +206,8 @@ def build_css(palette: dict, cfg: dict) -> str:
     # otherwise the configured opacity applies.
     opacity = palette.get("background_alpha", cfg.get("opacity", 0.95))
 
-    bg = _rgba(palette["background"], opacity)
-    hover = _hover_color(palette["hover"])
+    bg = rgba(palette["background"], opacity)
+    hover = hover_color(palette["hover"])
     accent = palette["accent"]
     running = palette["running"]
     fg = palette["foreground"]
@@ -307,7 +252,7 @@ def build_css(palette: dict, cfg: dict) -> str:
     # mostly opaque for readability but carry the theme's border and color.
     popup_alpha = max(opacity, 0.9)
     popup_border_rule = border_rule if (border_width and border_color) else ""
-    menu_border = border_color or _rgba(palette["foreground"], 0.18)
+    menu_border = border_color or rgba(palette["foreground"], 0.18)
     padding_rule = ""
     padding = palette.get("padding")
     if padding:
@@ -383,7 +328,7 @@ def build_css(palette: dict, cfg: dict) -> str:
   min-width: {dot_size}px;
   min-height: {dot_size}px;
   border-radius: {dot_size // 2}px;
-  background-color: {_rgba(palette["foreground"], 0.55)};
+  background-color: {rgba(palette["foreground"], 0.55)};
 }}
 .task-button.active .task-dot {{
   min-width: {min(dot_size + 2, dot_size * 2)}px;
@@ -405,7 +350,7 @@ def build_css(palette: dict, cfg: dict) -> str:
   min-width: 1px;
   min-height: 22px;
   border-radius: 1px;
-  background-color: {_rgba(palette["foreground"], 0.25)};
+  background-color: {rgba(palette["foreground"], 0.25)};
 }}
 .clock {{ padding: 0 10px; border-radius: {max(radius - 6, 4)}px; }}
 .clock.hover {{ background-color: {hover}; }}
@@ -434,13 +379,13 @@ def build_css(palette: dict, cfg: dict) -> str:
 .popup-title {{ font-weight: bold; padding-bottom: 4px; }}
 .tooltip-label {{ font-size: 12px; }}
 .popup-box {{
-  background-color: {_rgba(palette["background"], popup_alpha)};
+  background-color: {rgba(palette["background"], popup_alpha)};
   border-radius: {radius}px;
   padding: 8px;
   color: {fg};
 {popup_border_rule}}}
 menu {{
-  background-color: {_rgba(palette["background"], 0.97)};
+  background-color: {rgba(palette["background"], 0.97)};
   border: 1px solid {menu_border};
   border-radius: {max(radius - 2, 6)}px;
   padding: 4px;
@@ -449,7 +394,7 @@ menu {{
 menu menuitem {{ padding: 6px 14px; border-radius: 4px; color: {fg}; }}
 menu menuitem:hover {{ background-color: {hover}; color: {fg}; }}
 menu separator {{
-  background-color: {_rgba(palette["foreground"], 0.15)};
+  background-color: {rgba(palette["foreground"], 0.15)};
   min-height: 1px;
   margin: 3px 6px;
 }}
@@ -469,7 +414,7 @@ menu separator {{
   border: none;
   box-shadow: none;
   background-image: none;
-  background-color: {_rgba(palette["foreground"], 0.22)};
+  background-color: {rgba(palette["foreground"], 0.22)};
 }}
 .qs-switch slider, .settings-switch slider {{
   min-width: 14px;
@@ -495,7 +440,7 @@ menu separator {{
   border: none;
   box-shadow: none;
   background-image: none;
-  background-color: {_rgba(palette["foreground"], 0.22)};
+  background-color: {rgba(palette["foreground"], 0.22)};
 }}
 .qs-scale highlight, .settings-scale highlight {{
   min-height: 4px;
@@ -528,11 +473,11 @@ menu separator {{
 }}
 .notif-title {{ font-weight: bold; padding-bottom: 6px; }}
 .notif-row {{
-  background-color: {_rgba(palette["foreground"], 0.05)};
+  background-color: {rgba(palette["foreground"], 0.05)};
   border-radius: 8px;
   padding: 8px;
 }}
-.notif-app {{ font-size: 10px; opacity: 0.85; }}
+.notif-app {{ font-size: 11px; opacity: 0.85; }}
 .notif-time {{ font-size: 9px; opacity: 0.6; }}
 .notif-summary {{ font-weight: bold; }}
 .notif-body {{ font-size: 11px; opacity: 0.9; }}
@@ -540,14 +485,14 @@ menu separator {{
   min-height: 24px;
   padding: 0 8px;
   border-radius: 6px;
-  background-color: {_rgba(palette["accent"], 0.18)};
+  background-color: {rgba(palette["accent"], 0.18)};
   color: {fg};
 }}
 .notif-clear {{ min-height: 24px; padding: 0 10px; border-radius: 6px; }}
 .cliphist-header {{ padding-bottom: 4px; }}
 .cliphist-search {{ border-radius: 6px; }}
 .cliphist-row {{
-  background-color: {_rgba(palette["foreground"], 0.05)};
+  background-color: {rgba(palette["foreground"], 0.05)};
   border-radius: 8px;
   padding: 4px 6px;
 }}
@@ -561,12 +506,12 @@ menu separator {{
   color: {fg};
   background-color: transparent;
 }}
-.cliphist-del:hover {{ background-color: {_rgba(palette["red"], 0.22)}; }}
-.cliphist-empty {{ color: {_rgba(palette["foreground"], 0.55)}; font-size: 12px; }}
+.cliphist-del:hover {{ background-color: {rgba(palette["red"], 0.22)}; }}
+.cliphist-empty {{ color: {rgba(palette["foreground"], 0.55)}; font-size: 12px; }}
 .mc-title {{ font-weight: bold; font-size: 15px; }}
 .mc-close {{ min-width: 24px; min-height: 24px; padding: 0 4px; border-radius: 6px; color: {fg}; background-color: transparent; }}
 .mc-close:hover {{ background-color: {hover}; }}
-.mc-sidebar {{ padding: 4px; border-radius: 8px; background-color: {_rgba(palette["foreground"], 0.05)}; }}
+.mc-sidebar {{ padding: 4px; border-radius: 8px; background-color: {rgba(palette["foreground"], 0.05)}; }}
 .mc-sidebar-button {{ padding: 5px 8px; border-radius: 6px; }}
 .mc-sidebar-button.hover {{ background-color: {hover}; }}
 .mc-sidebar-button.active {{ background-color: {accent}; color: {active_fg_final}; }}
@@ -581,13 +526,13 @@ menu separator {{
 .settings-title {{ font-weight: bold; font-size: 14px; }}
 .settings-label {{ font-size: 13px; }}
 .settings-value {{ font-weight: bold; }}
-.settings-section {{ background-color: {_rgba(palette["foreground"], 0.04)}; border-radius: 8px; padding: 8px; }}
+.settings-section {{ background-color: {rgba(palette["foreground"], 0.04)}; border-radius: 8px; padding: 8px; }}
 .settings-section-title {{ font-size: 11px; opacity: 0.85; font-weight: bold; }}
 .settings-apply {{
   background-color: {accent}; color: {active_fg_final};
   border-radius: 6px; padding: 5px 14px; font-weight: bold; border: none;
 }}
-.settings-apply:hover {{ background-color: {_rgba(accent, 0.85)}; }}
+.settings-apply:hover {{ background-color: {rgba(accent, 0.85)}; }}
 /* Dialogue chrome buttons / rows — transparent like the monitor's, so no
    opaque GTK button blocks appear. */
 .settings-btn {{
@@ -601,14 +546,14 @@ menu separator {{
    up/down buttons of a spinbutton need their own rules: the GTK theme
    hard-colours those nodes and teals the arrow when active. */
 .settings-input {{
-  color: {fg}; background-color: {_rgba(palette["foreground"], 0.07)};
-  border: 1px solid {_rgba(palette["foreground"], 0.18)}; border-radius: 5px;
+  color: {fg}; background-color: {rgba(palette["foreground"], 0.07)};
+  border: 1px solid {rgba(palette["foreground"], 0.18)}; border-radius: 5px;
 }}
 .settings-input entry {{
   background-image: none;
-  background-color: {_rgba(palette["foreground"], 0.07)};
+  background-color: {rgba(palette["foreground"], 0.07)};
   color: {fg};
-  border-color: {_rgba(palette["foreground"], 0.18)};
+  border-color: {rgba(palette["foreground"], 0.18)};
 }}
 .settings-input:focus, .settings-input entry:focus {{ border-color: {accent}; }}
 .settings-input button {{
@@ -626,7 +571,7 @@ menu separator {{
 .settings-check check, .settings-radio radio {{
   -gtk-icon-source: -gtk-icontheme('checkbox-symbolic');
   background-image: none; border: none; box-shadow: none;
-  color: {_rgba(palette["foreground"], 0.6)};
+  color: {rgba(palette["foreground"], 0.6)};
 }}
 .settings-radio radio {{ -gtk-icon-source: -gtk-icontheme('radio-symbolic'); }}
 .settings-check:checked check {{
@@ -651,11 +596,11 @@ menu separator {{
 }}
 .settings-notebook tab:hover {{ background-color: {hover}; }}
 .settings-notebook tab:checked {{
-  background-color: {_rgba(accent, 0.18)}; color: {accent};
+  background-color: {rgba(accent, 0.18)}; color: {accent};
 }}
 .settings-color {{
   color: {fg}; background-color: transparent;
-  border: 1px solid {_rgba(palette["foreground"], 0.18)}; border-radius: 5px;
+  border: 1px solid {rgba(palette["foreground"], 0.18)}; border-radius: 5px;
 }}
 .settings-color:hover {{ border-color: {accent}; }}
 /* ListBox (arc menu item list, item-dialog app list) paints the GTK theme's
@@ -697,20 +642,20 @@ decoration {{
 .mc-graph-value.high {{ color: {danger}; }}
 .mc-stat-label {{ font-size: 12px; opacity: 0.85; }}
 .mc-stat-value {{ font-weight: bold; font-size: 12px; }}
-.mc-core-bar trough {{ min-height: 6px; border-radius: 3px; background-color: {_rgba(palette["foreground"], 0.15)}; }}
+.mc-core-bar trough {{ min-height: 6px; border-radius: 3px; background-color: {rgba(palette["foreground"], 0.15)}; }}
 .mc-core-bar trough progress {{ min-height: 6px; border-radius: 3px; background-color: {accent}; }}
-.dimm-slot {{ border-radius: 8px; padding: 6px; border: 1px solid {_rgba(palette["foreground"], 0.18)}; background-color: {_rgba(palette["foreground"], 0.04)}; }}
-.dimm-slot.populated {{ border: 1px solid {accent}; background-color: {_rgba(accent, 0.14)}; }}
+.dimm-slot {{ border-radius: 8px; padding: 6px; border: 1px solid {rgba(palette["foreground"], 0.18)}; background-color: {rgba(palette["foreground"], 0.04)}; }}
+.dimm-slot.populated {{ border: 1px solid {accent}; background-color: {rgba(accent, 0.14)}; }}
 .dimm-size {{ font-weight: bold; font-size: 13px; }}
 .dimm-slot.populated .dimm-size {{ color: {accent}; }}
 .dimm-slot.empty .dimm-size {{ opacity: 0.45; font-size: 11px; }}
-.dimm-loc {{ font-size: 10px; opacity: 0.75; }}
-.drive-card {{ border-radius: 8px; padding: 4px 8px; border: 1px solid {_rgba(palette["foreground"], 0.15)}; background-color: {_rgba(palette["foreground"], 0.04)}; }}
+.dimm-loc {{ font-size: 11px; opacity: 0.75; }}
+.drive-card {{ border-radius: 8px; padding: 4px 8px; border: 1px solid {rgba(palette["foreground"], 0.15)}; background-color: {rgba(palette["foreground"], 0.04)}; }}
 .drive-card.hover {{ background-color: {hover}; }}
-.drive-card.selected {{ border: 1px solid {accent}; background-color: {_rgba(accent, 0.16)}; }}
-.drive-type {{ font-size: 10px; font-weight: bold; opacity: 0.9; }}
+.drive-card.selected {{ border: 1px solid {accent}; background-color: {rgba(accent, 0.16)}; }}
+.drive-type {{ font-size: 11px; font-weight: bold; opacity: 0.9; }}
 .drive-size {{ font-size: 11px; font-weight: bold; }}
-.drive-free {{ font-size: 10px; opacity: 0.75; }}
+.drive-free {{ font-size: 11px; opacity: 0.75; }}
 .drive-card.nvme .mc-icon {{ color: {accent}; }}
 .drive-card.hdd .mc-icon {{ color: {warn}; }}
 .drive-card.ssd .mc-icon {{ color: {green}; }}
@@ -718,29 +663,29 @@ decoration {{
 .drive-card.reader .mc-icon {{ opacity: 0.45; }}
 .iface-row {{ padding: 3px 6px; border-radius: 6px; }}
 .iface-name {{ font-weight: bold; font-size: 11px; }}
-.iface-type {{ font-size: 10px; opacity: 0.8; }}
+.iface-type {{ font-size: 11px; opacity: 0.8; }}
 .iface-ip {{ font-size: 11px; }}
 .iface-rate {{ font-size: 11px; font-weight: bold; }}
 .iface-eth {{ color: {accent}; }}
 .iface-wifi {{ color: {sky}; }}
-.iface-virt {{ color: {_rgba(palette["foreground"], 0.55)}; }}
+.iface-virt {{ color: {rgba(palette["foreground"], 0.55)}; }}
 .iface-down {{ color: {sky}; }}
 .iface-up {{ color: {green}; }}
 .gpu-model {{ font-weight: bold; font-size: 13px; }}
 .mc-unavailable {{ font-size: 12px; opacity: 0.7; }}
 .mc-tree {{ background-color: transparent; }}
 .mc-tree header button {{ background-color: transparent; color: {fg}; border: none; }}
-.mc-tree view {{ background-color: {_rgba(palette["foreground"], 0.05)}; color: {fg}; border-radius: 8px; }}
-.mc-tree row:nth-child(even) {{ background-color: {_rgba(palette["foreground"], 0.03)}; }}
+.mc-tree view {{ background-color: {rgba(palette["foreground"], 0.05)}; color: {fg}; border-radius: 8px; }}
+.mc-tree row:nth-child(even) {{ background-color: {rgba(palette["foreground"], 0.03)}; }}
 .mc-tree row:selected {{ background-color: {accent}; color: {active_fg_final}; }}
 /* Themer dialogue: wallpaper preview thumbnail + 2-column thumb grid */
 .wallpaper-preview {{
-  border: 1px solid {_rgba(palette["foreground"], 0.25)};
+  border: 1px solid {rgba(palette["foreground"], 0.25)};
   border-radius: 8px;
-  background-color: {_rgba(palette["foreground"], 0.05)};
+  background-color: {rgba(palette["foreground"], 0.05)};
 }}
 .wallpaper-thumb {{
-  border: 1px solid {_rgba(palette["foreground"], 0.12)};
+  border: 1px solid {rgba(palette["foreground"], 0.12)};
   border-radius: 6px;
   padding: 0;
 }}
