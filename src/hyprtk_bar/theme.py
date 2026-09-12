@@ -95,6 +95,11 @@ def resolve_palette(cfg: dict) -> dict:
                 # 2px bar border drawn in the pywal accent color.
                 palette["border_width"] = 2
                 palette["border_color"] = palette["accent"]
+    else:
+        # manual: draw the same 2px border as pywal, coloured from the config
+        # (defaults to the accent so the border follows it when unset).
+        palette["border_width"] = 2
+        palette["border_color"] = theme.get("border_color") or palette["accent"]
 
     # Per-module glyph colours always come from the pywal palette — every module
     # icon gets a distinct colour, and they re-tint on wallpaper change. This is

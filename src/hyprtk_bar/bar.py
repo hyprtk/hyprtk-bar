@@ -420,6 +420,14 @@ class Bar(Gtk.Box):
             config_module.save(cfg)
             _theme()
 
+        def set_manual_colors(colors: dict) -> None:
+            theme = cfg.setdefault("theme", {})
+            for key in ("background", "foreground", "accent", "running", "hover", "border_color"):
+                if key in colors:
+                    theme[key] = colors[key]
+            config_module.save(cfg)
+            _theme()
+
         def reset_layout() -> None:
             cfg["layout"] = {
                 "left": list(DEFAULT_LAYOUT["left"]),
@@ -581,6 +589,7 @@ class Bar(Gtk.Box):
         return {
             "set_source": set_source,
             "set_theme_name": set_theme_name,
+            "set_manual_colors": set_manual_colors,
             "reset_layout": reset_layout,
             "reload_config": reload_config,
             "set_width": set_width,

@@ -16,6 +16,11 @@ Dates are in YYYY-MM-DD format.
   `box-shadow` through to the bar: `window#waybar`'s box-shadow (drop shadow +
   specular rim) is applied to the bar surface, and `#workspaces button.active`'s
   box-shadow becomes the focused workspace chip's glow.
+- **Manual theme editor.** Selecting `theme.source = "manual"` in Theme Manager →
+  Bar Themes now shows a set of colour pickers (Background / Foreground / Accent /
+  Running / Hover / Border) that write straight into the config's `theme` block
+  on Apply. Manual mode now also draws the same 2px border as pywal, coloured
+  from the (new) `theme.border_color` setting, falling back to the accent.
 
 ### Changed
 

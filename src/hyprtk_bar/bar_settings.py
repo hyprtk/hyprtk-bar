@@ -53,6 +53,14 @@ def _rgba_to_hex(rgba: Gdk.RGBA) -> str:
     )
 
 
+def _rgba_to_css(rgba: Gdk.RGBA) -> str:
+    """``#RRGGBB`` when opaque, else ``rgba(r, g, b, a)`` (keeps the alpha)."""
+    r, g, b = int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255)
+    if rgba.alpha >= 0.999:
+        return "#{:02X}{:02X}{:02X}".format(r, g, b)
+    return "rgba({}, {}, {}, {:.2f})".format(r, g, b, rgba.alpha)
+
+
 _APP_DIRS = [
     Path.home() / ".local/share/applications",
     Path("/usr/local/share/applications"),
@@ -684,8 +692,60 @@ class BarSettings(Gtk.Window):
         theme_row.pack_start(themes_scroller, True, True, 0)
         theme_row.pack_start(import_btn, False, False, 0)
 
+        # Manual colours — shown/editable only when source == "manual".
+        manual_label = Gtk.Label(label="Manual colours:", xalign=0)
+        self._manual_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._manual_colors: dict[str, Gtk.ColorButton] = {}
+        for key, label in (
+            ("background", "Background:"),
+            ("foreground", "Foreground:"),
+            ("accent", "Accent:"),
+            ("running", "Running:"),
+            ("hover", "Hover:"),
+            ("border_color", "Border:"),
+        ):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            lbl = Gtk.Label(label=label, xalign=1)
+            lbl.set_size_request(80, -1)
+            btn = Gtk.ColorButton()
+            btn.set_hexpand(True)
+            if key == "hover":
+                btn.set_use_alpha(True)
+            row.pack_start(lbl, False, False, 0)
+            row.pack_start(btn, True, True, 0)
+            self._manual_box.pack_start(row, False, False, 0)
+            self._manual_colors[key] = btn
+        self._sync_manual_colors()
+
         tab.pack_start(source_row, False, False, 0)
         tab.pack_start(theme_row, True, True, 0)
+        tab.pack_start(manual_label, False, False, 0)
+        tab.pack_start(self._manual_box, False, False, 0)
+
+    def _sync_manual_colors(self) -> None:
+        """Load the config's manual theme colours into the colour buttons."""
+        theme = self._cfg.get("theme") or {}
+        accent = theme.get("accent", "#7aa2f7")
+        values = {
+            "background": theme.get("background", "#1a1b26"),
+            "foreground": theme.get("foreground", "#c0caf5"),
+            "accent": accent,
+            "running": theme.get("running") or accent,
+            "hover": theme.get("hover", "rgba(255, 255, 255, 0.08)"),
+            "border_color": theme.get("border_color") or accent,
+        }
+        for key, btn in self._manual_colors.items():
+            btn.set_rgba(_hex_to_rgba(values[key]))
+
+    def _manual_colors_dict(self) -> dict:
+        """The manual theme colours read back from the colour buttons."""
+        out = {}
+        for key, btn in self._manual_colors.items():
+            if key == "hover":
+                out[key] = _rgba_to_css(btn.get_rgba())
+            else:
+                out[key] = _rgba_to_hex(btn.get_rgba())
+        return out
 
     def _build_animations_tab(self, page: Gtk.Box) -> None:
         tab = page
@@ -1422,6 +1482,8 @@ class BarSettings(Gtk.Window):
         self._actions["set_source"](source)
         if source == "imported":
             self._actions["set_theme_name"](self._get_imported_theme())
+        elif source == "manual":
+            self._actions["set_manual_colors"](self._manual_colors_dict())
 
         # layout
         layout = {
@@ -1520,6 +1582,9 @@ class BarSettings(Gtk.Window):
         source = self._active_source()
         for btn in self._theme_buttons.values():
             btn.set_sensitive(source == "imported")
+        manual = getattr(self, "_manual_box", None)
+        if manual is not None:
+            manual.set_sensitive(source == "manual")
 
     def _on_source_toggled(self, btn, *_args) -> None:
         if btn.get_active():
