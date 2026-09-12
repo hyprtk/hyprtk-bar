@@ -1421,7 +1421,13 @@ class ThemerDialog(Popup):
         themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         themes_scroller.set_min_content_height(120)
         themes_scroller.set_vexpand(True)
-        self._bar_themes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self._bar_themes_box = Gtk.FlowBox()
+        self._bar_themes_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._bar_themes_box.set_column_spacing(8)
+        self._bar_themes_box.set_row_spacing(2)
+        self._bar_themes_box.set_max_children_per_line(3)
+        self._bar_themes_box.set_min_children_per_line(3)
+        self._bar_themes_box.set_homogeneous(True)
         themes_scroller.add(self._bar_themes_box)
         box.pack_start(themes_scroller, True, True, 0)
 
@@ -1456,7 +1462,7 @@ class ThemerDialog(Popup):
         if not themes:
             lbl = Gtk.Label(label="No themes imported yet — use Import…", xalign=0)
             lbl.set_opacity(0.7)
-            self._bar_themes_box.pack_start(lbl, False, False, 0)
+            self._bar_themes_box.add(lbl)
         else:
             for tname in themes:
                 row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
@@ -1473,7 +1479,7 @@ class ThemerDialog(Popup):
                 remove.add(trash)
                 remove.connect("clicked", self._on_bar_theme_remove, tname)
                 row.pack_start(remove, False, False, 0)
-                self._bar_themes_box.pack_start(row, False, False, 0)
+                self._bar_themes_box.add(row)
         self._bar_themes_box.show_all()
         self._update_bar_theme_state()
 
