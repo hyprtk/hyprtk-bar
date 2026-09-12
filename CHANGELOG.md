@@ -5,6 +5,18 @@ Dates are in YYYY-MM-DD format.
 
 ## [0.1.0] - 2026-09-12
 
+### Added
+
+- **Liquid Glass theme.** New bundled `hyprtk-liquid-glass` theme — a port of
+  Apple's "Liquid Glass" aesthetic: a highly translucent, cool-tinted glass slab
+  with a bright specular rim along the top edge, a faint inner under-glow and a
+  deep drop shadow. The glass tint is neutral; the accent stays pywal (mauve) so
+  it matches the rest of the desktop.
+- **Glass effects in the theme pipeline.** Imported themes can now carry a
+  `box-shadow` through to the bar: `window#waybar`'s box-shadow (drop shadow +
+  specular rim) is applied to the bar surface, and `#workspaces button.active`'s
+  box-shadow becomes the focused workspace chip's glow.
+
 ### Changed
 
 - **Deduplicated the `menu/` subpackage.** Deleted `menu/theme_import.py` and
@@ -70,11 +82,11 @@ Dates are in YYYY-MM-DD format.
 - **Bundled default wallpapers.** Four wallpapers (`3.png`, `14.png`, `66.png`,
   `default.png`) ship in `Wallpapers/` and the installer copies them into
   `~/Pictures/Wallpapers/` (no-clobber — files the user already has are kept).
-- **Bundled bar themes.** The eight hyprtk bar themes (`hyprtk`, `hyprtk-aero`,
+- **Bundled bar themes.** The nine hyprtk bar themes (`hyprtk`, `hyprtk-aero`,
   `hyprtk-clear`, `hyprtk-glass`, `hyprtk-inverse`, `hyprtk-light`,
-  `hyprtk-negative`, `hyprtk-reverse`) now ship in `themes/` and the installer
-  copies them into `~/.config/hyprtk-bar/themes/`, so Theme Manager → Bar Themes
-  has them available without importing by hand.
+  `hyprtk-liquid-glass`, `hyprtk-negative`, `hyprtk-reverse`) now ship in
+  `themes/` and the installer copies them into `~/.config/hyprtk-bar/themes/`,
+  so Theme Manager → Bar Themes has them available without importing by hand.
 - **Hyprland autostart is configured by the installer.** `install.sh` adds the
   bar to the user's Hyprland Lua config — `~/.config/hypr/autostart.lua` when it
   exists, otherwise `~/.config/hypr/hyprland.lua` — as an idempotent

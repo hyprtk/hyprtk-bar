@@ -247,6 +247,12 @@ def build_css(palette: dict, cfg: dict) -> str:
     if border_width and border_color:
         border_rule = f"  border: {border_width:g}px solid {border_color};\n"
         extra_v += 2 * border_width
+    # Optional drop shadow / specular highlight carried over from the imported
+    # theme's `window#waybar` box-shadow (e.g. a liquid-glass rim + shadow).
+    bar_shadow_rule = ""
+    bar_shadow = palette.get("bar_shadow")
+    if bar_shadow:
+        bar_shadow_rule = f"  box-shadow: {' '.join(bar_shadow.split())};\n"
     # Popups (notification center, quick settings, toasts, previews) and the
     # right-click menu use the theme's background/foreground/border. Popups stay
     # mostly opaque for readability but carry the theme's border and color.
@@ -297,6 +303,12 @@ def build_css(palette: dict, cfg: dict) -> str:
     else:
         active_fg_final = _contrast_fg(active_bg)
     occupied_fg = palette.get("occupied_fg", accent)
+    # Optional specular glow on the focused workspace chip (imported theme's
+    # `#workspaces button.active` box-shadow).
+    active_shadow_rule = ""
+    active_shadow = palette.get("active_shadow")
+    if active_shadow:
+        active_shadow_rule = f"  box-shadow: {' '.join(active_shadow.split())};\n"
 
     # Per-module glyph colours (from pywal). Each glyph-bearing module gets its
     # own accent so the icons read as distinct; these re-tint on wallpaper
@@ -315,7 +327,7 @@ def build_css(palette: dict, cfg: dict) -> str:
   margin: {top_m}px {right_m}px {bottom_m}px {left_m}px;
   min-height: {min_height}px;
   color: {fg};
-{font_size_rule}{border_rule}{padding_rule}{font_rule}}}
+{font_size_rule}{border_rule}{bar_shadow_rule}{padding_rule}{font_rule}}}
 .task-button {{ padding: 2px 6px; border-radius: {max(radius - 6, 4)}px; }}
 .task-button.hover {{ background-color: {hover}; }}
 .quicklink-glyph {{ color: {glyph_color}; font-family: {glyph_font}; }}
@@ -345,7 +357,7 @@ def build_css(palette: dict, cfg: dict) -> str:
 .workspace-chip.active {{
   background-color: {active_bg};
   color: {active_fg_final};
-}}
+{active_shadow_rule}}}
 .divider {{
   min-width: 1px;
   min-height: 22px;

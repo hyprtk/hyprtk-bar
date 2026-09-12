@@ -546,6 +546,10 @@ def parse_palette(theme_name: str) -> dict | None:
     if border_width is not None and border_color:
         palette["border_width"] = border_width
         palette["border_color"] = border_color
+    # Optional glass effects (drop shadow / specular rim) from window#waybar.
+    bar_shadow = _prop(win_body, "box-shadow")
+    if bar_shadow:
+        palette["bar_shadow"] = bar_shadow
     radius = _length(win_body, "border-radius")
     if radius is not None:
         palette["border_radius"] = radius
@@ -608,6 +612,9 @@ def parse_palette(theme_name: str) -> dict | None:
         fg = _text_color(body, colors)
         if fg:
             palette.setdefault("active_fg", fg)
+        shadow = _prop(body, "box-shadow")
+        if shadow:
+            palette.setdefault("active_shadow", shadow)
 
     # occupied chip
     occ = blocks.get("#workspaces button.occupied")
