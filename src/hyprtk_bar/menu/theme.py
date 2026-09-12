@@ -165,6 +165,10 @@ def _palette_to_tokens(palette, pywal):
         "selected_text": selected_fg,
         "accent": accent,
         "accent_alt": accent_alt,
+        # Text that sits directly on a SOLID accent background (e.g. search
+        # selection) must contrast with the raw accent, unlike selected_text
+        # which contrasts with the translucent blended accent.
+        "accent_fg": _contrast_fg(accent),
         "surface": rgba(accent, 0.07),
         "selected_bg": rgba(accent, 0.28),
         "selected_border": rgba(accent, 0.5),
