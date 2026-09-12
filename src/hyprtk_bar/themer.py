@@ -154,6 +154,22 @@ def _is_valid_hex(value: str) -> bool:
     return len(h) in (6, 8) and all(c in "0123456789abcdefABCDEF" for c in h)
 
 
+def _css_to_gdk(css: str) -> Gdk.RGBA:
+    """Parse a #hex / rgb() / rgba() CSS colour into a Gdk.RGBA (safe)."""
+    rgba = Gdk.RGBA()
+    if not rgba.parse((css or "").strip() or "#000000"):
+        rgba.parse("#000000")
+    return rgba
+
+
+def _gdk_to_css(rgba: Gdk.RGBA) -> str:
+    """``#RRGGBB`` when opaque, else ``rgba(r, g, b, a)`` (keeps the alpha)."""
+    r, g, b = int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255)
+    if rgba.alpha >= 0.999:
+        return "#{:02X}{:02X}{:02X}".format(r, g, b)
+    return "rgba({}, {}, {}, {:.2f})".format(r, g, b, rgba.alpha)
+
+
 def _parse_wal_colors() -> dict[str, str]:
     """Parse ~/.cache/wal/colors.sh into {color0..15, background, foreground}."""
     result: dict[str, str] = {}
@@ -1420,7 +1436,7 @@ class ThemerDialog(Popup):
         themes_scroller = Gtk.ScrolledWindow()
         themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         themes_scroller.set_min_content_height(120)
-        themes_scroller.set_vexpand(True)
+        themes_scroller.set_max_content_height(180)
         self._bar_themes_box = Gtk.FlowBox()
         self._bar_themes_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self._bar_themes_box.set_column_spacing(8)
@@ -1429,11 +1445,39 @@ class ThemerDialog(Popup):
         self._bar_themes_box.set_min_children_per_line(3)
         self._bar_themes_box.set_homogeneous(True)
         themes_scroller.add(self._bar_themes_box)
-        box.pack_start(themes_scroller, True, True, 0)
+        box.pack_start(themes_scroller, False, False, 0)
+        themes_scroller.set_hexpand(True)
 
         import_btn = Gtk.Button(label="Import theme…")
         import_btn.connect("clicked", self._on_bar_import)
         box.pack_start(import_btn, False, False, 0)
+
+        # Manual colours — shown/editable only when source == "manual".
+        _add_section_title(box, "Manual colours")
+        self._bar_manual_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._bar_manual_colors: dict[str, Gtk.ColorButton] = {}
+        for key, label in (
+            ("background", "Background:"),
+            ("foreground", "Foreground:"),
+            ("accent", "Accent:"),
+            ("running", "Running:"),
+            ("hover", "Hover:"),
+            ("border_color", "Border:"),
+        ):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            lbl = Gtk.Label(label=label, xalign=1)
+            lbl.set_size_request(80, -1)
+            btn = Gtk.ColorButton()
+            btn.set_hexpand(True)
+            if key == "hover":
+                btn.set_use_alpha(True)
+            btn.connect("color-set", self._on_bar_manual_color, key)
+            row.pack_start(lbl, False, False, 0)
+            row.pack_start(btn, True, True, 0)
+            self._bar_manual_box.pack_start(row, False, False, 0)
+            self._bar_manual_colors[key] = btn
+        self._sync_bar_manual_colors()
+        box.pack_start(self._bar_manual_box, False, False, 0)
 
         restart_btn = Gtk.Button(label="Restart Bar")
         restart_btn.connect("clicked", self._on_restart_bar)
@@ -1487,6 +1531,9 @@ class ThemerDialog(Popup):
         source = self._active_bar_source()
         for btn in self._bar_theme_buttons.values():
             btn.set_sensitive(source == "imported")
+        manual = getattr(self, "_bar_manual_box", None)
+        if manual is not None:
+            manual.set_sensitive(source == "manual")
         name = self._selected_bar_theme()
         if source == "imported" and name:
             self._bar_active.set_text(f"Active theme: {name}")
@@ -1496,6 +1543,36 @@ class ThemerDialog(Popup):
             self._bar_active.set_text("Active theme: manual (config)")
         else:
             self._bar_active.set_text("Active theme: none")
+
+    def _sync_bar_manual_colors(self) -> None:
+        """Load the config's manual theme colours into the colour buttons."""
+        theme = self._cfg.get("theme") or {}
+        accent = theme.get("accent", "#7aa2f7")
+        values = {
+            "background": theme.get("background", "#1a1b26"),
+            "foreground": theme.get("foreground", "#c0caf5"),
+            "accent": accent,
+            "running": theme.get("running") or accent,
+            "hover": theme.get("hover", "rgba(255, 255, 255, 0.08)"),
+            "border_color": theme.get("border_color") or accent,
+        }
+        for key, btn in self._bar_manual_colors.items():
+            btn.set_rgba(_css_to_gdk(values[key]))
+
+    def _bar_manual_colors_dict(self) -> dict:
+        """The manual theme colours read back from the colour buttons."""
+        out = {}
+        for key, btn in self._bar_manual_colors.items():
+            out[key] = _gdk_to_css(btn.get_rgba())
+        return out
+
+    def _on_bar_manual_color(self, btn: Gtk.ColorButton, key: str) -> None:
+        """Live-apply a manual colour when manual source is active."""
+        if not getattr(self, "_bar_ready", False):
+            return
+        if self._active_bar_source() != "manual":
+            return
+        self._apply_bar_theme("manual", "", self._bar_manual_colors_dict())
 
     def _active_bar_source(self) -> str:
         for key, btn in self._bar_source_buttons.items():
@@ -1575,14 +1652,15 @@ class ThemerDialog(Popup):
         dialog.connect("response", on_response)
         dialog.show_all()
 
-    def _apply_bar_theme(self, source: str, theme_name: str):
+    def _apply_bar_theme(self, source: str, theme_name: str, colors: dict | None = None):
         msg = f"Bar theme: {source}"
         if source == "imported" and theme_name:
             msg += f" / {theme_name}"
         if self._theme_cb is not None:
             # Live apply — the bar re-themes without closing/reopening.
             self._theme_cb(
-                source, theme_name if (source == "imported" and theme_name) else ""
+                source, theme_name if (source == "imported" and theme_name) else "",
+                colors,
             )
             self._toast(msg)
             return
@@ -1591,10 +1669,12 @@ class ThemerDialog(Popup):
             cfg = json.loads(BAR_CONFIG.read_text())
         except (OSError, json.JSONDecodeError):
             cfg = {}
-        cfg.setdefault("theme", {})
-        cfg["theme"]["source"] = source
+        theme = cfg.setdefault("theme", {})
+        theme["source"] = source
         if source == "imported" and theme_name:
-            cfg["theme"]["theme_name"] = theme_name
+            theme["theme_name"] = theme_name
+        if colors:
+            theme.update(colors)
         try:
             BAR_CONFIG.parent.mkdir(parents=True, exist_ok=True)
             _atomic_write(BAR_CONFIG, json.dumps(cfg, indent=2) + "\n")

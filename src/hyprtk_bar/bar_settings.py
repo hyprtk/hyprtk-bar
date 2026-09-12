@@ -688,14 +688,14 @@ class BarSettings(Gtk.Window):
         themes_scroller = Gtk.ScrolledWindow()
         themes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         themes_scroller.set_min_content_height(120)
+        themes_scroller.set_max_content_height(180)
         themes_scroller.add(self._themes_box)
-        themes_scroller.set_hexpand(True)
-        themes_scroller.set_vexpand(True)
         import_btn = Gtk.Button(label="Import theme…")
         import_btn.set_size_request(120, 26)
         import_btn.connect("clicked", self._on_import)
         theme_row.pack_start(theme_label, False, False, 0)
-        theme_row.pack_start(themes_scroller, True, True, 0)
+        theme_row.pack_start(themes_scroller, False, False, 0)
+        themes_scroller.set_hexpand(True)
         theme_row.pack_start(import_btn, False, False, 0)
 
         # Manual colours — shown/editable only when source == "manual".
@@ -724,7 +724,7 @@ class BarSettings(Gtk.Window):
         self._sync_manual_colors()
 
         tab.pack_start(source_row, False, False, 0)
-        tab.pack_start(theme_row, True, True, 0)
+        tab.pack_start(theme_row, False, False, 0)
         tab.pack_start(manual_label, False, False, 0)
         tab.pack_start(self._manual_box, False, False, 0)
 

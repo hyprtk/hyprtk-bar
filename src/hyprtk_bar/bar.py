@@ -613,16 +613,20 @@ class Bar(Gtk.Box):
 
     # ── theming callback (set by the app window) ────────────────
 
-    def apply_theme(self, source: str, theme_name: str = "") -> None:
-        """Apply a theme source / imported theme live, without restarting.
+    def apply_theme(self, source: str, theme_name: str = "", colors: dict | None = None) -> None:
+        """Apply a theme source / imported theme / manual colours live.
 
         Used by the Theme Manager (and matching bar settings behaviour): the
-        shared config is updated, saved, and the bar re-themes in place.
+        shared config is updated, saved, and the bar re-themes in place. When
+        ``colors`` is given (manual source) it is written into the theme block.
         """
         cfg = self._cfg
-        cfg.setdefault("theme", {})["source"] = source
+        theme = cfg.setdefault("theme", {})
+        theme["source"] = source
         if theme_name:
-            cfg["theme"]["theme_name"] = theme_name
+            theme["theme_name"] = theme_name
+        if colors:
+            theme.update(colors)
         config_module.save(cfg)
         if self._theme_cb is not None:
             self._theme_cb()
