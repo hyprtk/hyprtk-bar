@@ -92,19 +92,26 @@ class Updates(HoverButton):
             "install_command",
             str(resolve_script("installupdates.sh", "installer", "scripts", "installupdates.sh")),
         ) or ""
-        # The install command also comes from user config; allowlist its
-        # executable the same way as the timer script so a synced/malicious
-        # config can't get arbitrary shell on left-click. Empty stays empty
-        # (disabled), a non-allowlisted command falls back to the bundled
+        # The install command also comes from user config; allow it only when it
+        # references an allowlisted script somewhere in it (so a legit wrapper
+        # like `alacritty -e ~/hyprtk/.../installupdates.sh` is fine, but a
+        # synced/malicious config can't get arbitrary shell on left-click).
+        # Empty stays empty (disabled); otherwise fall back to the bundled
         # installer.
         if self._install:
+            allowed = False
             try:
-                prog = shlex.split(self._install)[0]
+                tokens = shlex.split(self._install)
             except ValueError:
-                prog = ""
-            if not _allowed_script(os.path.expanduser(prog)):
+                tokens = []
+            for token in tokens:
+                tok = os.path.expanduser(token)
+                if "/" in tok and _allowed_script(tok):
+                    allowed = True
+                    break
+            if not allowed:
                 log.warning(
-                    "updates: refusing non-allowlisted install command %r; using bundled installer",
+                    "updates: refusing install command with no allowlisted script %r; using bundled installer",
                     self._install,
                 )
                 self._install = str(
