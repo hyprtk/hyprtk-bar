@@ -3,6 +3,62 @@
 All notable changes to hyprtk-bar are documented in this file.
 Dates are in YYYY-MM-DD format.
 
+## [0.1.0] - 2026-09-12
+
+### Changed
+
+- **Deduplicated the `menu/` subpackage.** Deleted `menu/theme_import.py` and
+  `menu/hypr_animations.py` — near-verbatim copies of the top-level modules that
+  had already drifted (the `_safe_name` theme-name validation never reached the
+  menu copy, leaving a traversal guard missing). The menu now imports the
+  top-level `theme_import` and `hypr_animations` (which gains a new
+  `border_period_ms()` helper wrapping `border_animation`).
+- **Consolidated the colour helpers.** `rgba`, `hover_color` and `blend` now
+  live in `colors.py` alongside `hex_to_rgb` / `css_rgb` / `contrast_fg`, so
+  there is a single colour-parsing implementation across the bar, the menu, the
+  arc menu and the theme manager. Removed the duplicated `_rgba` /
+  `_hover_color` / `_blend` / `_rgb` helpers and the dead `hue_rotate`.
+- **`menu/config.load_pywal_colors` delegates to the top-level reader**, so the
+  two pywal readers can no longer diverge.
+
+### Security
+
+- **`updates.install_command` is allowlisted.** The left-click update command is
+  user config, so it must reference an allowlisted script (any path token that
+  resolves to one — a wrapper like `alacritty -e ~/hyprtk/.../installupdates.sh`
+  is fine); otherwise it falls back to the bundled `installupdates.sh`. A
+  synced/malicious config can no longer get arbitrary shell on left-click.
+- **Theme Manager refuses to run `update.sh` as root via pkexec** when the
+  script (or its parent directory) is group/world-writable or owned by another
+  user — closing a privilege-escalation foot-gun from a writable dotfile.
+
+### Performance
+
+- **Hyprland refresh off the GTK thread.** The four `hyprctl` queries run on
+  every event (focus/move/open/close) now execute on a worker thread and marshal
+  results back via `idle_add`, so event bursts no longer stall the bar.
+- **System monitor sampling off the GTK thread.** The 1s poll collects all
+  samples (lsblk, nvidia-smi, top-processes, hyprctl) on a worker thread and
+  applies widget updates on the main thread.
+- **Quick Settings refresh off the GTK thread.** State collection
+  (nmcli/bluetoothctl/wpctl/brightnessctl) runs on a worker thread.
+- **Menu search reuses cached rows.** App-list rows are cached by entry id and
+  reparented instead of destroyed and rebuilt, so searching no longer reloads
+  every icon on each keystroke.
+- **`kbstate` skips no-op polls** when the Caps/Num lock state is unchanged.
+
+### Fixed
+
+- **Blank app list after switching menu layouts.** The app-row cache retained
+  references to destroyed rows across a layout rebuild, so the list rendered
+  empty after changing from whisker to win7/plasma and back. The cache is now
+  reset whenever a new list is built.
+- **Search-selection contrast.** The search field's selected text now uses a
+  contrast-correct `@accent_fg` token (contrast against the solid accent)
+  instead of hardcoded black, so it stays readable with a light accent.
+- **Reverted a menu accent unification** that made the win7/plasma selected app
+  rows unreadable (a bright-pink solid background under hardcoded white text).
+
 ## [Unreleased]
 
 ### Added

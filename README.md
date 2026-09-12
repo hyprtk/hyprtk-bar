@@ -441,6 +441,7 @@ src/hyprtk_bar/
 ├── bar.py             the bar itself: sections, modules, menu actions
 ├── bar_settings.py    the settings window
 ├── config.py          config loading / validation / defaults
+├── colors.py          shared colour parsing / contrast / blending helpers
 ├── theme.py           palette resolution + GTK CSS generation
 ├── theme_import.py    imported-theme parsing (former waybar_theme.py)
 ├── arcmenu.py         the arc menu overlay (FAB + fan-out items)
