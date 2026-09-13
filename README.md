@@ -1,4 +1,4 @@
-# hyprtk-bar
+## hyprtk-bar
 
 A modern, feature-complete taskbar for the Hyprland Wayland compositor, built
 with GTK3 and the layer-shell protocol. hyprtk-bar is the centerpiece of the
