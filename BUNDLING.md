@@ -18,30 +18,32 @@ Two axes are involved:
 
 ## Current inventory
 
-The bar reaches outside itself through three vectors:
+Scripts now resolve **bundled-first** through `resolve_script()`
+(`~/.local/share/hyprtk-bar/scripts/`), falling back to the `~/hyprtk` dotfiles
+tree. Three surfaces reference them:
 
 - **`themer.py` constants** (`HYPRTK = ~/hyprtk`, plus rofi / swaylock / matuwall /
   papirus / wallpaper paths).
 - **`config.py` defaults** (quicklinks commands, `start_command`, `updates.script`).
-- **`app.py`** (`ROFI_SYNC_SH` = `~/.config/rofi/scripts/sync-rofi-theme.sh`).
+- **`app.py`** (`ROFI_SYNC_SH`).
 
 ### Directly-called scripts (12)
 
-| # | Script (default path) | Trigger | Category |
+| # | Script (resolved path) | Trigger | Category |
 |---|------------------------|---------|----------|
-| 1 | `~/hyprtk/hypr/scripts/wallpaper-colors.sh` | themer → wallpaper apply | B |
-| 2 | `~/hyprtk/configs/papirus-icons/scripts/change-icons.sh` | themer → icons | B (path is stale — see bugs) |
-| 3 | `~/hyprtk/configs/rofi/scripts/sync-rofi-theme.sh` | themer → rofi | A |
-| 4 | `~/.config/rofi/scripts/sync-rofi-theme.sh` | app.py → on re-theme | A (same file as #3 via symlink) |
+| 1 | `~/hyprtk/installer/hyprtk-bar/scripts/wallpaper-colors.sh` | themer → wallpaper apply | B |
+| 2 | `~/hyprtk/installer/hyprtk-bar/scripts/change-icons.sh` | themer → icons | B |
+| 3 | `~/hyprtk/installer/hyprtk-bar/scripts/sync-rofi-theme.sh` | themer → rofi | A |
+| 4 | (same file as #3, resolved bundled) | app.py → on re-theme | A |
 | 5 | `~/hyprtk/configs/sddm/update.sh` | themer → SDDM & GRUB (pkexec) | C |
 | 6 | `~/.local/share/icons/papirus-folders.sh` | themer → icons | D (third-party) |
 | 7 | `~/hyprtk/installer/scripts/updates.sh` | updates module poll | C |
 | 8 | `~/hyprtk/installer/scripts/installupdates.sh` | updates module click | C |
-| 9 | `~/hyprtk/installer/scripts/appsmenu.sh` | quicklinks → apps | A |
-| 10 | `~/hyprtk/installer/scripts/updatewal-awww.sh` | quicklinks → wallpaper (right-click) | B |
-| 11 | `~/hyprtk/installer/scripts/cliphist.sh` | quicklinks → clipboard | A |
+| 9 | `~/hyprtk/installer/hyprtk-bar/scripts/appsmenu.sh` | quicklinks → apps | A |
+| 10 | `~/hyprtk/installer/hyprtk-bar/scripts/updatewal-awww.sh` | quicklinks → wallpaper (right-click) | B |
+| 11 | (in-bar clipboard manager — no external script) | quicklinks → clipboard | A |
 | 12 | `~/hyprtk/installer/scripts/ssdetect.sh` | quicklinks → screenshot | C |
-| 13 | `~/hyprtk/installer/scripts/hyprtk-bar-menu-toggle.sh` | start button (fallback) | A |
+| 13 | `~/hyprtk/installer/hyprtk-bar/scripts/hyprtk-bar-menu-toggle.sh` | start button (fallback) | A |
 
 (13 call sites; #3 and #4 are the same underlying script.)
 
@@ -106,18 +108,21 @@ The bar reaches outside itself through three vectors:
 
 ---
 
-## Known issues to fix during the merge
+## Issues resolved during the merge
 
-1. **`CHANGE_ICONS_SH` path is stale.** `themer.py` points at
-   `~/hyprtk/configs/papirus-icons/scripts/change-icons.sh`, but the file lives at
-   `~/hyprtk/assets/papirus-icons/scripts/change-icons.sh`. The icons page
-   currently toasts "change-icons.sh not found".
-2. **`sync-rofi-theme.sh` is referenced at two paths** (`~/.config/rofi/scripts/…`
-   and `~/hyprtk/configs/rofi/scripts/…`). Collapse to one bundled copy.
-3. **`start_command` still points at the toggle script** — the bar already has
-   in-process menu toggling; the script is only a Hyprland-keybinding fallback.
-4. Several defaults hardcode `~/hyprtk/installer/scripts/…` (config.py quicklinks +
-   updates). These must become bar-install-dir-relative.
+1. **`CHANGE_ICONS_SH` resolves bundled-first.** `themer.py` now prefers the
+   bundled `change-icons.sh`, falling back to
+   `~/hyprtk/assets/papirus-icons/scripts/change-icons.sh`.
+2. **`sync-rofi-theme.sh` is a single bundled copy.** Both `themer.py` and
+   `app.py` resolve it through `ROFI_SYNC_SH`; no duplicate `~/.config/rofi`
+   path remains.
+3. **`start_command` keeps the toggle script only as a fallback.** The bar
+   toggles the in-process menu directly; the script serves the Hyprland
+   keybinding.
+4. **Quicklink/update defaults are bundled-first.** `config.py` resolves them via
+   `resolve_script()` (`SCRIPTS_DIR`, i.e. `~/.local/share/hyprtk-bar/scripts/`),
+   falling back to the `~/hyprtk` dotfiles tree — no hardcoded
+   `~/hyprtk/installer/scripts/…` defaults.
 
 ---
 

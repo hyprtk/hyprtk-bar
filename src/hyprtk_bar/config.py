@@ -41,7 +41,7 @@ def resolve_script(name: str, *hyprtk_parts: str) -> Path:
     return HYPRTK_DIR.joinpath(*hyprtk_parts)
 
 
-ROFI_SYNC_SH = resolve_script("sync-rofi-theme.sh", "configs", "rofi", "scripts", "sync-rofi-theme.sh")
+ROFI_SYNC_SH = resolve_script("sync-rofi-theme.sh", "installer", "hyprtk-bar", "scripts", "sync-rofi-theme.sh")
 
 # Distro-agnostic update scripts (bundled with the standalone bar, with the
 # full hyprtk dotfiles as the fallback). ``updates.sh`` counts pending updates
@@ -52,9 +52,9 @@ INSTALL_UPDATES_SH = resolve_script("installupdates.sh", "installer", "scripts",
 # Bundled toggle/quicklink scripts resolved the same way (standalone-first,
 # dotfiles fallback). The quicklink defaults and start button point at these so
 # a standalone install and a dotfiles deploy both work.
-MENU_TOGGLE_SH = resolve_script("hyprtk-bar-menu-toggle.sh", "installer", "scripts", "hyprtk-bar-menu-toggle.sh")
-APPSMENU_SH = resolve_script("appsmenu.sh", "installer", "scripts", "appsmenu.sh")
-UPDATEWAL_AWWW_SH = resolve_script("updatewal-awww.sh", "hypr", "scripts", "updatewal-awww.sh")
+MENU_TOGGLE_SH = resolve_script("hyprtk-bar-menu-toggle.sh", "installer", "hyprtk-bar", "scripts", "hyprtk-bar-menu-toggle.sh")
+APPSMENU_SH = resolve_script("appsmenu.sh", "installer", "hyprtk-bar", "scripts", "appsmenu.sh")
+UPDATEWAL_AWWW_SH = resolve_script("updatewal-awww.sh", "installer", "hyprtk-bar", "scripts", "updatewal-awww.sh")
 SSDETECT_SH = resolve_script("ssdetect.sh", "installer", "scripts", "ssdetect.sh")
 
 log = logging.getLogger("hyprtk_bar.config")

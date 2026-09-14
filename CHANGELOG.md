@@ -315,6 +315,13 @@ Dates are in YYYY-MM-DD format.
   the CSS always renders the cliphist delete-hover rule, so a fresh install (no
   `~/.cache/wal/colors.json`) crashed on launch. `red` now has a default.
 
+- **Stale `~/hyprtk` fallback paths.** `config.py` / `themer.py` fell back to
+  pre-bundling dotfiles locations (`configs/rofi/scripts/…`,
+  `installer/scripts/…`, `hypr/scripts/…`) that no longer exist now the feature
+  scripts are vendored under `installer/hyprtk-bar/scripts/`; the dotfiles
+  fallback now resolves there. `BUNDLING.md`'s inventory was updated to the
+  bundled paths.
+
 ## [0.1.0] - 2026-09-09
 
 ### Added
