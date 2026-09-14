@@ -35,8 +35,8 @@ log = logging.getLogger("hyprtk_bar.monitor")
 
 PAGES = [
     ("cpu", "\uf2db", "CPU"),          # fa-microchip
-    ("memory", "\uf1c0", "Memory"),    # fa-database
-    ("disks", "\uf0a0", "Disks"),      # fa-hdd-o
+    ("memory", "\uefc5", "Memory"),    # fa-memory
+    ("disks", "\U000f02ca", "Disks"),  # md-harddisk
     ("network", "\uf1eb", "Network"),  # fa-wifi
     ("gpu", "\uf03d", "GPU"),          # fa-video-camera
     ("apps", "\uf0ae", "Apps"),        # fa-tasks
@@ -245,7 +245,7 @@ class DimmSection(Gtk.Box):
 
         line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         line.set_halign(Gtk.Align.CENTER)
-        glyph = Glyph("\uf1c0", "mc-icon")  # fa-database (RAM)
+        glyph = Glyph("\uefc5", "mc-icon")  # fa-memory (RAM)
         glyph.set_pixel_size(13)
         if not slot["populated"]:
             glyph.get_style_context().add_class("dimmed")
@@ -692,9 +692,9 @@ class SysMonitorDialog(Popup):
         page.pack_start(self._cards["swap"], False, False, 0)
 
         stats = Readouts()
-        stats.add("used", "\uf1c0", "Used")
-        stats.add("total", "\uf1c0", "Total")
-        stats.add("avail", "\uf1c0", "Available")
+        stats.add("used", "\uefc5", "Used")
+        stats.add("total", "\uefc5", "Total")
+        stats.add("avail", "\uefc5", "Available")
         stats.add("buffers", "\uf187", "Buffers")
         stats.add("cached", "\uf07c", "Cached")
         stats.add("swap_used", "\uf0ec", "Swap used")
@@ -720,7 +720,7 @@ class SysMonitorDialog(Popup):
         page.pack_start(self._cards["disk_write"], False, False, 0)
 
         stats = Readouts()
-        stats.add("disk_used", "\uf0a0", "Used")
+        stats.add("disk_used", "\U000f02ca", "Used")
         stats.add("disk_rate", "\uf0ec", "Total I/O")
         page.pack_start(stats, False, False, 0)
         self._stat_vals.update(stats.vals)

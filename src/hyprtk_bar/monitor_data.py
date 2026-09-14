@@ -1382,7 +1382,7 @@ def drives() -> list[dict]:
             else:
                 type_key, type_label, glyph = "usb", "USB SSD", "\uf287"
         elif rotational:
-            type_key, type_label, glyph = "hdd", "HDD", "\uf0a0"
+            type_key, type_label, glyph = "hdd", "HDD", "\U000f02ca"
         else:
             type_key, type_label, glyph = "ssd", "SSD", "\uf0e7"
 

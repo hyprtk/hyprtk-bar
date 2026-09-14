@@ -81,8 +81,8 @@ class SysMon(HoverButton):
 
         for key, glyph in (
             ("cpu", "\uf2db"),  # fa-microchip
-            ("mem", "\uf1c0"),  # fa-database (RAM)
-            ("disk", "\uf0a0"),  # fa-hdd-o
+            ("mem", "\uefc5"),  # fa-memory (RAM)
+            ("disk", "\U000f02ca"),  # md-harddisk
         ):
             item = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
             img = Glyph(glyph, "accent-icon")

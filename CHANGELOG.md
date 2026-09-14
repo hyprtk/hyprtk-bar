@@ -182,6 +182,10 @@ Dates are in YYYY-MM-DD format.
   buttons used bundled PNGs and the settings button a system symbolic icon
   (which rendered as a blank placeholder where the icon theme lacked it). Both
   now use glyphs from the bundled Nerd Font, matching the bar's icon style.
+- **Clearer memory and disk glyphs.** The system monitor's Memory tab and
+  readouts used `fa-database`, and Disks used `fa-hdd_o` (which reads as a
+  server box); they now use `fa-memory` (a RAM DIMM) and `md-harddisk`. Applied
+  to the monitor, the bar's compact readouts and the HDD drive-type badge.
 
 ### Fixed
 
