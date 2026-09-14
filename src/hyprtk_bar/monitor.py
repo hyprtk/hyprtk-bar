@@ -1304,9 +1304,9 @@ class SysMonitorDialog(Popup):
             self._update_cpu(data["cpu"])
         if "memory" in data:
             self._update_memory(data["memory"])
-        if "disks" in data:
+        if "disk" in data:
             self._update_disks(data["disk"], data.get("drives"))
-        if "network" in data:
+        if "net" in data:
             self._update_network(data["net"])
         if "gpu" in data:
             self._update_gpu(data["gpu"])

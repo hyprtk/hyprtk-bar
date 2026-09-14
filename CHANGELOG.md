@@ -189,6 +189,12 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **System monitor → Disks and Network showed no devices.** `_work()` stores
+  the samples under `disk`/`net`, but `_apply_refresh()` gated their handlers on
+  `"disks"`/`"network"` — keys that were never present — so `_update_disks()` /
+  `_update_network()` never ran. The drive cards, interface list and their
+  readouts stayed empty ("--"). The gates now match the stored keys, so both
+  pages populate.
 - **Security (code review).** Consolidated `_contrast_fg` into one WCAG
   implementation (`colors.py`) shared by the bar, menu, arc menu and themer
   (the four copies had diverged). Remote icon names from the session bus
