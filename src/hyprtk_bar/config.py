@@ -93,16 +93,10 @@ MODULE_LABELS = {
 }
 
 DEFAULT_LAYOUT = {
-    "left": ["start_button", "quicklinks", "workspaces", "tasklist"],
-    "center": ["window"],
+    "left": ["start_button", "quicklinks", "tasklist", "window"],
+    "center": ["workspaces"],
     "right": ["updates", "sysmon", "kbstate", "clock", "notifications", "tray", "quicksettings"],
 }
-
-DEFAULT_PINNED = [
-    {"class": "firefox", "command": "firefox", "icon": "firefox"},
-    {"class": "kitty", "command": "kitty", "icon": "kitty"},
-    {"class": "thunar", "command": "thunar", "icon": "system-file-manager"},
-]
 
 DEFAULT_LINKS = [
     {
@@ -151,19 +145,19 @@ DEFAULT_LINKS = [
 ]
 
 DEFAULTS = {
-    "position": "bottom",            # bottom | top
-    "height": 42,                    # taskbar pill height in px
-    "gap_in": 6,                     # transparent gap between the pill and app windows
-    "gap_out": 6,                    # transparent gap between the pill and the screen edge
+    "position": "top",               # bottom | top
+    "height": 38,                    # taskbar pill height in px
+    "gap_in": 4,                     # transparent gap between the pill and app windows
+    "gap_out": 4,                    # transparent gap between the pill and the screen edge
     "radius": 12,                    # pill corner radius
-    "opacity": 0.95,                 # pill background alpha
-    "width": "100%",                 # pill width: px int or "NN%" of the monitor
+    "opacity": 0.75,                 # pill background alpha
+    "width": "85%",                  # pill width: px int or "NN%" of the monitor
     "align": "center",               # pill placement when width < 100%: left|center|right
     "use_pywal": True,               # legacy: seed theme.source from this on first run
     "monitors": "primary",           # primary | all | [connector, ...] (e.g. ["DP-1", "HDMI-A-1"])
     "theme": {
         "source": "pywal",           # pywal | imported | manual
-        "theme_name": "",            # name of an imported theme (source=imported)
+        "theme_name": "hyprtk-liquid-glass",  # rofi-variant hint (source=pywal keeps it dynamic)
         "background": "#1a1b26",
         "foreground": "#c0caf5",
         "accent": "#7aa2f7",
@@ -178,7 +172,7 @@ DEFAULTS = {
     },
     "font": {
         "family": "",                # "" = system default font
-        "size": 16,                  # base text size (px); module icons scale from it
+        "size": 12,                  # base text size (px); module icons scale from it
         "icon_size": 0,              # 0 = auto (scales with the font size), else px
     },
     "layout": DEFAULT_LAYOUT,
@@ -198,7 +192,7 @@ DEFAULTS = {
         "start_icon": "view-grid-symbolic",
         "start_glyph": "\uf015",
         "start_command": str(MENU_TOGGLE_SH),
-        "pinned": DEFAULT_PINNED,
+        "pinned": [],
     },
     "workspaces": {
         "enabled": True,
