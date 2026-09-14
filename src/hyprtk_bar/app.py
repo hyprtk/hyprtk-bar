@@ -164,6 +164,7 @@ class BarWindow(Gtk.Window):
         self._ls_ready = False
         self._last_margins: tuple[int, int] | None = None
         self._surface_x = 0
+        self._last_wal_colors: tuple | None = None
 
         self.set_title("hyprtk-bar")
         self.set_decorated(False)
@@ -415,7 +416,32 @@ class BarWindow(Gtk.Window):
     def _reload_theme(self) -> bool:
         self._wal_debounce = None
         self._apply_theme()
+        self._sync_swaylock_if_changed()
         return GLib.SOURCE_REMOVE
+
+    def _sync_swaylock_if_changed(self) -> None:
+        """Keep the swaylock colors in sync with pywal on wallpaper change.
+
+        The Theme Manager's swaylock page can do this manually, but the lock
+        screen should also follow the wallpaper automatically. This fires on
+        every pywal-cache change (debounced by ``_reload_theme``) and only
+        rewrites the swaylock config when the palette actually changed, so a
+        manual color edit is not clobbered by an unrelated theme change.
+        """
+        from .themer import _read_wal_hex, sync_swaylock_from_pywal
+
+        try:
+            key = tuple(_read_wal_hex())
+        except Exception:
+            log.warning("could not read pywal colors", exc_info=True)
+            return
+        if key == self._last_wal_colors:
+            return
+        self._last_wal_colors = key
+        try:
+            sync_swaylock_from_pywal()
+        except Exception:
+            log.warning("swaylock pywal sync failed", exc_info=True)
 
     def _on_bar_height(self) -> None:
         """Resize the layer surface when the bar height is changed in settings."""

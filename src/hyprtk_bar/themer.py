@@ -222,6 +222,67 @@ def _atomic_write(path: Path, content: str):
         raise
 
 
+# swaylock color key -> (pywal index, append a "44" alpha suffix).
+# Indices follow the pywal palette; the alpha suffix keeps the translucent
+# "inside"/"line"/"caps-lock" fills while the ring/text/bs-hl stay opaque.
+_SWAYLOCK_COLOR_MAP: list[tuple[str, int, bool]] = [
+    ("ring-color", 6, False), ("ring-clear-color", 4, False),
+    ("ring-wrong-color", 1, False), ("ring-ver-color", 5, False),
+    ("ring-caps-lock-color", 5, False),
+    ("inside-color", 0, True), ("inside-clear-color", 4, True),
+    ("inside-wrong-color", 1, True), ("inside-ver-color", 5, True),
+    ("inside-caps-lock-color", 5, True),
+    ("key-hl-color", 6, True),
+    ("text-color", 7, False), ("text-clear-color", 4, False),
+    ("text-ver-color", 5, False), ("text-wrong-color", 1, False),
+    ("bs-hl-color", 1, False),
+    ("line-color", 6, True), ("line-clear-color", 4, True),
+    ("line-wrong-color", 1, True), ("line-ver-color", 5, True),
+    ("line-caps-lock-color", 5, True),
+    ("caps-lock-key-hl-color", 5, True),
+    ("caps-lock-bs-hl-color", 5, True),
+    ("text-caps-lock-color", 5, False),
+]
+
+
+def sync_swaylock_from_pywal() -> bool:
+    """Write the current pywal colors into the swaylock config, in place.
+
+    Reads ``~/.cache/wal/colors`` and rewrites ``~/.config/swaylock/config``,
+    replacing only the color keys (and appending any that are missing) while
+    leaving comments, bare flags and the other settings untouched — so the lock
+    screen tracks the wallpaper palette without clobbering indicator/font/
+    effect settings. Returns True on success.
+
+    UI-independent so the bar can call it automatically on wallpaper change;
+    the Theme Manager's "Apply Pywal Colors" button uses the same path.
+    """
+    wal_colors = _read_wal_hex()
+    if len(wal_colors) < 8:
+        return False
+    if not SWAYLOCK_CONFIG.exists():
+        return False
+    replacements = {
+        key: f"{wal_colors[idx]}{'44' if keep_alpha else ''}"
+        for key, idx, keep_alpha in _SWAYLOCK_COLOR_MAP
+    }
+    seen: set[str] = set()
+    out: list[str] = []
+    for line in SWAYLOCK_CONFIG.read_text().splitlines():
+        stripped = line.strip()
+        key = stripped.split("=", 1)[0].strip() if "=" in stripped else ""
+        if key in replacements:
+            out.append(f"{key}={replacements[key]}")
+            seen.add(key)
+        else:
+            out.append(line)
+    for key, value in replacements.items():
+        if key not in seen:
+            out.append(f"{key}={value}")
+    _atomic_write(SWAYLOCK_CONFIG, "\n".join(out) + "\n")
+    return True
+
+
 # ── thumbnail cache (reuses theme-gui's cache) ────────────────────────────
 
 
@@ -1934,50 +1995,11 @@ class ThemerDialog(Popup):
         self._toast("Loaded pywal colors")
 
     def _apply_swaylock_pywal(self, btn):
-        wal_colors = _read_wal_hex()
-        if len(wal_colors) < 8:
+        if sync_swaylock_from_pywal():
+            self._load_swaylock()
+            self._toast("Swaylock colors applied and saved")
+        else:
             self._toast("Pywal colors file incomplete")
-            return
-        color_mapping = [
-            ("ring-color", 6, False), ("ring-clear-color", 4, False),
-            ("ring-wrong-color", 1, False), ("ring-ver-color", 5, False),
-            ("ring-caps-lock-color", 5, False),
-            ("inside-color", 0, True), ("inside-clear-color", 4, True),
-            ("inside-wrong-color", 1, True), ("inside-ver-color", 5, True),
-            ("inside-caps-lock-color", 5, True),
-            ("key-hl-color", 6, True),
-            ("text-color", 7, False), ("text-clear-color", 4, False),
-            ("text-ver-color", 5, False), ("text-wrong-color", 1, False),
-            ("bs-hl-color", 1, False),
-            ("line-color", 6, True), ("line-clear-color", 4, True),
-            ("line-wrong-color", 1, True), ("line-ver-color", 5, True),
-            ("line-caps-lock-color", 5, True),
-            ("caps-lock-key-hl-color", 5, True),
-            ("caps-lock-bs-hl-color", 5, True),
-            ("text-caps-lock-color", 5, False),
-        ]
-        replacements = {}
-        for key, idx, keep_alpha in color_mapping:
-            new_color = wal_colors[idx]
-            replacements[key] = f"{new_color}44" if keep_alpha else new_color
-
-        template = WAL_CACHE / "colors-swaylock.conf"
-        if not template.exists():
-            self._toast("No swaylock template found")
-            return
-        new_lines = []
-        for line in template.read_text().splitlines():
-            stripped = line.strip()
-            if "=" in stripped:
-                key = stripped.split("=", 1)[0].strip()
-                if key in replacements:
-                    new_lines.append(f"{key}={replacements[key]}")
-                    continue
-            new_lines.append(line)
-        SWAYLOCK_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        _atomic_write(SWAYLOCK_CONFIG, "\n".join(new_lines) + "\n")
-        self._load_swaylock()
-        self._toast("Swaylock colors applied and saved")
 
     def _save_swaylock_manual(self, btn):
         config = _read_swaylock_config()
