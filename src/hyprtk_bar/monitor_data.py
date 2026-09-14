@@ -456,17 +456,13 @@ def iface_kind(name: str) -> tuple[str, str, str]:
     except (TypeError, ValueError):
         devtype = 0
     if name == "lo" or devtype == 772:           # ARPHRD_LOOPBACK
-        return "lo", "Loopback", "\uf0c1"        # fa-network-wired
+        return "lo", "Loopback", "\uf0ec"        # fa-exchange
     # Virtual devices (bridges like virbr0/docker0) have no device symlink.
     if not Path("/sys/class/net", name, "device").exists():
         return "virt", "Virtual", "\uf233"       # fa-server
     if devtype == 1:                             # ARPHRD_ETHER
-        return "eth", "Ethernet", "\uf0c1"       # fa-network-wired
+        return "eth", "Ethernet", "\uef44"       # fa-ethernet
     return "virt", "Virtual", "\uf233"           # fa-server
-
-
-def _iface_type(iface: str) -> str:
-    return iface_kind(iface)[1]
 
 
 class NetSampler:
@@ -529,12 +525,15 @@ class NetSampler:
             )
         )
 
+        kind = iface_kind(iface) if iface else ("", "", "\uf1eb")
         return {
             "iface": iface,
             "down_bps": down,
             "up_bps": up,
             "ip": _iface_ip(iface),
-            "type": _iface_type(iface),
+            "type": kind[1],
+            "type_key": kind[0],
+            "glyph": kind[2],
             "all": all_ifaces,
         }
 

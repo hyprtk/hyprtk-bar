@@ -497,6 +497,7 @@ class Readouts(Gtk.Grid):
     def __init__(self):
         super().__init__(row_spacing=6, column_spacing=28)
         self.vals: dict[str, Gtk.Label] = {}
+        self.icons: dict[str, Glyph] = {}
         self._index = 0
 
     def add(self, key: str, glyph: str, label: str) -> None:
@@ -513,6 +514,7 @@ class Readouts(Gtk.Grid):
         self.attach(cell, self._index % 2, self._index // 2, 1, 1)
         self._index += 1
         self.vals[key] = val
+        self.icons[key] = icon
 
 
 class SysMonitorDialog(Popup):
@@ -746,6 +748,10 @@ class SysMonitorDialog(Popup):
         stats.add("up", "\uf0aa", "Upload")
         page.pack_start(stats, False, False, 0)
         self._stat_vals.update(stats.vals)
+        # Interface/Type/IP icons follow the active interface's kind glyph.
+        self._iface_stat_icons = [
+            stats.icons["iface"], stats.icons["type"], stats.icons["ip"],
+        ]
 
         self._iface_list = InterfaceList()
         page.pack_start(self._iface_list, False, False, 0)
@@ -1094,6 +1100,11 @@ class SysMonitorDialog(Popup):
         self._stat_vals["ip"].set_text(data["ip"] or "--")
         self._stat_vals["down"].set_text(monitor_data.fmt_rate(data["down_bps"]))
         self._stat_vals["up"].set_text(monitor_data.fmt_rate(data["up_bps"]))
+
+        # Interface/Type/IP icons reflect the connected device (ethernet, wifi…).
+        glyph = data.get("glyph") or "\uf1eb"
+        for icon in getattr(self, "_iface_stat_icons", []):
+            icon.set_text(glyph)
 
         iface_list = getattr(self, "_iface_list", None)
         if iface_list is not None:

@@ -189,6 +189,11 @@ Dates are in YYYY-MM-DD format.
 
 ### Fixed
 
+- **System monitor → Network used the wrong interface glyphs.** The
+  Interface/Type/IP readouts were hardcoded to `fa-wifi`, so a wired connection
+  showed a Wi-Fi glyph; they now follow the active interface. In the interface
+  list, Ethernet and Loopback shared `fa-link` (a chain link); Ethernet now uses
+  `fa-ethernet` and Loopback `fa-exchange`.
 - **System monitor → Disks and Network showed no devices.** `_work()` stores
   the samples under `disk`/`net`, but `_apply_refresh()` gated their handlers on
   `"disks"`/`"network"` — keys that were never present — so `_update_disks()` /
