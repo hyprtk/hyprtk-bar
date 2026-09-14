@@ -1130,17 +1130,21 @@ def _window_pids() -> set[int]:
 _PROC_CACHE: dict = {}
 
 
-def top_processes(n: int = 15, window_pids: set[int] | None = None) -> list[dict]:
-    """Top-N processes by per-core CPU% (diff of two /proc samples).
+def top_processes(n: int | None = None, window_pids: set[int] | None = None) -> list[dict]:
+    """Every running process with its per-core CPU% (diff of two /proc samples).
+
+    Returns *all* processes — idle ones included — so the caller can show a
+    persistent list of running apps/processes instead of a top-N snapshot that
+    drops anything currently quiet (e.g. an idle terminal). A process with no
+    previous sample to diff against reports 0% CPU. Pass ``n`` to cap the
+    result; the default is no cap.
 
     Each row carries ``pid``, ``name`` (comm), ``cpu``, ``mem`` (GB), ``uid``
     (owner), ``cmdline`` (argv) and ``is_app`` (owns a compositor window). Pass
     ``window_pids`` from the caller to avoid a duplicate hyprctl query.
 
     The previous poll's sample is cached (instead of ``sleep``-ing for a second
-    sample), so this never blocks the caller — the first call after import
-    returns ``[]`` (no baseline yet), and every subsequent call diffs against
-    the prior poll's sample.
+    sample), so this never blocks the caller.
     """
     ncpu = os.cpu_count() or 1
     if window_pids is None:
@@ -1170,19 +1174,17 @@ def top_processes(n: int = 15, window_pids: set[int] | None = None) -> list[dict
     t2, p2 = sample()
     prev = _PROC_CACHE.get("sample")
     _PROC_CACHE["sample"] = (t2, p2)
-    if prev is None:
-        return []
-    t1, p1 = prev
+    # With no baseline yet, treat every process as freshly seen (0% CPU) rather
+    # than returning an empty list, so the first open already shows them all.
+    t1, p1 = prev if prev is not None else (t2, p2)
     delta = max(t2 - t1, 1)
 
     rows = []
     for pid, (comm, ticks) in p2.items():
         first = p1.get(pid)
-        if first is None:
-            continue
-        cpu = 100.0 * ncpu * (ticks - first[1]) / delta
-        if cpu < 0.05:
-            continue
+        cpu = 100.0 * ncpu * (ticks - first[1]) / delta if first is not None else 0.0
+        if cpu < 0.0:
+            cpu = 0.0
         rows.append(
             {
                 "pid": pid,
@@ -1194,8 +1196,8 @@ def top_processes(n: int = 15, window_pids: set[int] | None = None) -> list[dict
                 "is_app": pid in window_pids,
             }
         )
-    rows.sort(key=lambda r: r["cpu"], reverse=True)
-    return rows[:n]
+    rows.sort(key=lambda r: (-r["cpu"], r["name"].lower()))
+    return rows[:n] if n else rows
 
 
 # ── DIMM slots (SMBIOS via dmidecode) ────────────────────────────

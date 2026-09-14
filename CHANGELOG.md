@@ -322,6 +322,13 @@ Dates are in YYYY-MM-DD format.
   fallback now resolves there. `BUNDLING.md`'s inventory was updated to the
   bundled paths.
 
+- **System monitor → Apps lists dropped quiet apps.** The four tabs ranked
+  processes by CPU, discarded anything under 0.05% and kept only the top 15, so
+  an idle app such as a terminal vanished as soon as it went quiet. The lists
+  now show every running app/process, and rows are reconciled in place each poll
+  instead of being cleared and rebuilt — entries stay put and the selection
+  survives.
+
 ## [0.1.0] - 2026-09-09
 
 ### Added

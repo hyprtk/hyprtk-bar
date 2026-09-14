@@ -57,7 +57,6 @@ _PAGE_TITLES = {key: label for key, _glyph, label in PAGES}
 POLL_SECONDS = 1
 DIALOG_WIDTH = 940
 DIALOG_HEIGHT = 640
-APP_ROWS = 15
 
 
 class GraphCard(Gtk.Box):
@@ -794,6 +793,7 @@ class SysMonitorDialog(Popup):
         # owned by that user (apps included). Rows carry their pid in column 0.
         self._apps_views: dict[str, Gtk.TreeView] = {}
         self._apps_stores: dict[str, Gtk.ListStore] = {}
+        self._apps_iters: dict[str, dict[int, Gtk.TreeIter]] = {}
         self._uid = os.getuid()
 
         notebook = Gtk.Notebook()
@@ -1211,7 +1211,7 @@ class SysMonitorDialog(Popup):
         # Collect process rows off the GTK thread (the /proc walk + hyprctl
         # spawn are the slow part), then apply to the stores on the main thread.
         def _work() -> None:
-            rows = monitor_data.top_processes(APP_ROWS, window_pids=self._window_pids())
+            rows = monitor_data.top_processes(window_pids=self._window_pids())
             GLib.idle_add(self._apply_apps_rows, rows)
 
         threading.Thread(target=_work, daemon=True).start()
@@ -1235,11 +1235,35 @@ class SysMonitorDialog(Popup):
                 if app:
                     buckets["system-apps"].append(r)
         for key, store in self._apps_stores.items():
-            store.clear()
-            for r in buckets[key]:
-                mem = monitor_data.fmt_bytes(r["mem"]) if r["mem"] > 0 else "--"
-                store.append([r["pid"], r["name"], f"{r['cpu']:.1f}", mem])
+            self._sync_apps_store(key, store, buckets[key])
         return GLib.SOURCE_REMOVE
+
+    def _sync_apps_store(
+        self, key: str, store: Gtk.ListStore, rows: list[dict]
+    ) -> None:
+        """Reconcile one apps store by pid, in place.
+
+        The list must hold every running app/process across polls, so rows are
+        updated where they are and only added/removed on change — never
+        clear()-ed and rebuilt (which made quiet apps vanish and dropped the
+        user's selection every second).
+        """
+        iters = self._apps_iters.setdefault(key, {})
+        seen: set[int] = set()
+        for r in rows:
+            pid = r["pid"]
+            seen.add(pid)
+            mem = monitor_data.fmt_bytes(r["mem"]) if r["mem"] > 0 else "--"
+            values = (r["name"], f"{r['cpu']:.1f}", mem)
+            it = iters.get(pid)
+            if it is None or not store.iter_is_valid(it):
+                iters[pid] = store.append([pid, *values])
+            else:
+                store.set(it, 1, values[0], 2, values[1], 3, values[2])
+        for pid in [p for p in iters if p not in seen]:
+            it = iters.pop(pid)
+            if store.iter_is_valid(it):
+                store.remove(it)
 
     # ── refresh ───────────────────────────────────────────────────
 
@@ -1268,7 +1292,7 @@ class SysMonitorDialog(Popup):
                 data["gpu"] = monitor_data.gpu()
             if self._active == "apps" and "apps" in built:
                 data["apps"] = monitor_data.top_processes(
-                    APP_ROWS, window_pids=self._window_pids()
+                    window_pids=self._window_pids()
                 )
             GLib.idle_add(self._apply_refresh, data)
 
