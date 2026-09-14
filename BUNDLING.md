@@ -78,7 +78,7 @@ tree. Three surfaces reference them:
 | Binary | Package (Arch) | Needed for |
 |--------|----------------|------------|
 | `awww` | `awww` (AUR) | wallpaper set |
-| `wal` | `python-pywal` | pywal colors |
+| `wal` | **bundled** (`vendor/pywal16`) | pywal colors |
 | `rofi` | `rofi` | apps menu, clipboard |
 | `cliphist` | `cliphist` | clipboard history |
 | `wl-copy`/`wl-paste` | `wl-clipboard` | clipboard |
@@ -93,6 +93,13 @@ tree. Three surfaces reference them:
 | `papirus-icon-theme` | `papirus-icon-theme` | Papirus-Dark theme |
 | `hyprctl` | (with hyprland) | compositor IPC |
 | `sudo`/`pkexec` | `sudo`/`polkit` | SDDM/GRUB, DIMM, system kill |
+
+> **`wal` is bundled.** pywal16 is vendored under `vendor/pywal16/` (MIT, see
+> `vendor/pywal16/VENDOR.md`) and exposed by `install.sh` as `~/.local/bin/wal`
+> (the real launcher is `venv/bin/wal`) — no `python-pywal16-git`/AUR/PyPI
+> install is needed. `themer.py` and the bundled scripts resolve it
+> bundled-first via `HYPRTK_WAL` → beside-install `../venv/bin/wal` →
+> `~/.local/bin` → PATH.
 
 ---
 
@@ -143,8 +150,24 @@ tree. Three surfaces reference them:
 
 ### Phase 2 — extend install.sh dependency install ✅
 - `install.sh` now installs the feature binaries by default (`EXTRAS` map per
-  package manager + `EXTRAS_AUR` for `python-pywal16-git`/`papirus-folders` via
-  yay/paru), with `--no-extras` to skip and `--no-deps` implying `--no-extras`.
+  package manager + `EXTRAS_AUR` for `papirus-folders` via yay/paru), with
+  `--no-extras` to skip and `--no-deps` implying `--no-extras`.
+
+### Phase 5 — vendored pywal16 (`wal`) ✅
+- pywal16 (MIT) vendored under `vendor/pywal16/` (`VENDOR.md` records upstream,
+  commit, and the update procedure); `install.sh` copies it into
+  `~/.local/share/hyprtk-bar/vendor/pywal16/`.
+- New `--wal-only` mode provisions just the vendor tree + venv + `wal` launcher
+  and exits — the merged `1-install.sh` calls it early (replacing the old
+  `yay -S python-pywal16-git`), before its pywal init steps and the late full
+  bar install.
+- `wal` launcher lives at `venv/bin/wal`; `~/.local/bin/wal` (and
+  `/usr/local/bin/wal` when needed) symlink to it. Removed
+  `python-pywal16-git` from `EXTRAS_AUR`.
+- Bundled-first resolution: `proc.bootstrap_environment()` puts `~/.local/bin`
+  on the bar's PATH and exports `HYPRTK_WAL`; `themer.py` uses
+  `HYPRTK_WAL` → `resolve_binary("wal")`; the scripts use
+  `HYPRTK_WAL` → `../venv/bin/wal` → PATH.
 
 ### Phase 3 — decide C scripts explicitly ✅
 - `sddm/update.sh`, `updates.sh`, `installupdates.sh`, `ssdetect.sh` (and their

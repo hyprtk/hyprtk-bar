@@ -39,6 +39,7 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell  # noqa: E402
 
 from .colors import contrast_fg as _contrast_fg  # noqa: E402
 from .config import resolve_script, SCRIPTS_DIR  # noqa: E402
+from . import proc  # noqa: E402
 from .popup import Popup, center_layer_dialog  # noqa: E402
 from .theme_import import (  # noqa: E402
     find_installed_themes,
@@ -67,6 +68,16 @@ SDDM_UPDATE_SH = HYPRTK / "configs" / "sddm" / "update.sh"
 ICON_THEME_DIR = HOME / ".local" / "share" / "icons" / "Papirus-Dark" / "48x48" / "places"
 PAPIRUS_FOLDERS = HOME / ".local" / "bin" / "papirus-folders"
 PAPIRUS_FOLDERS_SH = HOME / ".local" / "share" / "icons" / "papirus-folders.sh"
+
+
+def _wal_binary() -> str:
+    """Resolve the `wal` CLI, preferring the bundled (vendored) pywal16.
+
+    install.sh puts the vendored pywal16 behind a `wal` launcher on PATH and
+    exports HYPRTK_WAL at startup; ``resolve_binary`` prepends ~/.local/bin, so
+    a stale system/AUR `wal` in /usr/bin can never shadow the bundled one.
+    """
+    return os.environ.get("HYPRTK_WAL") or proc.resolve_binary("wal") or "wal"
 
 
 def _root_script_safe(path) -> bool:
@@ -1370,7 +1381,7 @@ class ThemerDialog(Popup):
 
     def _on_scheme_click(self, _listbox, row):
         try:
-            subprocess.Popen(["wal", "--theme", str(row._scheme_path)],
+            subprocess.Popen([_wal_binary(), "--theme", str(row._scheme_path)],
                              start_new_session=True)
             self._toast(f"Applied scheme: {row._scheme_path.name}")
             GLib.timeout_add(POST_ACTION_DELAY_MS, self._refresh_pywal_idle)
@@ -1404,7 +1415,7 @@ class ThemerDialog(Popup):
 
     def _rerun_wal(self, btn):
         try:
-            subprocess.Popen(["wal", "-i", str(self._wal_dir)],
+            subprocess.Popen([_wal_binary(), "-i", str(self._wal_dir)],
                              start_new_session=True)
             self._toast("Re-running wal")
             GLib.timeout_add(POST_ACTION_DELAY_MS, self._refresh_pywal_idle)

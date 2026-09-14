@@ -3,6 +3,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WALLPAPER="$1"
 [ -f "$WALLPAPER" ] || exit 1
 
+# Bundled wal (vendored pywal16): prefer $HYPRTK_WAL (set by hyprtk-bar), then
+# the launcher beside this install, then PATH.
+WAL="${HYPRTK_WAL:-}"
+if [ -z "$WAL" ] && [ -x "$SCRIPT_DIR/../venv/bin/wal" ]; then
+    WAL="$SCRIPT_DIR/../venv/bin/wal"
+fi
+WAL="${WAL:-wal}"
+
 # Set wallpaper (ensure the daemon is running first — a standalone install may
 # not have started it). Prefer awww, fall back to swww.
 if command -v awww >/dev/null 2>&1; then
@@ -14,7 +22,7 @@ elif command -v swww >/dev/null 2>&1; then
 fi
 
 # Run pywal
-wal -i "$WALLPAPER" -n -q
+"$WAL" -i "$WALLPAPER" -n -q
 [ -f ~/.cache/wal/colors-wofi.css ]      && cp ~/.cache/wal/colors-wofi.css   ~/.config/wofi/style.css
 [ -f ~/.cache/wal/wob.ini ]              && cp ~/.cache/wal/wob.ini            ~/.config/wob/wob.ini
 [ -f ~/.cache/wal/hyprland-colors.conf ] && cp ~/.cache/wal/hyprland-colors.conf ~/.config/hypr/hyprland-colors.conf

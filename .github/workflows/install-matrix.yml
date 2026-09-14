@@ -58,6 +58,11 @@ jobs:
       - name: Install (core deps, no extras)
         run: ./install.sh --no-extras
 
+      - name: Bundled pywal16 (wal) self-test
+        run: |
+          test -x "$HOME/.local/share/hyprtk-bar/venv/bin/wal"
+          "$HOME/.local/bin/wal" -v
+
       - name: Import self-test
         run: |
           "$HOME/.local/share/hyprtk-bar/venv/bin/python3" - <<'PY'

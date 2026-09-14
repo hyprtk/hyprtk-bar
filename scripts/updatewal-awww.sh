@@ -5,10 +5,18 @@
 # ----------------------------------------------------- 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Bundled wal (vendored pywal16): prefer $HYPRTK_WAL (set by hyprtk-bar), then
+# the launcher beside this install, then PATH.
+WAL="${HYPRTK_WAL:-}"
+if [ -z "$WAL" ] && [ -x "$SCRIPT_DIR/../venv/bin/wal" ]; then
+    WAL="$SCRIPT_DIR/../venv/bin/wal"
+fi
+WAL="${WAL:-wal}"
+
 # ----------------------------------------------------- 
 # Select random wallpaper and create color scheme
 # ----------------------------------------------------- 
-wal -q -i ~/Pictures/Wallpapers/ 
+"$WAL" -q -i ~/Pictures/Wallpapers/ 
 
 # ----------------------------------------------------- 
 # Load current pywal16 color scheme

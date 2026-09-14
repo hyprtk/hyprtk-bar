@@ -3,6 +3,28 @@
 All notable changes to hyprtk-bar are documented in this file.
 Dates are in YYYY-MM-DD format.
 
+## [Unreleased]
+
+### Added
+
+- **`install.sh --wal-only`** — provisions just the vendored pywal16 (vendor
+  tree + venv + `wal` launcher) and exits. The merged `1-install.sh` calls it
+  early, before its pywal init steps and the late full bar install.
+- Bundled-first `wal` resolution: `proc.bootstrap_environment()` prepends
+  `~/.local/bin` to the bar's PATH and exports `HYPRTK_WAL`; `themer.py` uses
+  `HYPRTK_WAL` → `resolve_binary("wal")`, and the bundled scripts use
+  `HYPRTK_WAL` → `../venv/bin/wal` → PATH.
+
+### Changed
+
+- **pywal16 is now bundled — no separate install.** The bar vendors pywal16
+  under `vendor/pywal16/` (MIT; provenance and update steps in
+  `vendor/pywal16/VENDOR.md`) and exposes it as `wal` (`venv/bin/wal`, symlinked
+  into `~/.local/bin`). `python-pywal16-git` was removed from the AUR extras, so
+  neither the bar nor the merged `1-install.sh` downloads pywal separately.
+- `derivation.nix` installs the vendored tree and wraps a `wal` executable;
+  the flake devShell exposes `wal` from the source tree.
+
 ## [0.1.0] - 2026-09-12
 
 ### Added

@@ -270,6 +270,7 @@ def main(argv=None) -> int:
         _print_config()
         return 0
 
+    proc.bootstrap_environment()
     return _run_window()
 
 

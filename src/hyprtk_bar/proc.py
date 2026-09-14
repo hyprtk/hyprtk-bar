@@ -48,6 +48,21 @@ def resolve_binary(name: str):
     return shutil.which(name, path=_home_bin_path())
 
 
+def bootstrap_environment() -> None:
+    """Make the bundled tools reachable for the bar and every child it spawns.
+
+    Hyprland launches the bar with a minimal PATH, so prepend ~/.local/bin
+    (where install.sh puts the bundled `wal` launcher) and export HYPRTK_WAL so
+    the vendored pywal16 is found by shell scripts even when ~/.local/bin is
+    absent from a child's PATH.
+    """
+    os.environ["PATH"] = _home_bin_path()
+    if not os.environ.get("HYPRTK_WAL"):
+        wal = resolve_binary("wal")
+        if wal:
+            os.environ["HYPRTK_WAL"] = wal
+
+
 def spawn_argv(argv: list[str], working_directory: str = "") -> bool:
     """Spawn an argv list detached from the bar (GLib reaps the child).
 

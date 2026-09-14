@@ -18,12 +18,14 @@ CONFIG_DIR="$HOME/.config/$APP_NAME"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 
 usage() {
-    echo "Usage: $0 [--dry-run|--no-deps|--no-extras|--uninstall|--help]"
+    echo "Usage: $0 [--dry-run|--no-deps|--no-extras|--wal-only|--uninstall|--help]"
     echo "  (no args)     Install the bar with system deps + feature dependencies."
     echo "  --dry-run     Check requirements and report what is missing; change nothing."
     echo "  --no-deps     Skip system package installation (assume typelibs present)."
     echo "  --no-extras   Skip the optional feature binaries (quick settings, monitor,"
     echo "                clipboard, theming, etc. — those features then degrade)."
+    echo "  --wal-only    Provision only the bundled pywal16 (wal) and exit. Used by"
+    echo "                the merged 1-install.sh before the bar itself is installed."
     echo "  --uninstall   Remove the bar, its launcher and desktop entry."
 }
 
@@ -36,6 +38,7 @@ if [[ "${1:-}" == "--uninstall" || "${1:-}" == "-u" ]]; then
     echo ":: Uninstalling $APP_NAME..."
     rm -rf "$INSTALL_DIR"
     rm -f "$BIN_DIR/$APP_NAME"
+    rm -f "$BIN_DIR/wal"
     rm -f "$BIN_DIR/hyprtk-bar-menu-toggle.sh"
     rm -f "$BIN_DIR/hyprtk-bar-arc-toggle.sh"
     rm -f "$BIN_DIR/hyprtk-bar-clipboard-toggle.sh"
@@ -53,9 +56,9 @@ if [[ "${1:-}" == "--uninstall" || "${1:-}" == "-u" ]]; then
     done
     # Remove any /usr/local/bin symlinks created when ~/.local/bin was off PATH.
     if [ "$(id -u)" -eq 0 ]; then
-        rm -f /usr/local/bin/$APP_NAME /usr/local/bin/hyprtk-bar-*-toggle.sh 2>/dev/null || true
+        rm -f /usr/local/bin/$APP_NAME /usr/local/bin/wal /usr/local/bin/hyprtk-bar-*-toggle.sh 2>/dev/null || true
     elif command -v sudo >/dev/null 2>&1; then
-        sudo rm -f /usr/local/bin/$APP_NAME /usr/local/bin/hyprtk-bar-*-toggle.sh 2>/dev/null || true
+        sudo rm -f /usr/local/bin/$APP_NAME /usr/local/bin/wal /usr/local/bin/hyprtk-bar-*-toggle.sh 2>/dev/null || true
     fi
     echo ":: Done. $APP_NAME has been uninstalled."
     exit 0
@@ -73,6 +76,13 @@ fi
 
 SKIP_EXTRAS=0
 if [[ "${1:-}" == "--no-extras" ]]; then
+    SKIP_EXTRAS=1
+fi
+
+WAL_ONLY=0
+if [[ "${1:-}" == "--wal-only" ]]; then
+    WAL_ONLY=1
+    # Provisioning pywal needs no feature binaries; skip the extras pass.
     SKIP_EXTRAS=1
 fi
 
@@ -123,7 +133,8 @@ EXTRAS[emerge]="net-misc/networkmanager net-wireless/bluez media-video/pipewire 
 EXTRAS[nix]="networkmanager bluez pipewire wireplumber rofi wl-clipboard libnotify"
 
 # AUR-only extras (Arch) — installed via yay/paru when an AUR helper is present.
-EXTRAS_AUR="python-pywal16-git papirus-folders"
+# NOTE: pywal16 is NOT here — it is vendored under vendor/pywal16 (see VENDOR.md).
+EXTRAS_AUR="papirus-folders"
 
 # True when the two typelibs the bar cannot run without are present.
 typelib_present() {
@@ -247,6 +258,51 @@ install_extras() {
     fi
 }
 
+# True when a directory is already on PATH.
+on_path() {
+    case ":$PATH:" in *":$1:"*) return 0 ;; *) return 1 ;; esac
+}
+
+# ── Bundled pywal16 ────────────────────────────────────────────────────────
+# The `wal` CLI is vendored under vendor/pywal16 (see VENDOR.md), so neither
+# the bar nor the merged 1-install.sh needs a separate AUR/PyPI pywal install.
+# It runs from the bar's own venv via PYTHONPATH — no pip, no build, no network.
+copy_vendor() {
+    [ -d "$SCRIPT_DIR/vendor/pywal16/pywal" ] || return 1
+    rm -rf "$INSTALL_DIR/vendor/pywal16"
+    mkdir -p "$INSTALL_DIR/vendor"
+    cp -r "$SCRIPT_DIR/vendor/pywal16" "$INSTALL_DIR/vendor/"
+}
+
+write_wal_launcher() {
+    # The real launcher lives in the venv (so scripts can anchor on it via
+    # ``$(dirname "$0")/../venv/bin/wal``); ~/.local/bin is a symlink for PATH.
+    cat > "$INSTALL_DIR/venv/bin/wal" << WAL_LAUNCHER
+#!/bin/bash
+export PYTHONPATH="$INSTALL_DIR/vendor/pywal16\${PYTHONPATH:+:\$PYTHONPATH}"
+exec "$INSTALL_DIR/venv/bin/python3" -m pywal "\$@"
+WAL_LAUNCHER
+    chmod +x "$INSTALL_DIR/venv/bin/wal"
+    mkdir -p "$BIN_DIR"
+    ln -sf "$INSTALL_DIR/venv/bin/wal" "$BIN_DIR/wal"
+}
+
+# Vendor tree + venv + launcher, then prove `wal` runs. Shared by whole-app
+# installs and by `--wal-only`, which the merged 1-install.sh calls early so
+# `wal` exists before its pywal init steps.
+provision_wal() {
+    if ! copy_vendor; then
+        echo ":: WARN: vendored pywal16 missing ($SCRIPT_DIR/vendor/pywal16) — skipping wal." >&2
+        return 1
+    fi
+    mkdir -p "$BIN_DIR"
+    if [ ! -x "$INSTALL_DIR/venv/bin/python3" ]; then
+        python3 -m venv --system-site-packages "$INSTALL_DIR/venv"
+    fi
+    write_wal_launcher
+    "$BIN_DIR/wal" -v >/dev/null 2>&1
+}
+
 PM="$(detect_pkg_manager)"
 
 # ── Dry run: report requirements without changing anything ─────────────────
@@ -291,6 +347,11 @@ if [ "$DRY_RUN" -eq 1 ]; then
     if [ -d "$SCRIPT_DIR/Wallpapers" ]; then
         echo ":: Bundled wallpapers: $(ls "$SCRIPT_DIR"/Wallpapers/* 2>/dev/null | wc -l)"
     fi
+    if [ -d "$SCRIPT_DIR/vendor/pywal16/pywal" ]; then
+        echo ":: Bundled pywal16: vendor/pywal16 (provides wal; no AUR/PyPI needed)"
+    else
+        echo ":: Bundled pywal16: MISSING (vendor/pywal16)"
+    fi
     if [ "$PM" = "pacman" ]; then
         if command -v yay >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then
             echo ":: AUR helper: present"
@@ -332,6 +393,27 @@ if [ "$SKIP_EXTRAS" -eq 0 ] && [ "$SKIP_DEPS" -eq 0 ] && [ "$PM" != "none" ]; th
     install_extras "$PM"
 elif [ "$SKIP_EXTRAS" -eq 0 ] && [ "$SKIP_DEPS" -eq 1 ]; then
     echo ":: NOTE: --no-deps implies --no-extras (system packages not managed here)."
+fi
+
+# ── --wal-only: provision the bundled `wal` and stop ──────────────────────
+# The merged 1-install.sh runs its pywal init steps before the bar is installed,
+# so it calls this early to get `wal` on PATH without a separate AUR install.
+if [ "$WAL_ONLY" -eq 1 ]; then
+    echo ":: Provisioning bundled pywal16 (wal) ..."
+    if ! provision_wal; then
+        echo ":: ERROR: could not provision the bundled wal." >&2
+        exit 1
+    fi
+    echo ":: wal ready: $BIN_DIR/wal ($("$BIN_DIR/wal" -v 2>&1))"
+    if ! on_path "$BIN_DIR"; then
+        if [ "$(id -u)" -eq 0 ] || command -v sudo >/dev/null 2>&1; then
+            run_root ln -sf "$BIN_DIR/wal" "/usr/local/bin/wal" 2>/dev/null || true
+            echo ":: $BIN_DIR is not on PATH — linked wal into /usr/local/bin"
+        else
+            echo ":: NOTE: add $BIN_DIR to PATH so scripts can find wal." >&2
+        fi
+    fi
+    exit 0
 fi
 
 echo ":: Installing $APP_NAME..."
@@ -382,6 +464,7 @@ fi
 cp -r "$SCRIPT_DIR/src" "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/assets" "$INSTALL_DIR/" 2>/dev/null || true
 cp -r "$SCRIPT_DIR/scripts" "$INSTALL_DIR/" 2>/dev/null || true
+copy_vendor || echo ":: WARN: vendored pywal16 missing — pywal theming unavailable." >&2
 cp "$SCRIPT_DIR/pyproject.toml" "$INSTALL_DIR/"
 
 # venv with --system-site-packages: PyGObject and pycairo ship no binary
@@ -399,6 +482,11 @@ cat > "$BIN_DIR/$APP_NAME" << LAUNCHER
 exec "$INSTALL_DIR/venv/bin/python3" -m hyprtk_bar "\$@"
 LAUNCHER
 chmod +x "$BIN_DIR/$APP_NAME"
+
+# Bundled `wal` (vendored pywal16) — the bar and its scripts call it by name.
+if [ -d "$INSTALL_DIR/vendor/pywal16/pywal" ]; then
+    write_wal_launcher
+fi
 
 # ── Hyprland autostart ──────────────────────────────────────────────────────
 # Register the bar with the user's Hyprland Lua config so it starts on login.
@@ -489,14 +577,23 @@ fi
 rm -f "$INSTALL_DIR/self-test.err"
 echo ":: Environment check passed."
 
+# pywal is optional for the bar itself but drives all theming; warn (don't
+# fail) if the bundled `wal` cannot run.
+if [ -x "$BIN_DIR/wal" ]; then
+    if "$BIN_DIR/wal" -v >/dev/null 2>&1; then
+        echo ":: Bundled wal ready ($("$BIN_DIR/wal" -v 2>&1))."
+    else
+        echo ":: WARN: bundled wal self-test failed — pywal theming unavailable." >&2
+    fi
+else
+    echo ":: WARN: no bundled wal launcher — pywal theming unavailable." >&2
+fi
+
 # ── Make the launcher reachable ────────────────────────────────────────────
 # ~/.local/bin is not on PATH by default on a fresh Arch, and Hyprland's
 # autostart does not source shell rc files either. When it is missing, link
 # the launcher (and toggle scripts) into /usr/local/bin, which is always on
 # PATH — so `hyprtk-bar` works immediately and in `exec-once` too.
-on_path() {
-    case ":$PATH:" in *":$1:"*) return 0 ;; *) return 1 ;; esac
-}
 if ! on_path "$BIN_DIR"; then
     linked=0
     if [ "$(id -u)" -eq 0 ] || command -v sudo >/dev/null 2>&1; then
@@ -507,6 +604,9 @@ if ! on_path "$BIN_DIR"; then
                 run_root ln -sf "$script" "/usr/local/bin/$(basename "$script")" \
                     2>/dev/null || true
             done
+            if [ -x "$BIN_DIR/wal" ]; then
+                run_root ln -sf "$BIN_DIR/wal" "/usr/local/bin/wal" 2>/dev/null || true
+            fi
             echo ":: $BIN_DIR is not on PATH — linked $APP_NAME into /usr/local/bin"
         fi
     fi

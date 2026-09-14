@@ -77,7 +77,7 @@ surface works on every distro; only the *theming* wall is Arch/AUR-centric.
 | Rofi theming         | `rofi`         | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Updates              | bundled sh (distro-agnostic) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Wallpaper daemon     | `awww`/`swww`  | AUR | ✗ | ✗ | ✗ | ✅ | ✅(3.24+) | ✅(26.05+) |
-| Pywal colours        | `wal`/`pywal16` | AUR | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Pywal colours        | bundled (`vendor/pywal16`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Gamma (no backlight) | `hyprsunset`   | ✅ | backports/sid | ✗ | Factory | ✗ | edge | ✅ |
 | Folder-icon colour   | `papirus-folders` | AUR | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Matuwall integration | `matugen`      | ✅ | ✗ | ✗ | ✗ | ✗ | ✗ | ✅ |
@@ -86,11 +86,13 @@ surface works on every distro; only the *theming* wall is Arch/AUR-centric.
 
 `✅*` = dotfiles-owned (needs the full hyprtk tree, not a standalone install).
 
-The **theming wall** — wallpaper daemon, pywal colours, folder-icon colouring —
-degrades to the bar's built-in default palette when its (AUR/niche) binaries are
-absent. The bar still runs and themes internally; it just doesn't re-tint from
-the wallpaper, so a standalone non-Arch install gets a fixed accent rather than
-dynamic wallpaper colours.
+The **theming wall** — the wallpaper daemon (`awww`/`swww`) and folder-icon
+colouring (`papirus-folders`) — degrades to the bar's built-in default palette
+when its (AUR/niche) binaries are absent. pywal colours are **bundled**
+(`vendor/pywal16`, exposed as `wal`), so palette generation is always available;
+without a wallpaper daemon the bar simply doesn't re-tint automatically from the
+wallpaper, so a standalone install keeps a fixed accent rather than dynamic
+wallpaper colours.
 
 ## Distro support matrix
 

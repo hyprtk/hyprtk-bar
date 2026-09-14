@@ -7,6 +7,15 @@
 # palette, copied configs and icon colours.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Bundled wal (vendored pywal16): prefer $HYPRTK_WAL (set by hyprtk-bar), then
+# the launcher beside this install, then PATH. The watcher autostarts under
+# Hyprland's minimal PATH, so the beside-this-install path matters here.
+WAL="${HYPRTK_WAL:-}"
+if [ -z "$WAL" ] && [ -x "$SCRIPT_DIR/../venv/bin/wal" ]; then
+    WAL="$SCRIPT_DIR/../venv/bin/wal"
+fi
+WAL="${WAL:-wal}"
+
 LAST_WALL=""
 
 while true; do
@@ -15,7 +24,7 @@ while true; do
         echo "Wallpaper changed: $CURRENT"
         LAST_WALL="$CURRENT"
         # Run pywal and sync colours (the wallpaper is already set by the caller)
-        wal -i "$CURRENT" -n -q
+        "$WAL" -i "$CURRENT" -n -q
         [ -f ~/.cache/wal/colors-wofi.css ]      && cp ~/.cache/wal/colors-wofi.css   ~/.config/wofi/style.css
         [ -f ~/.cache/wal/wob.ini ]              && cp ~/.cache/wal/wob.ini            ~/.config/wob/wob.ini
         [ -f ~/.cache/wal/hyprland-colors.conf ] && cp ~/.cache/wal/hyprland-colors.conf ~/.config/hypr/hyprland-colors.conf

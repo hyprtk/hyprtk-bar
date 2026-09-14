@@ -23,6 +23,7 @@ pkgs.python3Packages.buildPythonApplication rec {
   nativeBuildInputs = [
     pkgs.wrapGAppsHook
     pkgs.gobject-introspection
+    pkgs.makeWrapper
   ];
 
   buildInputs = [
@@ -50,6 +51,13 @@ pkgs.python3Packages.buildPythonApplication rec {
     cp -r assets "$out/share/hyprtk-bar/assets"
     cp -r scripts "$out/share/hyprtk-bar/scripts"
     cp -r themes "$out/share/hyprtk-bar/themes"
+    # Vendored pywal16 (see vendor/pywal16/VENDOR.md) — the bar and its scripts
+    # call `wal`; expose it as a wrapper over this same Python + the vendored
+    # tree, so no separate pywal package is needed.
+    cp -r vendor "$out/share/hyprtk-bar/vendor"
+    makeWrapper ${pkgs.python3Packages.python.interpreter} "$out/bin/wal" \
+      --prefix PYTHONPATH : "$out/share/hyprtk-bar/vendor/pywal16" \
+      --add-flags "-m pywal"
     # The glyph icons are rendered with the "Symbols Nerd Font" family; ship the
     # bundled TTF so fontconfig finds it via XDG_DATA_DIRS (wrapGAppsHook adds
     # $out/share). Users with nerd-fonts installed don't need this copy.
@@ -59,6 +67,8 @@ pkgs.python3Packages.buildPythonApplication rec {
 
   makeWrapperArgs = [
     "--set" "HYPRTK_BAR_DATA_DIR" "$out/share/hyprtk-bar"
+    # Put the bundled `wal` wrapper on the bar's PATH so it resolves at runtime.
+    "--prefix" "PATH" ":" "$out/bin"
   ];
 
   meta = with lib; {

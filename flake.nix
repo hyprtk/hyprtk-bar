@@ -29,6 +29,9 @@
             ];
             shellHook = ''
               export GI_TYPELIB_PATH="$GI_TYPELIB_PATH''${GI_TYPELIB_PATH:+:}$(pwd)/build"
+              # Bundled pywal16: expose `wal` from the vendored tree (VENDOR.md).
+              export PYTHONPATH="$(pwd)/vendor/pywal16''${PYTHONPATH:+:$PYTHONPATH}"
+              wal() { python3 -m pywal "$@"; }
             '';
           };
         });

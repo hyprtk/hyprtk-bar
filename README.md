@@ -85,7 +85,10 @@ This:
 3. Pip-installs `dbus-next` into the venv and editable-installs the bar
    (`--no-deps` — PyGObject/pycairo come from the system, not pip).
 4. Drops a `hyprtk-bar` launcher on `~/.local/bin`.
-5. Installs a desktop entry (and optional GNOME autostart hint).
+5. Vendors pywal16 (`vendor/pywal16/`) and drops a `wal` launcher on
+   `~/.local/bin` (real launcher `venv/bin/wal`) — no separate AUR/PyPI pywal
+   install is needed. `install.sh --wal-only` provisions just this and exits.
+6. Installs a desktop entry (and optional GNOME autostart hint).
 
 Skip the system-dependency step with `--no-deps` (e.g. on Gentoo, or when you
 manage the typelibs yourself):
@@ -107,8 +110,9 @@ installs the right typelib + PyGObject/pycairo + venv packages for each (Void
 and Alpine need their `-devel`/`-dev` subpackages for the typelibs). It warns —
 but does not fail — when `gtk-layer-shell` is below 0.9 (older LTS releases ship
 0.5–0.8) and prints the source-build steps. The full per-distro mapping, the
-feature-availability matrix and the Arch/AUR-only "theming wall" are documented
-in `PORTABILITY.md`, and a container CI matrix
+feature-availability matrix and the remaining AUR/niche "theming wall"
+(wallpaper daemon, folder-icon colouring — pywal itself is bundled) are
+documented in `PORTABILITY.md`, and a container CI matrix
 (`.github/workflows/install-matrix.yml`) exercises the installer on seven distro
 families.
 
