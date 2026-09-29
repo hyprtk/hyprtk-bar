@@ -54,7 +54,7 @@ Hyprland.
 | **L1 construct** | `test_l1_construct.py` | the bar, all 9 settings pages, both overlays, all 7 desktop widgets and the themer/monitor/clipboard dialogues build |
 | **L2 settings matrix** | `test_l2_settings.py` | **every config-bound control**: perturb → Apply → config changed + live fingerprint; plus targeted cross-surface behaviours (arc/menu/widget toggles, layout show-hide, geometry) |
 | **L3 functional** | `test_l3_functional.py` | overlay toggles, bar/tasklist context menus, quicklink picker, clipboard, notifications, widget-move control |
-| **L4 visual** | `test_l4_visual.py` | grim a PNG of each surface, embedded for human review (no golden diff) |
+| **L4 visual** | `test_l4_visual.py` | grim a PNG of each surface, embedded for human review (no golden diff); **GTK4-only** (headless GTK3 capture crashes) |
 | **L5 real-process** | `test_l5_smoke.py` | launches the actual `python -m hyprtk_bar`, drives SIGUSR1/SIGUSR2/SIGHUP, confirms clean SIGTERM exit |
 
 ### Coverage, not vibes
@@ -94,19 +94,20 @@ Every step above is mirrored by an automated test in L2/L3/L5.
 
 ---
 
-## 5. Known defects this suite has already surfaced
+## 5. Defects found and fixed
 
-Populated from the first full run; **fixes are a separate pass** (do not patch
-product code just to make the report green — the report is the worklist).
+The first full run surfaced these; all are now fixed and the suite is green
+(GTK4 101/101; GTK3 93 passed + 8 GTK4-only visual skips).
 
-| # | Where | Symptom | Layer |
-|---|-------|---------|-------|
-| D1 | `arcmenu.py:753` (`reload_from_cfg`) | `ArcMenuWindow.remove()` — GTK4 removed `Gtk.Window.remove`; **Apply crashes on every settings page** when the arc menu is live | L2 |
-| D2 | `__main__.py:170` / arc wiring | enabling the arc menu when it was **off at startup** never creates the overlay (window only built at launch) | L2 |
-| D3 | `arcmenu.py` `toggle()` | arc overlay opens but does not close on toggle | L3 |
-| D4 | `menu/menu_window.py:639` (`_build_win7`) | `.get_child().get_style_context()` — GTK4 has no widget StyleContext; missed by the sweep | L0 |
-| D5 | `bar_settings.py:253`, `menu/menu_window.py:1648` | `begin_move_drag` — GTK4 removed it; frameless header drag is dead (needs `Gtk.WindowDragGesture`) | L0 |
-| D6 | whole tree | **the GTK3 escape hatch is broken**: `Gtk.CenterBox` is used unconditionally (no GTK3 fallback), so `HYPRTK_GTK=3` cannot even build the bar. Until fixed, the GTK3 column reads as a boot failure | L1 |
+| # | Where | Symptom | Fix |
+|---|-------|---------|-----|
+| D1 | `arcmenu.py` (`reload_from_cfg`), `menu/menu_window.py:446` | `Window.remove()` — GTK4 removed it; **Apply crashed on every settings page** when the arc menu was live | new `compat.clear_child()` routed the Window-level removals through `set_child(None)` |
+| D2 | `__main__.py` arc/menu wiring | enabling the arc overlay (or start menu) when it was off at startup never created it | on-demand `ensure_arc()` / `ensure_menu()`; the config callback is always installed and creates then reloads |
+| D4 | `menu/menu_window.py` (`_build_win7`) | `.get_child().get_style_context()` — GTK4 has no widget StyleContext | routed through `compat.add_class` |
+| D5 | `bar_settings.py`, `menu/menu_window.py` | `begin_move_drag` — GTK4 removed it; frameless header drag was dead | `compat.make_window_draggable()`: `Gtk.WindowDragGesture` (GTK4) / press handler (GTK3) |
+| D6 | `bar.py` pill | `Gtk.CenterBox` used with no GTK3 fallback → `HYPRTK_GTK=3` couldn't build | `compat.center_box()`: `Gtk.CenterBox` (GTK4) / `Gtk.Overlay` emulation (GTK3) |
+| D7 | `compat.on_drag`, `compat.set_window_position` | GTK3 branches used a non-existent `GestureDrag.attach` and passed `None` to `set_position` | `Gtk.GestureDrag.new(widget)`; default `WindowPosition.CENTER` |
+| D3 | `arcmenu` toggle | *not a product bug* — the surface stays mapped when closed, so `get_visible()` is the wrong signal. The L3 test now checks `_menu.is_open()` |
 
 ---
 

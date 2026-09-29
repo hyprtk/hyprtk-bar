@@ -148,11 +148,12 @@ class Bar(Gtk.Box):
         self._scale_min = 0.35
         self._pill_spacing = 8
 
-        # Gtk.CenterBox keeps the center section on the bar's midpoint without
+        # A centre box keeps the center section on the bar's midpoint without
         # needing equal-width left/right sections. A plain Gtk.Box does not
         # honour halign on its main axis, so a halign=CENTER child stayed at the
-        # left of its section (the center drifted off-middle).
-        self.pill = Gtk.CenterBox()
+        # left of its section (the center drifted off-middle). compat supplies
+        # Gtk.CenterBox on GTK4 and an Overlay-based emulation on GTK3.
+        self.pill = compat.center_box()
         self.pill.set_hexpand(True)
         self.pill.set_halign(Gtk.Align.FILL)
         # The sections only cover their own content now (CenterBox centres the

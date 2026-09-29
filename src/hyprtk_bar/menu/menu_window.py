@@ -443,7 +443,7 @@ class MenuWindow(Gtk.Window):
         """Tear down and rebuild the widget tree for a new layout."""
         child = self.get_child()
         if child is not None:
-            self.remove(child)
+            compat.clear_child(self, child)
             compat.destroy(child)  # release the old layout's whole widget tree
         self._build_ui()
         self._refresh_favorites()
@@ -636,7 +636,7 @@ class MenuWindow(Gtk.Window):
         # All Programs row at bottom of left pane
         allprog = Gtk.Button(label="All Programs  ▸", xalign=0)
         compat.add_class(allprog, "win7-allprograms")
-        allprog.get_child().get_style_context().add_class("win7-allprograms-label")
+        compat.add_class(allprog.get_child(), "win7-allprograms-label")
         allprog.connect("clicked", self._on_win7_allprograms)
         compat.pack_end(left, allprog, False, False, 0)
 
@@ -1508,7 +1508,7 @@ class MenuWindow(Gtk.Window):
         # Draggable header
         header = compat.event_surface()
         compat.add_class(header, "settings-header")
-        compat.on_press(header, self._on_settings_header_press)
+        compat.make_window_draggable(win, header)
         title = Gtk.Label(label="Menu Settings")
         compat.add_class(title, "settings-title")
         compat.add(header, title)
@@ -1641,15 +1641,6 @@ class MenuWindow(Gtk.Window):
         compat.show_all(win)
         apply_btn.set_can_default(True)
         apply_btn.grab_default()
-
-    def _on_settings_header_press(self, _widget, event):
-        """Allow dragging the frameless settings window by its header."""
-        if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
-            self._settings_window.begin_move_drag(
-                event.button, int(event.x_root), int(event.y_root), event.time
-            )
-            return True
-        return False
 
     def _on_settings_key(self, _win, event):
         if event.keyval == Gdk.KEY_Escape:

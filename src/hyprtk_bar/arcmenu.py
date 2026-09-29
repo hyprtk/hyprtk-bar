@@ -750,7 +750,7 @@ class ArcMenuWindow(Gtk.Window):
             return
 
         self._menu.cancel_animation()
-        self.remove(self._menu)
+        compat.clear_child(self, self._menu)
         compat.destroy(self._menu)
         self._menu = ArcMenu(
             self._cfg,

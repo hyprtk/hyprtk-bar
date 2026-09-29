@@ -74,16 +74,40 @@ def build_runtime(cfg: dict, ipc) -> Runtime:
     rt.windows.append(win)
     rt.details["monitor"] = getattr(monitor, "__class__", None) and str(monitor)
 
-    if (cfg.get("arcmenu") or {}).get("enabled", True):
-        rt.arc_win = ArcMenuWindow(cfg, on_settings=lambda: None)
-        compat.show_all(rt.arc_win)
-        win.add_theme_extra_callback(rt.arc_win.apply_bar_palette)
-        win._bar.set_arcmenu_callback(lambda _block: rt.arc_win.reload_from_cfg())
+    # Mirrors __main__._run_window's on-demand overlay creation: the callback is
+    # always installed, creates the overlay on first need, and reloads/hides it.
+    def ensure_arc():
+        if rt.arc_win is None:
+            rt.arc_win = ArcMenuWindow(cfg, on_settings=lambda: None)
+            compat.show_all(rt.arc_win)
+            win.add_theme_extra_callback(rt.arc_win.apply_bar_palette)
+        return rt.arc_win
 
+    def on_arc_config(_block) -> None:
+        if (cfg.get("arcmenu") or {}).get("enabled", True):
+            ensure_arc().reload_from_cfg()
+        elif rt.arc_win is not None:
+            rt.arc_win.reload_from_cfg()
+
+    win._bar.set_arcmenu_callback(on_arc_config)
+    if (cfg.get("arcmenu") or {}).get("enabled", True):
+        ensure_arc()
+
+    def ensure_menu():
+        if rt.menu_win is None:
+            rt.menu_win = MenuWindow(bar_cfg=cfg, on_settings=lambda: None)
+        return rt.menu_win
+
+    def on_menu_config(_block) -> None:
+        if (cfg.get("menu") or {}).get("enabled", True):
+            ensure_menu().reload_from_cfg()
+        elif rt.menu_win is not None:
+            rt.menu_win.reload_from_cfg()
+
+    win._bar.set_menu_callback(lambda: ensure_menu().toggle())
+    win._bar.set_menu_reload_callback(on_menu_config)
     if (cfg.get("menu") or {}).get("enabled", True):
-        rt.menu_win = MenuWindow(bar_cfg=cfg, on_settings=lambda: None)
-        win._bar.set_menu_callback(lambda: rt.menu_win.toggle())
-        win._bar.set_menu_reload_callback(lambda _block: rt.menu_win.reload_from_cfg())
+        ensure_menu()
 
     from hyprtk_bar.desktop import DesktopWidgetManager
 

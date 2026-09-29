@@ -11,15 +11,20 @@ import pytest
 
 
 def test_arc_overlay_toggles(runtime, details):
+    """The arc surface stays mapped; open/closed is the menu's own state.
+
+    Checking ``get_visible()`` is wrong — the layer surface never unmaps, it
+    only collapses its items/input region, so assert the menu's ``is_open()``.
+    """
     from harness.runtime import pump
 
     assert runtime.arc_win is not None
-    runtime.arc_win.toggle(); pump(40)
-    details["visible_after_open"] = runtime.arc_win.get_visible()
-    assert runtime.arc_win.get_visible(), "arc overlay did not open on toggle"
-    runtime.arc_win.toggle(); pump(40)
-    details["visible_after_close"] = runtime.arc_win.get_visible()
-    assert not runtime.arc_win.get_visible(), "arc overlay did not close on toggle"
+    runtime.arc_win.toggle(); pump(400)
+    details["open_after_toggle"] = runtime.arc_win._menu.is_open()
+    assert runtime.arc_win._menu.is_open(), "arc menu did not open on toggle"
+    runtime.arc_win.toggle(); pump(400)
+    details["open_after_second_toggle"] = runtime.arc_win._menu.is_open()
+    assert not runtime.arc_win._menu.is_open(), "arc menu did not close on toggle"
 
 
 def test_start_menu_toggles(runtime, details):
@@ -40,14 +45,20 @@ def test_bar_context_menu_builds(runtime, details):
 
 
 def test_tasklist_context_menu_builds(runtime, details):
-    from hyprtk_bar.menus import MenuPopup
+    """Exercise the toolkit-appropriate context-menu path (as tasklist does)."""
+    from hyprtk_bar import compat
 
     items = [
         {"label": "Activate", "activate": lambda: None},
         {"type": "separator"},
         {"label": "Close window", "activate": lambda: None},
     ]
-    popup = MenuPopup(items)
+    if compat.IS_GTK4:
+        from hyprtk_bar.menus import MenuPopup
+        popup = MenuPopup(items)
+    else:
+        from hyprtk_bar.menus import build_gtk3_menu
+        popup = build_gtk3_menu(items)
     details["popup_type"] = type(popup).__name__
     assert popup is not None
 

@@ -247,15 +247,6 @@ class BarSettings(Gtk.Window):
         style.add_class("settings-header")
         style.add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-    def _on_header_press(self, _widget, event) -> bool:
-        """Drag the frameless window by its header."""
-        if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
-            self.begin_move_drag(
-                event.button, int(event.x_root), int(event.y_root), event.time
-            )
-            return True
-        return False
-
     def _on_key(self, _window, event) -> bool:
         if event.keyval == Gdk.KEY_Escape:
             self.close()
@@ -279,7 +270,7 @@ class BarSettings(Gtk.Window):
         close.connect("clicked", lambda *_a: self.close())
         compat.pack_start(header_box, close, False, False, 0)
         compat.add(header, header_box)
-        compat.on_press(header, self._on_header_press)
+        compat.make_window_draggable(self, header)
         self._style_header(header)
         compat.pack_start(root, header, False, False, 0)
 

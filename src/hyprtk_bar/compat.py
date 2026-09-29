@@ -408,6 +408,96 @@ def set_single_child(container, child) -> None:
 add = set_single_child
 
 
+def clear_child(container, child=None) -> None:
+    """Detach *child* from *container*.
+
+    GTK4 removed ``Gtk.Container.remove``; a ``Gtk.Window`` (and other
+    single-child containers) drop their child with ``set_child(None)``, while
+    ``Box``/``Grid``/``ListBox`` still expose ``remove``. GTK3 uses ``remove``
+    everywhere. Passing *child* is optional on GTK4 but required on GTK3.
+    """
+    if IS_GTK4:
+        if hasattr(container, "set_child"):
+            container.set_child(None)
+            return
+        container.remove(child)
+        return
+    container.remove(child)
+
+
+class _CenterBoxGTK3(Gtk.Overlay):
+    """A minimal ``Gtk.CenterBox`` stand-in for GTK3 (which has none).
+
+    The centre child is overlaid with ``halign=CENTER`` so it sits on the true
+    midpoint regardless of the side widths — the same behaviour the GTK4
+    ``Gtk.CenterBox`` gives the bar pill. (Caveat: a GTK3 ``Overlay`` is
+    non-windowed, so a press handler attached to it needs the caller's own
+    input surface.)
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._start = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._center = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._end = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        for box, align in (
+            (self._start, Gtk.Align.START),
+            (self._center, Gtk.Align.CENTER),
+            (self._end, Gtk.Align.END),
+        ):
+            box.set_halign(align)
+            box.set_valign(Gtk.Align.FILL)
+        self.add(self._center)
+        self.add_overlay(self._start)
+        self.add_overlay(self._end)
+
+    @staticmethod
+    def _fill(target, widget) -> None:
+        for child in list(target.get_children()):
+            target.remove(child)
+        if widget is not None:
+            target.add(widget)
+
+    def set_start_widget(self, widget) -> None:
+        self._fill(self._start, widget)
+
+    def set_center_widget(self, widget) -> None:
+        self._fill(self._center, widget)
+
+    def set_end_widget(self, widget) -> None:
+        self._fill(self._end, widget)
+
+
+def center_box():
+    """A centre-box widget: ``Gtk.CenterBox`` (GTK4) or an Overlay emulation."""
+    return Gtk.CenterBox() if IS_GTK4 else _CenterBoxGTK3()
+
+
+def make_window_draggable(window, header) -> None:
+    """Let a frameless *window* be moved by dragging its *header* widget.
+
+    GTK4 removed ``Gtk.Window.begin_move_drag``; the equivalent is a
+    ``Gtk.WindowDragGesture`` attached to the header, which starts a
+    compositor-side move (works on Wayland). GTK3 keeps the classic
+    button-press handler.
+    """
+    if IS_GTK4:
+        gesture_cls = getattr(Gtk, "WindowDragGesture", None)
+        if gesture_cls is not None:
+            header.add_controller(gesture_cls())
+        return
+
+    def _press(widget, event):
+        if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
+            window.begin_move_drag(
+                event.button, int(event.x_root), int(event.y_root), event.time
+            )
+            return True
+        return False
+
+    header.connect("button-press-event", _press)
+
+
 def single_child(container):
     """The single child of a container, or ``None``."""
     if IS_GTK4:
@@ -761,9 +851,10 @@ def on_drag(widget, on_begin=None, on_update=None, on_end=None) -> None:
 
     ``on_begin()`` starts, ``on_update(offset_x, offset_y)`` reports the offset
     from the drag origin, ``on_end()`` finishes. Uses ``Gtk.GestureDrag`` on both
-    toolkits (GTK3 attaches it; GTK4 adds it as a controller).
+    toolkits — GTK4 adds it as a controller, GTK3 creates it attached to the
+    widget (``Gtk.GestureDrag.new(widget)``; there is no ``attach``).
     """
-    gesture = Gtk.GestureDrag()
+    gesture = Gtk.GestureDrag() if IS_GTK4 else Gtk.GestureDrag.new(widget)
     if on_begin is not None:
         gesture.connect("drag-begin", lambda *_a: on_begin())
     if on_update is not None:
@@ -772,8 +863,7 @@ def on_drag(widget, on_begin=None, on_update=None, on_end=None) -> None:
         gesture.connect("drag-end", lambda *_a: on_end())
     if IS_GTK4:
         widget.add_controller(gesture)
-    else:
-        gesture.attach(widget)
+    # GTK3: the gesture is already attached via ``Gtk.GestureDrag.new(widget)``.
 
 
 def on_focus_out(widget, handler) -> None:
@@ -993,9 +1083,15 @@ def is_flat(widget) -> bool:
 
 
 def set_window_position(window, position=None) -> None:
-    """GTK3 ``Gtk.Window.set_position`` (removed in GTK4 — a no-op there)."""
+    """GTK3 ``Gtk.Window.set_position`` (removed in GTK4 — a no-op there).
+
+    Defaults to ``Gtk.WindowPosition.CENTER``, matching the swept
+    ``set_position(Gtk.WindowPosition.CENTER)`` call.
+    """
     if IS_GTK3:
-        window.set_position(position)
+        window.set_position(
+            Gtk.WindowPosition.CENTER if position is None else position
+        )
 
 
 def apply_rgba_visual(window) -> None:
