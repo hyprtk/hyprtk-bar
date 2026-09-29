@@ -1,9 +1,10 @@
 """hyprtk-bar entry point.
 
 The bar is a plain always-running GTK window (layer-shell surface) driven by
-Gtk.main(). A SIGTERM quits it cleanly. Only one instance is allowed — a
-flock in $XDG_RUNTIME_DIR prevents duplicate bars stacking (e.g. from
-duplicate autostart entries).
+``compat.run_main()`` — a GLib.MainLoop on GTK4 (which removed ``Gtk.main``),
+or ``Gtk.main()`` under the GTK3 escape hatch. A SIGTERM quits it cleanly. Only
+one instance is allowed — a flock in $XDG_RUNTIME_DIR prevents duplicate bars
+stacking (e.g. from duplicate autostart entries).
 """
 
 # ─────────────────────────────────────────────────────────────────
@@ -23,12 +24,8 @@ import sys
 import threading
 from pathlib import Path
 
-import gi
-gi.require_version("Gtk", "3.0")
-gi.require_version("GtkLayerShell", "0.1")
-gi.require_version("GLibUnix", "2.0")
-
-from gi.repository import GLib, GLibUnix, Gtk
+from . import compat  # noqa: E402
+from .compat import GLib, GLibUnix, Gtk  # noqa: E402
 
 from . import proc  # noqa: E402
 from .app import BarWindow, select_monitors
@@ -111,7 +108,7 @@ def _start_surface_watchdog(ipc) -> None:
             logging.warning(
                 "hyprtk-bar layer surface vanished; restarting to restore the bar"
             )
-            Gtk.main_quit()
+            compat.quit_main()
         return GLib.SOURCE_REMOVE
 
     def _tick() -> bool:
@@ -154,7 +151,7 @@ def _run_window() -> int:
 
     windows = []
     for i, monitor in enumerate(monitors):
-        is_primary = i == 0 or monitor.is_primary()
+        is_primary = i == 0 or compat.monitor_is_primary(monitor)
         win = BarWindow(
             cfg,
             monitor=monitor,
@@ -162,7 +159,7 @@ def _run_window() -> int:
             is_primary=is_primary,
             start_ipc=(i == 0),
         )
-        win.show_all()
+        compat.show_all(win)
         windows.append(win)
     logging.info("started %d bar(s) on %d monitor(s)", len(windows), len(monitors))
 
@@ -175,7 +172,7 @@ def _run_window() -> int:
             cfg,
             on_settings=lambda: _open_arc_settings(windows),
         )
-        arc_win.show_all()
+        compat.show_all(arc_win)
         primary = next((w for w in windows if w.is_primary), windows[0])
         primary.add_theme_extra_callback(arc_win.apply_bar_palette)
         primary._bar.set_arcmenu_callback(lambda _block: arc_win.reload_from_cfg())
@@ -214,7 +211,7 @@ def _run_window() -> int:
     logging.info("started %d desktop widget(s)", len(widget_mgr._wins))
 
     def on_sigterm(*_args):
-        Gtk.main_quit()
+        compat.quit_main()
         return GLib.SOURCE_REMOVE
 
     def on_sigusr2(*_args):
@@ -251,7 +248,7 @@ def _run_window() -> int:
     _start_surface_watchdog(ipc)
 
     try:
-        Gtk.main()
+        compat.run_main()
     finally:
         if arc_win is not None:
             arc_win.destroy()
@@ -302,7 +299,7 @@ def _toggle_clipboard(windows) -> None:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="hyprtk-bar",
-        description="HYPRTK taskbar for Hyprland (GTK3 + layer shell).",
+        description="HYPRTK taskbar for Hyprland (GTK4 + layer shell).",
     )
     parser.add_argument(
         "--print-config",
