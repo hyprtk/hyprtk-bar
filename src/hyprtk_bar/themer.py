@@ -55,7 +55,11 @@ ROFI_CONFIG = HOME / ".config" / "rofi"
 ROFI_VARIANTS = SCRIPTS_DIR / "rofi" / "variants" if (SCRIPTS_DIR / "rofi" / "variants").is_dir() else ROFI_CONFIG / "variants"
 ROFI_VARIANT_LINK = ROFI_CONFIG / "variant.rasi"
 SWAYLOCK_CONFIG = HOME / ".config" / "swaylock" / "config"
-MATUWALL_CONFIG = HOME / ".config" / "matuwall" / "config.json"
+# matuwall reads ~/.config/matuwall/config.toml, a symlink to the pywal-rendered
+# ~/.cache/wal/matuwall-config.toml. Saving must write *through* the symlink (to
+# the target) and also refresh the pywal template so edits survive `wal`.
+MATUWALL_CONFIG = HOME / ".config" / "matuwall" / "config.toml"
+MATUWALL_TEMPLATE = HOME / ".config" / "wal" / "templates" / "matuwall-config.toml"
 WALLPAPER_COLORS_SH = resolve_script("wallpaper-colors.sh", "hypr", "scripts", "wallpaper-colors.sh")
 CHANGE_ICONS_SH = resolve_script("change-icons.sh", "assets", "papirus-icons", "scripts", "change-icons.sh")
 SYNC_ROFI_SH = resolve_script("sync-rofi-theme.sh", "installer", "hyprtk-bar", "scripts", "sync-rofi-theme.sh")
@@ -228,6 +232,123 @@ def _atomic_write(path: Path, content: str):
         except OSError:
             pass
         raise
+
+
+# ── matuwall config (TOML) ─────────────────────────────────────────────────
+
+try:  # Python >= 3.11 ships tomllib; older interpreters use the tomli shim.
+    import tomllib as _tomllib
+except ModuleNotFoundError:  # pragma: no cover - depends on interpreter
+    try:
+        import tomli as _tomllib
+    except ModuleNotFoundError:
+        _tomllib = None
+
+
+def _toml_quote(value) -> str:
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _toml_value(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_toml_quote(v) for v in value) + "]"
+    return _toml_quote(value)
+
+
+def _toml_dumps(cfg: dict) -> str:
+    """Serialise the (one-level-nested) matuwall config dict back to TOML."""
+    out: list[str] = []
+
+    def emit(prefix: list[str], body: dict) -> None:
+        scalars = [(k, v) for k, v in body.items() if not isinstance(v, dict)]
+        tables = [(k, v) for k, v in body.items() if isinstance(v, dict)]
+        if scalars or not tables:
+            out.append("[{}]".format(".".join(prefix)))
+            for key, value in scalars:
+                out.append("{} = {}".format(key, _toml_value(value)))
+            out.append("")
+        for key, sub in tables:
+            emit(prefix + [key], sub)
+
+    for key, value in cfg.items():
+        if not isinstance(value, dict):
+            out.append("{} = {}".format(key, _toml_value(value)))
+    for key, sub in cfg.items():
+        if isinstance(sub, dict):
+            emit([key], sub)
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _cfg_get(cfg: dict, section: str, key: str):
+    node = cfg
+    for part in section.split("."):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(part)
+        if node is None:
+            return None
+    return node.get(key) if isinstance(node, dict) else None
+
+
+def _cfg_set(cfg: dict, section: str, key: str, value) -> None:
+    node = cfg
+    for part in section.split("."):
+        node = node.setdefault(part, {})
+    node[key] = value
+
+
+def _read_matuwall_toml() -> dict:
+    if not MATUWALL_CONFIG.exists():
+        return {}
+    if _tomllib is None:
+        return {}
+    try:
+        return _tomllib.loads(MATUWALL_CONFIG.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _update_matuwall_template(replacements: dict[tuple[str, str], str]) -> None:
+    """Rewrite existing key lines in the pywal template, preserving comments.
+
+    *replacements* maps ``(section, key)`` to a ready TOML value string. Only
+    lines that already exist are replaced, so the template keeps its comments
+    and its pywal placeholders live on untouched keys.
+    """
+    if not replacements or not MATUWALL_TEMPLATE.exists():
+        return
+    try:
+        lines = MATUWALL_TEMPLATE.read_text().splitlines()
+    except OSError:
+        return
+    pending: dict[str, dict[str, str]] = {}
+    for (section, key), value in replacements.items():
+        pending.setdefault(section, {})[key] = value
+    current = ""
+    out: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current = stripped[1:-1].strip()
+            out.append(line)
+            continue
+        section = pending.get(current)
+        if section:
+            for key, value in list(section.items()):
+                if re.match(rf"{re.escape(key)}\s*=", stripped):
+                    indent = line[: len(line) - len(line.lstrip())]
+                    out.append(f"{indent}{key} = {value}")
+                    del section[key]
+                    break
+            else:
+                out.append(line)
+        else:
+            out.append(line)
+    _atomic_write(MATUWALL_TEMPLATE, "\n".join(out) + "\n")
 
 
 # swaylock color key -> (pywal index, append a "44" alpha suffix).
@@ -558,6 +679,29 @@ def _add_switch_row(parent: Gtk.Box, label: str) -> Gtk.Switch:
     compat.pack_start(row, switch, False, False, 0)
     compat.pack_start(parent, row, False, False, 0)
     return switch
+
+
+def _add_combo_row(parent: Gtk.Box, label: str, choices) -> Gtk.ComboBoxText:
+    row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    lbl = Gtk.Label(label=label, xalign=1)
+    lbl.set_size_request(140, -1)
+    combo = Gtk.ComboBoxText()
+    for choice in choices:
+        combo.append_text(str(choice))
+    compat.pack_start(row, lbl, False, False, 0)
+    compat.pack_start(row, combo, True, True, 0)
+    compat.pack_start(parent, row, False, False, 0)
+    return combo
+
+
+def _combo_set_active(combo: Gtk.ComboBoxText, text: str) -> None:
+    model = combo.get_model()
+    if model is None:
+        return
+    for i, row in enumerate(model):
+        if row[0] == text:
+            combo.set_active(i)
+            return
 
 
 def _add_section_title(parent: Gtk.Box, text: str):
@@ -1811,28 +1955,115 @@ class ThemerDialog(Popup):
 
     # ── matuwall ──────────────────────────────────────────────────
 
+    # (section, title, [(key, label, kind[, choices])]) mirrors the matuwall
+    # 0.3.x config.toml schema (src/config/config.c).
+    _MW_SECTIONS = [
+        ("general", "General", [
+            ("directory", "Wallpaper Directory", "str"),
+            ("backend", "Backend", "choice",
+             ["auto", "awww", "sweetbg", "plasma", "command"]),
+        ]),
+        ("window", "Window", [
+            ("preview", "Preview Wallpaper", "bool"),
+            ("close_on_focus_loss", "Close On Focus Loss", "bool"),
+            ("position", "Position", "choice",
+             ["center", "left", "right", "top", "bottom"]),
+            ("background", "Panel Background", "str"),
+            ("margin", "Tile Margin", "int"),
+            ("edge_margin", "Edge Margin", "int"),
+            ("radius", "Panel Radius", "int"),
+        ]),
+        ("input", "Input", [
+            ("mouse", "Mouse Control", "bool"),
+        ]),
+        ("animation", "Animation", [
+            ("navigation_ms", "Navigation (ms)", "int"),
+            ("zoom_percent", "Zoom (%)", "int"),
+        ]),
+        ("grid", "Grid", [
+            ("columns", "Columns", "int"),
+            ("spacing", "Spacing", "int"),
+            ("radius", "Tile Radius", "int"),
+            ("border_width", "Border Width", "int"),
+            ("shadow_width", "Shadow Width", "int"),
+            ("ring_width", "Ring Width", "int"),
+            ("visible_rows", "Visible Rows", "int"),
+            ("carousel", "Carousel", "bool"),
+            ("edge", "Edge Style", "choice", ["auto", "clip", "peek", "fade"]),
+        ]),
+        ("thumbnail", "Thumbnail", [
+            ("width", "Width", "int"),
+            ("height", "Height", "int"),
+        ]),
+        ("colors", "Colors (pywal-driven)", [
+            ("tile", "Tile", "str"),
+            ("border", "Border", "str"),
+            ("shadow", "Shadow", "str"),
+            ("ring", "Ring", "str"),
+            ("spinner", "Spinner", "str"),
+        ]),
+        ("backend.sweetbg", "Sweetbg Backend", [
+            ("args", "Extra args", "list"),
+        ]),
+        ("backend.awww", "Awww Backend", [
+            ("args", "Extra args", "list"),
+        ]),
+        ("backend.plasma", "Plasma Backend", [
+            ("args", "Extra args", "list"),
+        ]),
+        ("backend.command", "Command Backend", [
+            ("apply", "Apply ({path})", "str"),
+        ]),
+        ("hooks", "Hooks", [
+            ("on_apply", "On Apply", "list"),
+        ]),
+    ]
+
+    # Pywal-rendered keys: shown live but never written back into the template,
+    # or the placeholders would be replaced by a single frozen colour.
+    _MW_TEMPLATE_SKIP = {
+        ("window", "background"),
+        ("colors", "tile"),
+        ("colors", "border"),
+        ("colors", "shadow"),
+        ("colors", "ring"),
+        ("colors", "spinner"),
+    }
+
+    # Placeholder hints for keys that are commonly left to the upstream default.
+    _MW_HINTS = {
+        ("window", "margin"): "34",
+        ("window", "radius"): "40",
+        ("animation", "navigation_ms"): "410",
+        ("animation", "zoom_percent"): "10",
+        ("backend.sweetbg", "args"): "--persist",
+        ("backend.awww", "args"): "--transition-type, grow",
+        ("backend.plasma", "args"): "--fill-mode, preserveAspectCrop",
+        ("backend.command", "apply"): "swww img {path}",
+    }
+
     def _build_matuwall_page(self, box: Gtk.Box, scroller: Gtk.ScrolledWindow | None = None) -> None:
         self._mw_config: dict = {}
-        _add_section_title(box, "Matuwall Configuration")
-        self._mw_entries: dict[str, Gtk.Entry] = {}
-        self._mw_switches: dict[str, Gtk.Switch] = {}
-        for key, label in (
-            ("wallpaper_dir", "Wallpaper Directory"),
-            ("thumbnail_size", "Thumbnail Size"),
-            ("batch_size", "Batch Size"),
-        ):
-            self._mw_entries[key] = _add_entry_row(box, label)
-        self._mw_switches["mouse_enabled"] = _add_switch_row(box, "Mouse Enabled")
-        self._mw_switches["keep_ui_alive"] = _add_switch_row(box, "Keep UI Alive")
-
-        _add_section_title(box, "Wall Mode")
-        self._mw_switches["wall_mode_only"] = _add_switch_row(box, "Wall Mode Only")
-        self._mw_entries["wall_awww_flags"] = _add_entry_row(box, "Awww Transition Flags")
-
-        _add_section_title(box, "Panel Mode")
-        self._mw_switches["panel_mode"] = _add_switch_row(box, "Panel Mode")
-        self._mw_entries["panel_edge"] = _add_entry_row(box, "Panel Edge")
-        self._mw_entries["panel_exclusive_zone"] = _add_entry_row(box, "Exclusive Zone")
+        self._mw_entries: dict[tuple[str, str], Gtk.Entry] = {}
+        self._mw_switches: dict[tuple[str, str], Gtk.Switch] = {}
+        self._mw_combos: dict[tuple[str, str], Gtk.ComboBoxText] = {}
+        self._mw_kinds: dict[tuple[str, str], str] = {}
+        for section, title, fields in self._MW_SECTIONS:
+            _add_section_title(box, title)
+            for field in fields:
+                key, label, kind = field[0], field[1], field[2]
+                sid = (section, key)
+                self._mw_kinds[sid] = kind
+                if kind == "bool":
+                    self._mw_switches[sid] = _add_switch_row(box, label)
+                elif kind == "choice":
+                    self._mw_combos[sid] = _add_combo_row(box, label, field[3])
+                else:
+                    entry = _add_entry_row(box, label)
+                    hint = self._MW_HINTS.get(sid)
+                    if hint:
+                        entry.set_placeholder_text(hint)
+                    self._mw_entries[sid] = entry
 
         save_btn = Gtk.Button(label="Save Configuration")
         compat.add_class(save_btn, "settings-apply")
@@ -1842,48 +2073,94 @@ class ThemerDialog(Popup):
         self._load_matuwall()
 
     def _load_matuwall(self):
-        if MATUWALL_CONFIG.exists():
-            try:
-                cfg = json.loads(MATUWALL_CONFIG.read_text())
-            except (json.JSONDecodeError, OSError):
-                cfg = {}
-        else:
-            cfg = {}
+        cfg = _read_matuwall_toml()
         self._mw_config = cfg
-        for section in cfg.values():
-            if not isinstance(section, dict):
+        # Older configs (and the previous pywal template) used grid.edge_peek;
+        # fold it onto the 0.3.x grid.edge before populating the combo.
+        if _cfg_get(cfg, "grid", "edge") is None:
+            legacy_peek = _cfg_get(cfg, "grid", "edge_peek")
+            if legacy_peek is not None:
+                _cfg_set(cfg, "grid", "edge", "peek" if legacy_peek else "clip")
+        for sid, entry in self._mw_entries.items():
+            val = _cfg_get(cfg, *sid)
+            if val is None:
                 continue
-            for key, val in section.items():
-                if key in self._mw_entries:
-                    self._mw_entries[key].set_text(str(val))
-                if key in self._mw_switches:
-                    self._mw_switches[key].set_active(bool(val))
+            if isinstance(val, list):
+                entry.set_text(", ".join(str(v) for v in val))
+            else:
+                entry.set_text(str(val))
+        for sid, switch in self._mw_switches.items():
+            switch.set_active(bool(_cfg_get(cfg, *sid)))
+        for sid, combo in self._mw_combos.items():
+            val = _cfg_get(cfg, *sid)
+            if val is not None:
+                _combo_set_active(combo, str(val))
+
+    def _collect_matuwall(self) -> dict | None:
+        """Fold the widgets back onto the loaded config; None on bad input."""
+        cfg = self._mw_config
+        bad: list[str] = []
+        for sid, entry in self._mw_entries.items():
+            kind = self._mw_kinds[sid]
+            raw = entry.get_text().strip()
+            if kind == "int":
+                if raw == "":
+                    continue
+                try:
+                    value = int(raw)
+                except ValueError:
+                    bad.append(f"{sid[1]}={raw}")
+                    continue
+            elif kind == "list":
+                value = [part.strip() for part in raw.split(",") if part.strip()]
+            else:
+                value = raw
+            _cfg_set(cfg, sid[0], sid[1], value)
+        for sid, switch in self._mw_switches.items():
+            _cfg_set(cfg, sid[0], sid[1], switch.get_active())
+        for sid, combo in self._mw_combos.items():
+            text = combo.get_active_text()
+            if text:
+                _cfg_set(cfg, sid[0], sid[1], text)
+        if bad:
+            self._toast("Invalid number: " + ", ".join(bad))
+            return None
+        grid = cfg.get("grid")
+        if isinstance(grid, dict):
+            grid.pop("edge_peek", None)
+        return cfg
 
     def _save_matuwall(self, btn=None):
-        cfg = self._mw_config
-        for key, entry in self._mw_entries.items():
-            val = entry.get_text()
-            for section in cfg.values():
-                if isinstance(section, dict) and key in section:
-                    orig = section[key]
-                    if isinstance(orig, int):
-                        try:
-                            section[key] = int(val)
-                        except ValueError:
-                            pass
-                    elif isinstance(orig, bool):
-                        pass
-                    else:
-                        section[key] = val
-        for key, switch in self._mw_switches.items():
-            for section in cfg.values():
-                if isinstance(section, dict) and key in section:
-                    section[key] = switch.get_active()
+        cfg = self._collect_matuwall()
+        if cfg is None:
+            return
         try:
-            _atomic_write(MATUWALL_CONFIG, json.dumps(cfg, indent=2))
-            self._toast("Matuwall config saved")
+            # Write *through* the pywal symlink, not over it.
+            _atomic_write(MATUWALL_CONFIG.resolve(), _toml_dumps(cfg))
+            _update_matuwall_template(self._template_replacements(cfg))
         except OSError as exc:
             self._toast(f"Save failed: {exc}")
+            return
+        self._mw_config = cfg
+        self._toast("Matuwall config saved")
+
+    def _template_replacements(self, cfg: dict) -> dict[tuple[str, str], str]:
+        out: dict[tuple[str, str], str] = {}
+        for section, _title, fields in self._MW_SECTIONS:
+            for field in fields:
+                key = field[0]
+                if (section, key) in self._MW_TEMPLATE_SKIP:
+                    continue
+                val = _cfg_get(cfg, section, key)
+                if val is None:
+                    continue
+                rendered = _toml_value(val)
+                # Skip pywal placeholders / {path} tokens so the renderer is
+                # not fed a literal brace expression.
+                if "{" in rendered or "}" in rendered:
+                    continue
+                out[(section, key)] = rendered
+        return out
 
     # ── swaylock ──────────────────────────────────────────────────
 

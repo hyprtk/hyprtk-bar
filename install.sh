@@ -522,6 +522,12 @@ python3 -m venv --system-site-packages "$INSTALL_DIR/venv" \
     || echo ":: WARN: could not create the venv — is python3 (with venv) installed?" >&2
 "$INSTALL_DIR/venv/bin/pip" install --quiet "dbus-next>=0.2.3,<0.3" \
     || echo ":: WARN: could not install dbus-next (bar IPC may be unavailable)." >&2
+# tomllib is stdlib on Python 3.11+; older interpreters need the tomli shim for
+# the Theme Manager's matuwall config editor.
+if ! "$INSTALL_DIR/venv/bin/python3" -c 'import tomllib' >/dev/null 2>&1; then
+    "$INSTALL_DIR/venv/bin/pip" install --quiet "tomli>=2.0" \
+        || echo ":: WARN: could not install tomli (matuwall config editor disabled)." >&2
+fi
 "$INSTALL_DIR/venv/bin/pip" install --quiet --no-deps -e "$INSTALL_DIR" \
     || echo ":: WARN: could not editable-install the bar." >&2
 
