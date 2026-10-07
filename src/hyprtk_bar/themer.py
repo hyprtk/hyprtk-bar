@@ -151,34 +151,6 @@ _SDDM_PREVIEW = (620, 220)
 _BATCH_SIZE = 20
 POST_ACTION_DELAY_MS = 2500
 
-# ── color helpers ─────────────────────────────────────────────────────────
-
-
-def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
-    h = (hex_color or "").strip().lstrip("#")
-    if len(h) == 3:
-        h = "".join(c * 2 for c in h)
-    if len(h) >= 6:
-        try:
-            return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-        except ValueError:
-            pass
-    return 0, 0, 0
-
-
-def _hex_to_rgba(hex_color: str, alpha: float = 1.0) -> str:
-    r, g, b = _hex_to_rgb(hex_color)
-    return f"rgba({r},{g},{b},{alpha:.2f})"
-
-
-def _rgba_to_hex(red: float, green: float, blue: float, alpha: float = 1.0) -> str:
-    r, g, b = (int(round(v * 255)) for v in (red, green, blue))
-    a = int(round(alpha * 255))
-    if a < 255:
-        return f"#{r:02x}{g:02x}{b:02x}{a:02x}"
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
 def _is_valid_hex(value: str) -> bool:
     if not isinstance(value, str):
         return False
@@ -531,73 +503,6 @@ def _radio_group(labels: list[tuple[str, str]]) -> dict[str, Gtk.RadioButton]:
             first = btn
         buttons[key] = btn
     return buttons
-
-
-class ColorButton(Gtk.Button):
-    """A swatch button that opens a GTK3 colour chooser dialog."""
-
-    _seq = 0
-
-    def __init__(self, hex_color: str = "#ffffff", **kwargs):
-        super().__init__(**kwargs)
-        self._color = hex_color
-        self._callback = None
-        # GTK4 has no per-widget providers, so scope the swatch rule to a unique
-        # class (a bare ``button { ... }`` would repaint every button) and use
-        # USER priority to match the bar's theme provider (app.py).
-        ColorButton._seq += 1
-        self._css_class = f"color-swatch-{ColorButton._seq}"
-        compat.add_class(self, self._css_class)
-        self._provider = Gtk.CssProvider()
-        compat.add_provider_for_display(
-            self._provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
-        )
-        self._apply_color(hex_color)
-        self.set_size_request(40, 40)
-        self.connect("clicked", self._on_clicked)
-
-    def _apply_color(self, hex_color: str):
-        h = hex_color.lstrip("#")
-        a = int(h[6:8], 16) / 255 if len(h) == 8 else 1.0
-        r, g, b = _hex_to_rgb(hex_color)
-        css = (
-            f"button.{self._css_class} {{ background: rgba({r},{g},{b},{a:.2f}); "
-            f"border-radius: 10px; min-width: 32px; min-height: 32px; padding: 0; }}"
-        )
-        self._provider.load_from_data(css.encode())
-        self.queue_draw()
-
-    def get_color(self) -> str:
-        return self._color
-
-    def set_color(self, hex_color: str):
-        self._color = hex_color
-        self._apply_color(hex_color)
-
-    def connect_color_changed(self, callback):
-        self._callback = callback
-
-    def _on_clicked(self, *_args):
-        parent = compat.toplevel(self)
-        dialog = Gtk.ColorChooserDialog(
-            title="Pick a Colour",
-            transient_for=parent if isinstance(parent, Gtk.Window) else None,
-        )
-        dialog.set_use_alpha(True)
-        rgba = Gdk.RGBA()
-        rgba.parse(self._color)
-        dialog.set_rgba(rgba)
-        dialog.connect("response", self._on_response)
-        compat.show(dialog)
-
-    def _on_response(self, dialog, response):
-        if response == Gtk.ResponseType.OK:
-            rgba = dialog.get_rgba()
-            hex_str = _rgba_to_hex(rgba.red, rgba.green, rgba.blue, rgba.alpha)
-            self.set_color(hex_str)
-            if self._callback:
-                self._callback(hex_str)
-        compat.destroy(dialog)
 
 
 def _add_entry_row(parent: Gtk.Box, label: str) -> Gtk.Entry:
