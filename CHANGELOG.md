@@ -15,7 +15,11 @@ Dates are in YYYY-MM-DD format.
   recreates the spacing from the properties that still work — `min-height`
   (vertical), child `margin` (inner insets), and longhand `margin` (outer gaps)
   — plus `outline` for the panel/selection borders. The sheet is version-gated
-  so it disables itself automatically once GTK restores the box model.
+  so it disables itself automatically once GTK restores the box model. Covers
+  all four layouts (whisker / win7 / win11 / plasma).
+- **The bar itself gets the same workaround** (`assets/bar-gtk4-workaround.css`,
+  appended by `app.py` under GTK >= 4.24) so the taskbar modules/buttons keep
+  their spacing.
 
 ## [0.4.8] - 2026-10-07
 
