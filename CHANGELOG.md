@@ -3,6 +3,20 @@
 All notable changes to hyprtk-bar are documented in this file.
 Dates are in YYYY-MM-DD format.
 
+## [0.4.9] - 2026-10-07
+
+### Fixed
+
+- **GTK 4.24 box-model workaround for the start menu.** GTK 4.24 stopped
+  counting CSS `padding` and `border` in a widget's preferred size (it parses
+  them but ignores them from style providers), so every padded menu row/pill/
+  panel collapsed to its bare content height. `menu/theme.py` now appends
+  `assets/gtk4-workaround.css` when `Gtk.get_minor_version() >= 24`, which
+  recreates the spacing from the properties that still work — `min-height`
+  (vertical), child `margin` (inner insets), and longhand `margin` (outer gaps)
+  — plus `outline` for the panel/selection borders. The sheet is version-gated
+  so it disables itself automatically once GTK restores the box model.
+
 ## [0.4.8] - 2026-10-07
 
 ### Changed
