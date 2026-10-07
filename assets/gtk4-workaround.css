@@ -12,7 +12,11 @@
      * `outline` — the panel/selection borders (which `border` no longer draws).
 
    It is appended by menu/theme.py only when GTK >= 4.24, so it disables itself
-   automatically once GTK restores the box model. */
+   automatically once GTK restores the box model.
+
+   Covers the shared widgets plus the whisker / win7 / win11 / plasma layouts. */
+
+/* ══ Shared ═══════════════════════════════════════════════════════════════ */
 
 /* ── Reset the theme's row gradients (they paint over our background-color,
       and the base sheet only reset buttons/entries) ──────────────────────── */
@@ -122,4 +126,153 @@
 .settings-window .settings-cancel,
 .confirm-dialog button {
     min-height: 32px;
+}
+
+/* ══ win7 layout ═════════════════════════════════════════════════════════ */
+.layout-win7 .menu {
+    outline-color: alpha(@color4, 0.5);
+}
+.layout-win7 .win7-left {
+    border-radius: 16px 0 0 16px;      /* border-right no longer drawn */
+}
+.layout-win7 .win7-profile {
+    min-height: 40px;
+}
+.layout-win7 .win7-profile > box {
+    margin: 10px 12px;
+}
+.layout-win7 .win7-allprograms {
+    min-height: 30px;
+}
+.layout-win7 .win7-allprograms > box {
+    margin: 6px 12px;
+}
+.layout-win7 .win7-place-row {
+    min-height: 28px;
+}
+.layout-win7 .win7-place-row > box {
+    margin: 5px 12px;
+}
+.layout-win7 .win7-search {
+    min-height: 36px;
+}
+.layout-win7 .win7-search text {
+    margin-left: 12px;
+    margin-right: 12px;
+}
+.layout-win7 .menu-footer,
+.layout-win7 .win7-footer {
+    min-height: 32px;
+}
+.layout-win7 .powerbar {
+    min-height: 32px;
+}
+.layout-win7 .menu-settings-btn,
+.layout-win7 .resize-grip,
+.layout-win7 .power-btn {
+    min-height: 26px;
+}
+
+/* ══ win11 layout ════════════════════════════════════════════════════════ */
+.layout-win11 .menu {
+    outline-color: alpha(@foreground, 0.15);
+}
+.layout-win11 .win11-search {
+    min-height: 44px;
+}
+.layout-win11 .win11-section-header {
+    min-height: 30px;
+}
+.layout-win11 .win11-section-header > box {
+    margin: 8px 16px 2px 16px;
+}
+.layout-win11 .win11-allapps-btn,
+.layout-win11 .win11-more-btn {
+    min-height: 24px;
+    min-width: 60px;
+}
+.layout-win11 .win11-pinned {
+    min-height: 40px;
+}
+.layout-win11 .win11-pinned > box {
+    margin: 8px;
+}
+.layout-win11 .win11-tile {
+    min-width: 72px;
+    min-height: 72px;
+}
+.layout-win11 .menu-footer,
+.layout-win11 .win11-footer {
+    min-height: 40px;
+}
+.layout-win11 .menu-footer > box,
+.layout-win11 .win11-footer > box {
+    margin: 6px 12px;
+}
+.layout-win11 .menu-user,
+.layout-win11 .win11-user {
+    min-height: 26px;
+}
+.layout-win11 .powerbar {
+    min-height: 40px;
+}
+.layout-win11 .menu-settings-btn,
+.layout-win11 .resize-grip,
+.layout-win11 .power-btn {
+    min-height: 32px;
+}
+
+/* ══ plasma layout ═══════════════════════════════════════════════════════ */
+.layout-plasma .menu {
+    outline-color: alpha(@color4, 0.3);
+}
+.layout-plasma .search {
+    min-height: 38px;
+}
+.layout-plasma .plasma-tabs {
+    min-height: 30px;
+}
+.layout-plasma .plasma-tabs > box {
+    margin: 4px 8px 0 8px;
+}
+.layout-plasma .plasma-tab {
+    min-height: 28px;
+}
+.layout-plasma .plasma-page {
+    min-height: 24px;
+}
+.layout-plasma .plasma-page > box {
+    margin: 8px;
+}
+.layout-plasma .plasma-nav {
+    min-height: 28px;
+}
+.layout-plasma .plasma-nav > box {
+    margin: 4px 10px;
+}
+.layout-plasma .plasma-nav-btn {
+    min-height: 22px;
+}
+.layout-plasma .plasma-nav-path {
+    min-height: 20px;
+}
+.layout-plasma .plasma-place-row {
+    min-height: 28px;
+}
+.layout-plasma .plasma-place-row > box {
+    margin: 6px 14px;
+}
+.layout-plasma .plasma-empty {
+    min-height: 22px;
+}
+.layout-plasma .plasma-footer {
+    min-height: 30px;
+}
+.layout-plasma .powerbar {
+    min-height: 34px;
+}
+.layout-plasma .menu-settings-btn,
+.layout-plasma .resize-grip,
+.layout-plasma .power-btn {
+    min-height: 28px;
 }

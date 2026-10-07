@@ -21,7 +21,13 @@ from .config import PYWAL_PATH, ROFI_SYNC_SH  # noqa: E402
 from .hypr_animations import active_border_colors, border_animation, lerp_color  # noqa: E402
 from .ipc import HyprIPC  # noqa: E402
 from .notifications import NotificationController  # noqa: E402
-from .theme import build_css, gap_value, resolve_palette  # noqa: E402
+from .theme import (  # noqa: E402
+    bar_workaround_css,
+    build_css,
+    gap_value,
+    needs_boxmodel_workaround,
+    resolve_palette,
+)
 from .theme_import import find_themes_dir  # noqa: E402
 
 log = logging.getLogger("hyprtk_bar.app")
@@ -238,6 +244,8 @@ class BarWindow(Gtk.Window):
         self._palette_cache = palette
         self._border_base = palette.get("border_color") or palette.get("accent") or ""
         css = build_css(palette, self._cfg)
+        if needs_boxmodel_workaround():
+            css += "\n" + bar_workaround_css()
         self._provider.load_from_data(css.encode())
         self._bar.apply_palette_layout(palette)
         icon_size = (self._cfg.get("font") or {}).get("icon_size", 0)
