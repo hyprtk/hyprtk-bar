@@ -3,6 +3,16 @@
 All notable changes to hyprtk-bar are documented in this file.
 Dates are in YYYY-MM-DD format.
 
+## [0.4.10] - 2026-10-12
+
+### Fixed
+
+- **Quick-settings Bluetooth toggle could not enable Bluetooth.** `bluetoothctl
+  power on` fails with `org.bluez.Error.Failed` while the adapter is rfkill
+  **soft-blocked** (its default on many systems), so the toggle only ever worked
+  in the off direction. Enabling now clears the soft block first
+  (`rfkill unblock bluetooth`) before powering on.
+
 ## [0.4.9] - 2026-10-07
 
 ### Fixed

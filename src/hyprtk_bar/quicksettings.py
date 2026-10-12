@@ -179,6 +179,11 @@ def get_bt() -> bool:
 
 
 def set_bt(on: bool) -> None:
+    if on:
+        # `bluetoothctl power on` fails (org.bluez.Error.Failed) while the
+        # adapter is rfkill soft-blocked, its default on many systems — clear
+        # the soft block first. `rfkill` may be absent; ignore failure.
+        _run(["rfkill", "unblock", "bluetooth"])
     _run(["bluetoothctl", "power", "on" if on else "off"])
 
 
