@@ -3,6 +3,14 @@
 All notable changes to hyprtk-bar are documented in this file.
 Dates are in YYYY-MM-DD format.
 
+## [Retired] - 2026-10-13
+
+### Changed
+
+- **hyprtk-bar (GTK4) is retired** — superseded by
+  [hyprtk-bar-qt](https://github.com/hyprtk/hyprtk-bar-qt) (Quickshell/Qt). This
+  repository is archived and read-only; it receives no further updates.
+
 ## [0.4.10] - 2026-10-12
 
 ### Fixed

@@ -1,3 +1,7 @@
+> **RETIRED — superseded by [hyprtk-bar-qt](https://github.com/hyprtk/hyprtk-bar-qt).**
+> hyprtk-bar (GTK4) is archived and read-only; it receives no further updates.
+> History is kept for reference.
+
 ## hyprtk-bar
 
 A modern, feature-complete taskbar for the Hyprland Wayland compositor, built
